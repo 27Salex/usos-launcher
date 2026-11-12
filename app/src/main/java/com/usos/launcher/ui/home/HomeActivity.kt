@@ -15,13 +15,19 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.usos.launcher.UsosApp
 import com.usos.launcher.ui.theme.UsosTheme
+import com.usos.launcher.ui.widgets.WidgetAdder
 
 class HomeActivity : ComponentActivity() {
     private val viewModel: HomeViewModel by viewModels { HomeViewModel.Factory }
 
+    private val container get() = (application as UsosApp).container
+    private lateinit var widgetAdder: WidgetAdder
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        widgetAdder = WidgetAdder(this, container, viewModel::addWidget, viewModel::discardWidgetId)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -40,12 +46,24 @@ class HomeActivity : ComponentActivity() {
         setContent {
             val accent by viewModel.accent.collectAsStateWithLifecycle()
             UsosTheme(accent) {
-                HomeScreen(viewModel)
+                HomeScreen(viewModel, onAddWidget = widgetAdder::start)
             }
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        container.widgetHost.startListening()
+    }
+
+    @Deprecated("Resultado del bind y la configuracion de widgets")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        widgetAdder.onActivityResult(requestCode, resultCode)
+    }
+
     override fun onStop() {
+        container.widgetHost.stopListening()
         super.onStop()
         viewModel.onLauncherStopped()
     }

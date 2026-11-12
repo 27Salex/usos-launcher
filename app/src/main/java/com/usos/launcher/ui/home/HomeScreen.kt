@@ -75,7 +75,7 @@ private val TileRowGap = 10.dp
 private val ClockTopOffset = 60.dp
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel) {
+fun HomeScreen(viewModel: HomeViewModel, onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     val leisure by viewModel.leisure.collectAsStateWithLifecycle()
@@ -85,6 +85,9 @@ fun HomeScreen(viewModel: HomeViewModel) {
     val route by viewModel.route.collectAsStateWithLifecycle()
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val blockerActive by viewModel.blockerActive.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val widgets by viewModel.widgets.collectAsStateWithLifecycle()
+    val grayscale by viewModel.widgetsGrayscale.collectAsStateWithLifecycle()
     val animations = LocalAnimationsEnabled.current
     val animationsNow by rememberUpdatedState(animations)
     val pager = rememberPagerState(initialPage = 1) { 3 }
@@ -107,7 +110,19 @@ fun HomeScreen(viewModel: HomeViewModel) {
     Box(Modifier.fillMaxSize().background(UsosColors.Background)) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
             when (page) {
-                0 -> PanelPage("Widgets")
+                0 -> com.usos.launcher.ui.widgets.WidgetsPage(
+                    widgets = widgets,
+                    grayscale = grayscale,
+                    host = viewModel.widgetHost,
+                    manager = viewModel.widgetManager,
+                    actions = com.usos.launcher.ui.widgets.WidgetsActions(
+                        onAdd = onAddWidget,
+                        onMove = viewModel::moveWidget,
+                        onSize = viewModel::setWidgetSize,
+                        onRemove = viewModel::removeWidget,
+                    ),
+                    topSpacing = topSpacing(),
+                )
                 2 -> PanelPage("Noticias")
                 else -> HomePage(
                     state = state,
@@ -131,6 +146,8 @@ fun HomeScreen(viewModel: HomeViewModel) {
             progress = searchProgress.value,
             query = query,
             items = searchItems,
+            suggestions = suggestions,
+            onSuggestion = viewModel::pickSuggestion,
             onQueryChange = viewModel::onQueryChange,
             onSubmit = viewModel::submitSearch,
             onPick = viewModel::pickFromSearch,
@@ -156,12 +173,17 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 val budget by viewModel.budget.collectAsStateWithLifecycle()
                 val wait by viewModel.wait.collectAsStateWithLifecycle()
                 val orderLists by viewModel.orderLists.collectAsStateWithLifecycle()
+                val suggestionsOn by viewModel.suggestionsOn.collectAsStateWithLifecycle()
+                val provider by viewModel.suggestProvider.collectAsStateWithLifecycle()
                 SettingsScreen(
-                    budget, wait, orderLists,
+                    budget, wait, orderLists, suggestionsOn, provider, grayscale,
                     SettingsActions(
                         onBudget = viewModel::setBudget,
                         onWait = viewModel::setWait,
                         onAccent = viewModel::setAccent,
+                        onSuggestionsOn = viewModel::setSuggestionsOn,
+                        onProvider = viewModel::setSuggestProvider,
+                        onGrayscale = viewModel::setWidgetsGrayscale,
                         onMove = viewModel::moveInSection,
                         onRestartOnboarding = viewModel::restartOnboarding,
                         onBack = viewModel::closeOverlay,

@@ -14,6 +14,13 @@ import com.usos.launcher.data.sections.Highlight
 import com.usos.launcher.data.sections.PlacedApp
 import com.usos.launcher.data.sections.SectionOrder
 import com.usos.launcher.data.usage.UsageSummary
+import com.usos.launcher.data.suggest.SuggestFlow
+import com.usos.launcher.data.suggest.SuggestProvider
+import com.usos.launcher.ui.widgets.HostedWidget
+import com.usos.launcher.ui.widgets.WidgetSize
+import com.usos.launcher.ui.widgets.WidgetSizing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.usos.launcher.service.LauncherAlert
 import com.usos.launcher.service.isBlockerEnabled
 import com.usos.launcher.ui.appdetail.DetailUi
@@ -68,6 +75,24 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val searchOpen: StateFlow<Boolean> = _searchOpen
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
+
+    val widgetHost get() = container.widgetHost
+    val widgetManager get() = container.widgetManager
+
+    val suggestionsOn: StateFlow<Boolean> = settings.suggestionsOn
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val suggestProvider: StateFlow<SuggestProvider> = settings.suggestProvider
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SuggestProvider.GOOGLE)
+
+    /** Sugerencias web. Con el ajuste apagado el flujo nunca llega al cliente de red. */
+    val suggestions: StateFlow<List<String>> = SuggestFlow
+        .build(_query, suggestionsOn, suggestProvider, container.suggestClient)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val widgets: StateFlow<List<HostedWidget>> = container.widgetStore.widgets
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val widgetsGrayscale: StateFlow<Boolean> = settings.widgetsGrayscale
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     private val _route = MutableStateFlow<Route>(Route.Home)
     val route: StateFlow<Route> = _route
@@ -177,7 +202,44 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 if (SystemClock.elapsedRealtime() - alert.atMs < 10_000) onAlert(alert)
             }
         }
+        viewModelScope.launch { cleanOrphanWidgets() }
         refreshBlocker()
+    }
+
+    /** Borra del host los ids que no estan guardados (alta interrumpida, datos perdidos). */
+    private suspend fun cleanOrphanWidgets() {
+        val saved = container.widgetStore.current()
+        val ids = withContext(Dispatchers.Default) { container.widgetHost.appWidgetIds.toList() }
+        WidgetSizing.orphans(ids, saved).forEach { container.widgetHost.deleteAppWidgetId(it) }
+    }
+
+    fun addWidget(id: Int) {
+        viewModelScope.launch { container.widgetStore.update { l -> if (l.any { it.id == id }) l else l + HostedWidget(id) } }
+    }
+
+    fun discardWidgetId(id: Int) { container.widgetHost.deleteAppWidgetId(id) }
+
+    fun moveWidget(id: Int, delta: Int) {
+        viewModelScope.launch { container.widgetStore.update { WidgetSizing.move(it, id, delta) } }
+    }
+
+    fun setWidgetSize(id: Int, size: WidgetSize) {
+        viewModelScope.launch { container.widgetStore.update { WidgetSizing.withSize(it, id, size) } }
+    }
+
+    fun removeWidget(id: Int) {
+        container.widgetHost.deleteAppWidgetId(id)
+        viewModelScope.launch { container.widgetStore.update { l -> l.filter { it.id != id } } }
+    }
+
+    fun setSuggestionsOn(on: Boolean) { viewModelScope.launch { settings.setSuggestionsOn(on) } }
+    fun setSuggestProvider(p: SuggestProvider) { viewModelScope.launch { settings.setSuggestProvider(p) } }
+    fun setWidgetsGrayscale(on: Boolean) { viewModelScope.launch { settings.setWidgetsGrayscale(on) } }
+
+    /** Tocar una sugerencia lanza la busqueda web. */
+    fun pickSuggestion(text: String) {
+        closeSearch()
+        if (!repository.webSearch(text)) showNotice("NO SE PUDO BUSCAR")
     }
 
     private fun onAlert(alert: LauncherAlert) {

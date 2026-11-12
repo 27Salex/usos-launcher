@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.usos.launcher.data.suggest.SuggestProvider
 import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
 import kotlinx.coroutines.flow.Flow
@@ -70,6 +71,22 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
 
     /** false hasta que el usuario termina o salta el primer arranque. */
     val onboardingDone: Flow<Boolean> = dataStore.data.map { it[onboardingKey] ?: false }.distinctUntilChanged()
+
+    private val suggestionsKey = booleanPreferencesKey("suggestions_on")
+    private val providerKey = stringPreferencesKey("suggest_provider")
+    private val grayscaleKey = booleanPreferencesKey("widgets_grayscale")
+
+    /** Sugerencias web al teclear (envian cada pulsacion al proveedor). Activadas por defecto. */
+    val suggestionsOn: Flow<Boolean> = dataStore.data.map { it[suggestionsKey] ?: true }.distinctUntilChanged()
+    val suggestProvider: Flow<SuggestProvider> =
+        dataStore.data.map { SuggestProvider.fromName(it[providerKey]) }.distinctUntilChanged()
+
+    /** Escala de grises global de los widgets. Activada por defecto. */
+    val widgetsGrayscale: Flow<Boolean> = dataStore.data.map { it[grayscaleKey] ?: true }.distinctUntilChanged()
+
+    suspend fun setSuggestionsOn(on: Boolean) { dataStore.edit { it[suggestionsKey] = on } }
+    suspend fun setSuggestProvider(p: SuggestProvider) { dataStore.edit { it[providerKey] = p.name } }
+    suspend fun setWidgetsGrayscale(on: Boolean) { dataStore.edit { it[grayscaleKey] = on } }
 
     suspend fun setOnboardingDone(done: Boolean) { dataStore.edit { it[onboardingKey] = done } }
 

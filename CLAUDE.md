@@ -1,6 +1,6 @@
 # Usos launcher
 
-Launcher Android (Kotlin + Jetpack Compose) descrito en PLAN.md. Implementadas las Fases 0 a 5.
+Launcher Android (Kotlin + Jetpack Compose) descrito en PLAN.md. Implementadas las Fases 0 a 7.
 
 ## Comandos
 - `./gradlew test` tests unitarios; `./gradlew assembleDebug` APK debug.
@@ -15,7 +15,8 @@ LeisureRepository (DataStore; fuente de verdad del ocio; la espera "Descongeland
 `ui.home.LeisurePanel` panel de Ocio. `domain` AppEntry, Section, clasificador + lista de distracciones (un solo fichero). `AppContainer.kt` = inyección manual (UsosApp).
 `service` BlockerService (AccessibilityService; BlockerRules pura, LauncherAlert, isBlockerEnabled); `data.usage` UsageAggregator (puro, desde UsageEvents) + UsageRepository (queryEvents, StorageStatsManager);
 `ui.appdetail` ficha de app; `ui.settings` Ajustes y primer arranque; `ui.home.Route` pantalla superpuesta (Home/Onboarding/Settings/Detail) que gestiona HomeViewModel.
-Paquetes de fases futuras (widgets, feeds, suggest) aún no existen.
+`data.suggest` SuggestParser/SuggestFlow (puros), SuggestClient (interfaz) + OkHttpSuggestClient; `ui.widgets` HostedWidget/WidgetSizing/WidgetStore (puros + DataStore), WidgetsPage, WidgetPicker, UsosHostView (long-press), WidgetAdder (alta bind/configure).
+El paquete de feeds (Fase 8) aún no existe.
 
 ## Convenciones
 - Colores, radios y tipografías solo desde `ui.theme`; nada de sombras, degradados ni ripple de color.
@@ -32,7 +33,11 @@ Paquetes de fases futuras (widgets, feeds, suggest) aún no existen.
 - Atrás en búsqueda: el teclado se come la primera pulsación; SearchOverlay cierra la búsqueda cuando el IME se oculta estando abierta.
 - Primer arranque (`onboarding_done` en DataStore) se muestra hasta que se termina o salta; se repite desde Ajustes.
 
+- Sugerencias: SuggestFlow.build es la única vía a la red; con `suggestionsOn` apagado o texto vacío emite vacío sin llamar al cliente (test con cliente falso). Espera 250 ms con flatMapLatest (cancela la anterior). Respuestas decodificadas como UTF-8.
+- Búsqueda web: ACTION_WEB_SEARCH y, si no resuelve, ACTION_VIEW a google.com/search.
+- Widgets: AppWidgetHost id fijo 0x5501 (UsosWidgetHost crea UsosHostView); startListening/stopListening en onStart/onStop de HomeActivity. Tamaños: bajo = minHeight declarado (suelo 72 dp), medio x1,5, alto x2. Ids huérfanos del host se borran al crear HomeViewModel. El id pendiente de un alta solo vive en memoria. Escala de grises = capa de hardware con ColorMatrix saturación 0 (`widgetsGrayscale`, por defecto true).
+
 ## Versiones fijadas
 AGP 8.13.2, Gradle 8.14.3, Kotlin 2.4.20, KSP 2.3.12 (aún sin procesadores), compose-bom 2026.06.01,
 core-ktx 1.18.0, activity-compose 1.12.4, lifecycle 2.10.0, datastore-preferences 1.3.0,
-kotlinx-serialization-json 1.11.0, coroutines 1.11.0, junit 4.13.2. compileSdk/targetSdk 36, minSdk 33, JVM 17.
+kotlinx-serialization-json 1.11.0, coroutines 1.11.0, junit 4.13.2, okhttp 5.4.0 (5.5.x exige compileSdk 37; no subir sin AGP nuevo), coroutines-test 1.11.0 (solo tests). compileSdk/targetSdk 36, minSdk 33, JVM 17.

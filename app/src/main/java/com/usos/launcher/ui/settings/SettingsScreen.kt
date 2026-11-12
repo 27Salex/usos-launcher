@@ -33,12 +33,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.usos.launcher.data.leisure.LeisureLimits
 import com.usos.launcher.data.sections.PlacedApp
+import com.usos.launcher.data.suggest.SuggestProvider
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosPill
 import com.usos.launcher.ui.theme.UsosRow
+import com.usos.launcher.ui.theme.UsosSwitch
 import com.usos.launcher.ui.theme.UsosText
 import com.usos.launcher.ui.theme.UsosType
 import com.usos.launcher.ui.theme.tap
@@ -47,6 +49,9 @@ class SettingsActions(
     val onBudget: (Int) -> Unit,
     val onWait: (Int) -> Unit,
     val onAccent: (Int) -> Unit,
+    val onSuggestionsOn: (Boolean) -> Unit,
+    val onProvider: (SuggestProvider) -> Unit,
+    val onGrayscale: (Boolean) -> Unit,
     val onMove: (Section, String, Int) -> Unit,
     val onRestartOnboarding: () -> Unit,
     val onBack: () -> Unit,
@@ -57,6 +62,9 @@ fun SettingsScreen(
     budget: Int,
     wait: Int,
     orderLists: List<Pair<Section, List<PlacedApp>>>,
+    suggestionsOn: Boolean,
+    provider: SuggestProvider,
+    grayscale: Boolean,
     actions: SettingsActions,
 ) {
     BackHandler { actions.onBack() }
@@ -90,6 +98,27 @@ fun SettingsScreen(
                 minusEnabled = wait > LeisureLimits.MIN_WAIT_SECONDS,
                 plusEnabled = wait < LeisureLimits.MAX_WAIT_SECONDS)
         }
+
+        Spacer(Modifier.height(20.dp))
+        Heading("BÚSQUEDA")
+        UsosRow("SUGERENCIAS WEB") { UsosSwitch(suggestionsOn, actions.onSuggestionsOn) }
+        UsosText(
+            "Cada pulsación se envía al proveedor elegido (tras 250 ms sin teclear).",
+            UsosType.Label, UsosColors.TextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SuggestProvider.entries.forEach { p ->
+                UsosPill(
+                    p.label, filled = p == provider, enabled = suggestionsOn,
+                    onClick = { actions.onProvider(p) }, modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Heading("WIDGETS")
+        UsosRow("ESCALA DE GRISES") { UsosSwitch(grayscale, actions.onGrayscale) }
 
         Spacer(Modifier.height(20.dp))
         Heading("ACENTO")

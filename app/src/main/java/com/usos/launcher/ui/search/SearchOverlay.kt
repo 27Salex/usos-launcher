@@ -69,6 +69,8 @@ fun SearchOverlay(
     progress: Float,
     query: String,
     items: List<SearchItem>,
+    suggestions: List<String>,
+    onSuggestion: (String) -> Unit,
     onQueryChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onPick: (SearchItem) -> Unit,
@@ -118,27 +120,39 @@ fun SearchOverlay(
                 .padding(top = topY + SearchFieldHeight + 8.dp)
                 .imePadding(),
         ) {
-            if (groups.isEmpty()) {
-                Box(Modifier.padding(horizontal = UsosDimens.ScreenMargin, vertical = 16.dp)) {
-                    UsosText("Nada con ese nombre.", UsosType.Empty, UsosColors.TextSecondary)
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin,
+                    top = 8.dp, bottom = navBar + 16.dp,
+                ),
+            ) {
+                if (groups.isEmpty()) {
+                    item(key = "empty") {
+                        UsosText("Nada con ese nombre.", UsosType.Empty, UsosColors.TextSecondary, Modifier.padding(vertical = 8.dp))
+                    }
                 }
-            } else {
-                LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin,
-                        top = 8.dp, bottom = navBar + 16.dp,
-                    ),
-                ) {
-                    groups.forEach { group ->
-                        item(key = "h-" + group.section.name) {
-                            UsosText(
-                                group.section.title.uppercase(), UsosType.Label, UsosColors.TextSecondary,
-                                Modifier.padding(top = 14.dp, bottom = 8.dp),
-                            )
-                        }
-                        items(group.items.chunked(4), key = { row -> group.section.name + row.first().app.key }) { row ->
-                            GridRow(row, onPick, onLongPick)
+                groups.forEach { group ->
+                    item(key = "h-" + group.section.name) {
+                        UsosText(
+                            group.section.title.uppercase(), UsosType.Label, UsosColors.TextSecondary,
+                            Modifier.padding(top = 14.dp, bottom = 8.dp),
+                        )
+                    }
+                    items(group.items.chunked(4), key = { row -> group.section.name + row.first().app.key }) { row ->
+                        GridRow(row, onPick, onLongPick)
+                    }
+                }
+                if (suggestions.isNotEmpty()) {
+                    item(key = "h-suggest") {
+                        UsosText("SUGERENCIAS", UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 14.dp, bottom = 4.dp))
+                    }
+                    items(suggestions, key = { "s-" + it }) { text ->
+                        Box(
+                            Modifier.fillMaxWidth().height(UsosDimens.MinTouch).tap { onSuggestion(text) },
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            UsosText(text, UsosType.Pill, UsosColors.Text, maxLines = 1)
                         }
                     }
                 }

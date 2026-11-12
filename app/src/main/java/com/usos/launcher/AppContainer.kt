@@ -9,6 +9,12 @@ import com.usos.launcher.data.sections.SettingsStore
 import com.usos.launcher.data.sections.usosDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetManager
+import com.usos.launcher.data.suggest.OkHttpSuggestClient
+import com.usos.launcher.data.suggest.SuggestClient
+import com.usos.launcher.ui.widgets.UsosWidgetHost
+import com.usos.launcher.ui.widgets.WidgetStore
 import com.usos.launcher.data.usage.UsageRepository
 import com.usos.launcher.service.LauncherAlert
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +29,12 @@ class AppContainer(context: Context) {
     val appConfigStore = AppConfigStore(dataStore)
     val settingsStore = SettingsStore(dataStore)
     val usageRepository = UsageRepository(context)
+    val suggestClient: SuggestClient by lazy { OkHttpSuggestClient() }
+
+    /** Host de widgets con id fijo: los ids asignados sobreviven a reinicios. */
+    val widgetHost: AppWidgetHost = UsosWidgetHost(appContext, WIDGET_HOST_ID)
+    val widgetManager: AppWidgetManager = AppWidgetManager.getInstance(appContext)
+    val widgetStore = WidgetStore(dataStore)
 
     /** Aviso pendiente del servicio de bloqueo para el launcher (mismo proceso). */
     val pendingAlert = MutableStateFlow<LauncherAlert?>(null)
@@ -30,6 +42,8 @@ class AppContainer(context: Context) {
         dataStore, Clock.systemDefaultZone(), CoroutineScope(SupervisorJob() + Dispatchers.Default),
     )
 }
+
+const val WIDGET_HOST_ID = 0x5501
 
 class UsosApp : Application() {
     lateinit var container: AppContainer
