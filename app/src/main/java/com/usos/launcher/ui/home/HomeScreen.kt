@@ -33,7 +33,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -44,7 +46,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.usos.launcher.data.leisure.LeisureStatus
 import com.usos.launcher.domain.Section
+import com.usos.launcher.ui.search.SearchOverlay
+import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.LocalAnimationsEnabled
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
@@ -63,12 +68,21 @@ private val ClockTopOffset = 60.dp
 fun HomeScreen(viewModel: HomeViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
+    val leisure by viewModel.leisure.collectAsStateWithLifecycle()
+    val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
+    val query by viewModel.query.collectAsStateWithLifecycle()
+    val searchItems by viewModel.searchItems.collectAsStateWithLifecycle()
     val animations = LocalAnimationsEnabled.current
     val animationsNow by rememberUpdatedState(animations)
     val pager = rememberPagerState(initialPage = 1) { 3 }
+    val searchProgress = remember { Animatable(0f) }
+    LaunchedEffect(searchOpen, animations) {
+        val target = if (searchOpen) 1f else 0f
+        if (animations) searchProgress.animateTo(target, usosTween(true)) else searchProgress.snapTo(target)
+    }
 
-    // Atrás en inicio no hace nada.
-    BackHandler(enabled = true) { }
+    // Atrás cierra la búsqueda; en inicio no hace nada más.
+    BackHandler(enabled = true) { if (searchOpen) viewModel.closeSearch() }
 
     LaunchedEffect(pager) {
         viewModel.homeEvents.collect {
@@ -85,11 +99,26 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 else -> HomePage(
                     state = state,
                     notice = notice,
+                    leisure = leisure,
+                    searchActive = searchOpen || searchProgress.value > 0f,
                     onToggle = viewModel::toggleSection,
                     onOpenApp = viewModel::openApp,
+                    onOpenSearch = viewModel::openSearch,
+                    onThaw = viewModel::startThaw,
+                    onCancelThaw = viewModel::cancelThaw,
+                    onFreeze = viewModel::freezeLeisure,
                 )
             }
         }
+        SearchOverlay(
+            open = searchOpen,
+            progress = searchProgress.value,
+            query = query,
+            items = searchItems,
+            onQueryChange = viewModel::onQueryChange,
+            onSubmit = viewModel::submitSearch,
+            onPick = viewModel::pickFromSearch,
+        )
     }
 }
 
@@ -113,8 +142,14 @@ private fun PanelPage(title: String) {
 private fun HomePage(
     state: HomeUiState?,
     notice: String?,
+    leisure: LeisureStatus?,
+    searchActive: Boolean,
     onToggle: (Section) -> Unit,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
+    onOpenSearch: () -> Unit,
+    onThaw: (Int) -> Unit,
+    onCancelThaw: () -> Unit,
+    onFreeze: () -> Unit,
 ) {
     val now by rememberNow()
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -130,13 +165,17 @@ private fun HomePage(
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
             if (state != null) {
                 state.sections.forEach { s ->
-                    SectionBlock(s, isOpen = state.open == s.section, onToggle = onToggle, onOpenApp = onOpenApp)
+                    SectionBlock(
+                        s, isOpen = state.open == s.section, leisure = leisure,
+                        onToggle = onToggle, onOpenApp = onOpenApp,
+                        onThaw = onThaw, onCancelThaw = onCancelThaw, onFreeze = onFreeze,
+                    )
                 }
             }
         }
 
         Spacer(Modifier.height(8.dp))
-        SearchBar(notice)
+        SearchBar(notice, hidden = searchActive, onClick = onOpenSearch)
         Spacer(Modifier.height(12.dp + navBar))
     }
 }
@@ -145,17 +184,31 @@ private fun HomePage(
 private fun SectionBlock(
     s: SectionUi,
     isOpen: Boolean,
+    leisure: LeisureStatus?,
     onToggle: (Section) -> Unit,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
+    onThaw: (Int) -> Unit,
+    onCancelThaw: () -> Unit,
+    onFreeze: () -> Unit,
 ) {
     val animations = LocalAnimationsEnabled.current
+    val accent = LocalAccent.current
+    val isLeisure = s.section == Section.LEISURE
+    val frozen = isLeisure && leisure?.isOpen != true
+    val nameColor = if (frozen) UsosColors.LeisureFrozen else UsosColors.Text
+    val data: String = when {
+        !isLeisure -> if (isOpen) "—" else s.count.toString()
+        leisure is LeisureStatus.Open -> "${leisure.minutesLeft} MIN"
+        leisure is LeisureStatus.Thawing -> "${leisure.secondsLeft} S"
+        else -> "CONGELADO"
+    }
     Row(
         Modifier.fillMaxWidth().height(SectionRowHeight).tap { onToggle(s.section) },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText(s.section.title, UsosType.SectionName, UsosColors.Text)
-        UsosText(if (isOpen) "—" else s.count.toString(), UsosType.SectionData, UsosColors.TextSecondary)
+        UsosText(s.section.title, UsosType.SectionName, nameColor)
+        UsosText(data, UsosType.SectionData, if (isLeisure) accent else UsosColors.TextSecondary)
     }
     AnimatedVisibility(
         visible = isOpen,
@@ -175,16 +228,24 @@ private fun SectionBlock(
             label = "rise",
         ) { if (it == EnterExitState.Visible) 1f else 0f }
         val risePx = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.toPx() }
-        Mosaic(
-            tiles = s.tiles,
-            onOpenApp = onOpenApp,
-            modifier = Modifier
-                .padding(top = 4.dp, bottom = 12.dp)
-                .graphicsLayer {
-                    alpha = rise
-                    translationY = (1f - rise) * risePx
+        val contentModifier = Modifier
+            .padding(top = 4.dp, bottom = 12.dp)
+            .graphicsLayer {
+                alpha = rise
+                translationY = (1f - rise) * risePx
+            }
+        if (isLeisure && leisure !is LeisureStatus.Open) {
+            LeisurePanel(leisure, onThaw, onCancelThaw, contentModifier)
+        } else {
+            Mosaic(
+                tiles = s.tiles,
+                onOpenApp = onOpenApp,
+                modifier = contentModifier,
+                trailing = (leisure as? LeisureStatus.Open)?.let { open ->
+                    { cellModifier -> FreezeTile(open.minutesLeft, cellModifier, onFreeze) }
                 },
-        )
+            )
+        }
     }
 }
 
@@ -194,16 +255,38 @@ private fun Mosaic(
     tiles: List<TileUi>,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
     modifier: Modifier = Modifier,
+    trailing: (@Composable (Modifier) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val cell = (maxWidth - TileColumnGap * 2) / 3
+        val cells: List<@Composable (Modifier) -> Unit> =
+            tiles.map { tile ->
+                val c: @Composable (Modifier) -> Unit = { m -> AppTile(tile, m, onOpenApp) }
+                c
+            } + listOfNotNull(trailing)
         Column(verticalArrangement = Arrangement.spacedBy(TileRowGap)) {
-            tiles.chunked(3).forEach { row ->
+            cells.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(TileColumnGap)) {
-                    row.forEach { tile -> AppTile(tile, Modifier.size(cell, TileHeight), onOpenApp) }
+                    row.forEach { content -> content(Modifier.size(cell, TileHeight)) }
                 }
             }
         }
+    }
+}
+
+/** Pieza de acento del mosaico de Ocio abierto: congela y suma el tiempo gastado. */
+@Composable
+private fun FreezeTile(minutesLeft: Int, modifier: Modifier, onFreeze: () -> Unit) {
+    val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+    Column(
+        modifier
+            .background(LocalAccent.current, shape)
+            .tap { onFreeze() }
+            .padding(12.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        UsosText("CONGELAR ·", UsosType.Label, UsosColors.OnAccent)
+        UsosText("$minutesLeft min", UsosType.PieceData, UsosColors.OnAccent)
     }
 }
 
@@ -228,16 +311,18 @@ private fun AppTile(
     }
 }
 
-/** Barra fija de búsqueda; en la Fase 1 solo muestra avisos. */
+/** Barra fija de búsqueda. Al tocarla sube y se convierte en campo (SearchOverlay). */
 @Composable
-private fun SearchBar(notice: String?) {
+private fun SearchBar(notice: String?, hidden: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(UsosDimens.RadiusSearch)
     Box(
         Modifier
             .fillMaxWidth()
             .height(52.dp)
+            .alpha(if (hidden) 0f else 1f)
             .background(UsosColors.Surface, shape)
             .border(1.dp, UsosColors.Border, shape)
+            .tap(enabled = !hidden) { onClick() }
             .padding(horizontal = 20.dp),
         contentAlignment = Alignment.CenterStart,
     ) {

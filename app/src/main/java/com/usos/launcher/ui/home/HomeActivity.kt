@@ -9,7 +9,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.usos.launcher.ui.theme.UsosTheme
 
 class HomeActivity : ComponentActivity() {
@@ -21,12 +26,25 @@ class HomeActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    viewModel.tickLeisure()
+                    delay(500)
+                }
+            }
+        }
         setContent {
             val accent by viewModel.accent.collectAsStateWithLifecycle()
             UsosTheme(accent) {
                 HomeScreen(viewModel)
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        viewModel.onLauncherStopped()
     }
 
     override fun onNewIntent(intent: Intent) {

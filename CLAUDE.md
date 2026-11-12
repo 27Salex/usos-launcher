@@ -1,6 +1,6 @@
 # Usos launcher
 
-Launcher Android (Kotlin + Jetpack Compose) descrito en PLAN.md. Implementadas las Fases 0 y 1.
+Launcher Android (Kotlin + Jetpack Compose) descrito en PLAN.md. Implementadas las Fases 0 a 3.
 
 ## Comandos
 - `./gradlew test` tests unitarios; `./gradlew assembleDebug` APK debug.
@@ -10,8 +10,10 @@ Launcher Android (Kotlin + Jetpack Compose) descrito en PLAN.md. Implementadas l
 ## Paquetes (com.usos.launcher)
 `ui.theme` tokens, tipografías, `UsosText`, `Modifier.tap`; `ui.home` inicio (reloj, semana, acordeón, mosaico, ViewModel);
 `data.apps` AppRepository (LauncherApps); `data.sections` AppConfig, asignador, disposición inicial, stores DataStore;
-`domain` AppEntry, Section, clasificador + lista de distracciones (un solo fichero). `AppContainer.kt` = inyección manual (UsosApp).
-Paquetes de fases futuras (search, appdetail, widgets, feeds, settings, leisure, usage, suggest, service) aún no existen.
+`ui.search` SearchFilter (puro) + SearchOverlay (la barra viaja arriba; progreso animado en HomeScreen); `data.leisure` LeisureMachine (pura, Clock inyectable),
+LeisureRepository (DataStore; fuente de verdad del ocio; la espera "Descongelando" vive solo en memoria), LeisureState/LeisureStatus/LeisureLimits;
+`ui.home.LeisurePanel` panel de Ocio. `domain` AppEntry, Section, clasificador + lista de distracciones (un solo fichero). `AppContainer.kt` = inyección manual (UsosApp).
+Paquetes de fases futuras (appdetail, widgets, feeds, settings, usage, suggest, service) aún no existen.
 
 ## Convenciones
 - Colores, radios y tipografías solo desde `ui.theme`; nada de sombras, degradados ni ripple de color.
@@ -19,6 +21,8 @@ Paquetes de fases futuras (search, appdetail, widgets, feeds, settings, leisure,
 - Lógica pura (DotMatrix, SpanishDate, SectionAssigner, SectionLayout, AppClassifier) separada de Android y con tests.
 - Sin Material 3 ni DI framework. `manual = true` en AppConfig nunca se reclasifica.
 - Space Grotesk es fuente variable (eje wght fijado a 600); JetBrains Mono son TTF estáticos.
+
+- Ocio: HomeActivity hace tick cada 500 ms mientras esta STARTED y cancela la descongelacion en onStop. HomeViewModel.openApp rechaza siempre apps de ocio congeladas (abre la seccion Ocio). Sin presupuesto = restante < 15 min.
 
 ## Versiones fijadas
 AGP 8.13.2, Gradle 8.14.3, Kotlin 2.4.20, KSP 2.3.12 (aún sin procesadores), compose-bom 2026.06.01,

@@ -9,10 +9,13 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.usos.launcher.AppContainer
 import com.usos.launcher.UsosApp
 import com.usos.launcher.data.sections.DEFAULT_ACCENT
+import com.usos.launcher.data.leisure.LeisureStatus
 import com.usos.launcher.data.sections.MOSAIC_CAPACITY
 import com.usos.launcher.data.sections.SectionLayout
 import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
+import com.usos.launcher.ui.search.SearchFilter
+import com.usos.launcher.ui.search.SearchItem
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -37,6 +41,18 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private val repository = container.appRepository
     private val configStore = container.appConfigStore
     private val settings = container.settingsStore
+    private val leisureRepo = container.leisureRepository
+
+    /** Estado del ocio; null hasta que se lee de DataStore (se trata como congelado). */
+    val leisure: StateFlow<LeisureStatus?> = leisureRepo.status
+
+    private val configs: StateFlow<Map<String, com.usos.launcher.data.sections.AppConfig>> =
+        configStore.configs.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    private val _searchOpen = MutableStateFlow(false)
+    val searchOpen: StateFlow<Boolean> = _searchOpen
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query
 
     private val apps: StateFlow<List<AppEntry>?> = repository.apps
         .map<List<AppEntry>, List<AppEntry>?> { it }
@@ -66,7 +82,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 SectionUi(
                     section = section,
                     count = placed.size,
-                    tiles = placed.filter { it.config.inMosaic }.take(MOSAIC_CAPACITY)
+                    tiles = SectionLayout.mosaic(placed, if (section == Section.LEISURE) LEISURE_APP_SLOTS else MOSAIC_CAPACITY)
                         .map { TileUi(it.app, it.code, it.app.isQuiet) },
                 )
             },
@@ -74,9 +90,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** Todas las apps para la busqueda; las de ocio llevan `frozen` mientras el ocio no este abierto. */
+    val searchItems: StateFlow<List<SearchItem>> = combine(
+        apps, configs, leisure.map { it?.isOpen == true }.distinctUntilChanged(),
+    ) { a, c, leisureOpen ->
+        a.orEmpty().mapNotNull { app ->
+            val cfg = c[app.key] ?: return@mapNotNull null
+            val code = cfg.code?.takeIf { it.isNotBlank() } ?: app.defaultCode
+            SearchItem(app, code, cfg.section, frozen = cfg.section == Section.LEISURE && !leisureOpen)
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     private var noticeJob: Job? = null
 
     init {
+        viewModelScope.launch { leisureRepo.load() }
         viewModelScope.launch {
             open.value = settings.lastOpenSection.first()
             openLoaded.value = true
@@ -93,6 +121,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun openApp(app: AppEntry) {
+        // El launcher nunca abre apps de ocio congeladas, venga la peticion de donde venga.
+        if (configs.value[app.key]?.section == Section.LEISURE && !leisureRepo.isOpen()) {
+            revealLeisure()
+            return
+        }
         when {
             app.isQuiet -> showNotice("PERFIL EN PAUSA")
             repository.launch(app) -> showNotice("ABRIENDO ${app.label.uppercase()}…")
@@ -102,9 +135,56 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     /** Botón de inicio: cierra la sección abierta (sin olvidar la recordada) y vuelve a la página central. */
     fun onHomePressed() {
+        closeSearch()
         open.value = null
         _homeEvents.tryEmit(Unit)
     }
+
+    /** Cierra la busqueda y abre la seccion Ocio en inicio, sin abrir ninguna app. */
+    private fun revealLeisure() {
+        closeSearch()
+        open.value = Section.LEISURE
+        viewModelScope.launch { settings.setLastOpenSection(Section.LEISURE) }
+        _homeEvents.tryEmit(Unit)
+    }
+
+    fun openSearch() { _searchOpen.value = true }
+
+    fun closeSearch() {
+        _searchOpen.value = false
+        _query.value = ""
+    }
+
+    fun onQueryChange(text: String) { _query.value = text }
+
+    fun pickFromSearch(item: SearchItem) {
+        closeSearch()
+        openApp(item.app)
+    }
+
+    /** Intro: una sola coincidencia la abre; si no, busqueda web del texto. */
+    fun submitSearch() {
+        val text = _query.value.trim()
+        if (text.isEmpty()) return
+        val matches = SearchFilter.groups(searchItems.value, text).flatMap { it.items }
+        if (matches.size == 1) {
+            pickFromSearch(matches[0])
+        } else {
+            closeSearch()
+            if (!repository.webSearch(text)) showNotice("NO SE PUDO BUSCAR")
+        }
+    }
+
+    fun tickLeisure() { leisureRepo.tick() }
+
+    fun startThaw(durationMin: Int) { leisureRepo.startThaw(durationMin) }
+
+    fun cancelThaw() { leisureRepo.cancelThaw() }
+
+    fun freezeLeisure() { leisureRepo.freeze() }
+
+    /** Salir del launcher cancela una descongelacion en curso. */
+    fun onLauncherStopped() { leisureRepo.cancelThaw() }
 
     private fun showNotice(text: String) {
         noticeJob?.cancel()
@@ -116,6 +196,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     companion object {
+        /** El mosaico de Ocio reserva una celda para la pieza CONGELAR. */
+        const val LEISURE_APP_SLOTS = MOSAIC_CAPACITY - 1
+
         val Factory = viewModelFactory {
             initializer { HomeViewModel((this[APPLICATION_KEY] as UsosApp).container) }
         }

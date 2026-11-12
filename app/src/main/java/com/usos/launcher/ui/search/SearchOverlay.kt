@@ -1,0 +1,196 @@
+package com.usos.launcher.ui.search
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.runtime.remember
+import com.usos.launcher.ui.theme.LocalAccent
+import com.usos.launcher.ui.theme.UsosColors
+import com.usos.launcher.ui.theme.UsosDimens
+import com.usos.launcher.ui.theme.UsosText
+import com.usos.launcher.ui.theme.UsosType
+import com.usos.launcher.ui.theme.tap
+
+/** Alto de la barra en reposo (inicio) y como campo. */
+val SearchBarRestHeight = 52.dp
+val SearchFieldHeight = 56.dp
+private val GridGap = 8.dp
+private val SmallTileHeight = 84.dp
+
+/**
+ * Pantalla de busqueda. [progress] (0..1) lo anima el llamador en 250 ms: la barra viaja desde su sitio
+ * de reposo (abajo) hasta arriba y se convierte en campo; el fondo y la lista aparecen a la vez.
+ */
+@Composable
+fun SearchOverlay(
+    open: Boolean,
+    progress: Float,
+    query: String,
+    items: List<SearchItem>,
+    onQueryChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onPick: (SearchItem) -> Unit,
+) {
+    val focus = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(open) {
+        if (open) {
+            focus.requestFocus()
+            keyboard?.show()
+        } else {
+            focusManager.clearFocus()
+            keyboard?.hide()
+        }
+    }
+    if (!open && progress <= 0f) return
+
+    val p = progress.coerceIn(0f, 1f)
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .background(UsosColors.Background.copy(alpha = p))
+            .pointerInput(Unit) { detectTapGestures { } },
+    ) {
+        val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val restTop = maxHeight - navBar - 12.dp - SearchBarRestHeight
+        val topY = statusTop + 8.dp
+
+        val groups = remember(items, query) { SearchFilter.groups(items, query) }
+        Column(
+            Modifier
+                .fillMaxSize()
+                .alpha(p)
+                .padding(top = topY + SearchFieldHeight + 8.dp)
+                .imePadding(),
+        ) {
+            if (groups.isEmpty()) {
+                Box(Modifier.padding(horizontal = UsosDimens.ScreenMargin, vertical = 16.dp)) {
+                    UsosText("Nada con ese nombre.", UsosType.Empty, UsosColors.TextSecondary)
+                }
+            } else {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin,
+                        top = 8.dp, bottom = navBar + 16.dp,
+                    ),
+                ) {
+                    groups.forEach { group ->
+                        item(key = "h-" + group.section.name) {
+                            UsosText(
+                                group.section.title.uppercase(), UsosType.Label, UsosColors.TextSecondary,
+                                Modifier.padding(top = 14.dp, bottom = 8.dp),
+                            )
+                        }
+                        items(group.items.chunked(4), key = { row -> group.section.name + row.first().app.key }) { row ->
+                            GridRow(row, onPick)
+                        }
+                    }
+                }
+            }
+        }
+
+        // La barra, encima de todo.
+        val barHeight = lerp(SearchBarRestHeight, SearchFieldHeight, p)
+        val radius = lerp(UsosDimens.RadiusSearch, UsosDimens.RadiusPiece, p)
+        val shape = RoundedCornerShape(radius)
+        Box(
+            Modifier
+                .padding(horizontal = UsosDimens.ScreenMargin)
+                .offset { IntOffset(0, lerp(restTop, topY, p).roundToPx()) }
+                .fillMaxWidth()
+                .height(barHeight)
+                .background(UsosColors.Surface, shape)
+                .border(1.dp, UsosColors.Border, shape)
+                .padding(horizontal = 20.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (query.isEmpty()) UsosText("BUSCAR", UsosType.SearchHint, UsosColors.TextSecondary)
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = UsosType.SearchInput.copy(color = UsosColors.Text),
+                cursorBrush = SolidColor(LocalAccent.current),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            )
+        }
+    }
+}
+
+@Composable
+private fun GridRow(row: List<SearchItem>, onPick: (SearchItem) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = GridGap),
+        horizontalArrangement = Arrangement.spacedBy(GridGap),
+    ) {
+        row.forEach { item -> SmallTile(item, Modifier.weight(1f), onPick) }
+        repeat(4 - row.size) { Box(Modifier.weight(1f)) }
+    }
+}
+
+@Composable
+private fun SmallTile(item: SearchItem, modifier: Modifier, onPick: (SearchItem) -> Unit) {
+    val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+    val dim = item.app.isQuiet
+    val nameColor = if (item.frozen) UsosColors.LeisureFrozen else UsosColors.TextSecondary
+    Column(
+        modifier
+            .height(SmallTileHeight)
+            .alpha(if (dim) 0.35f else 1f)
+            .background(UsosColors.Surface, shape)
+            .border(1.dp, UsosColors.Border, shape)
+            .tap { onPick(item) }
+            .padding(8.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        UsosText(item.code, UsosType.SmallCode, if (item.frozen) UsosColors.LeisureFrozen else UsosColors.Text)
+        Column {
+            UsosText(item.app.label.uppercase(), UsosType.SmallName, nameColor)
+            if (item.frozen) {
+                UsosText("OCIO · CONGELADA", UsosType.SmallTag, LocalAccent.current, maxLines = 2)
+            }
+        }
+    }
+}

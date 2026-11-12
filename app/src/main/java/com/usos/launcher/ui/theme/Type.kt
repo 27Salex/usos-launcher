@@ -38,4 +38,13 @@ object UsosType {
     val TileCode = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Medium, fontSize = 22.sp)
     val TileName = Label
     val SearchHint = TextStyle(fontFamily = JetBrainsMono, fontSize = 12.sp, letterSpacing = 0.1.em)
+    val SmallName = TextStyle(fontFamily = JetBrainsMono, fontSize = 10.sp, letterSpacing = 0.04.em)
+    val SmallCode = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+    val SmallTag = TextStyle(fontFamily = JetBrainsMono, fontSize = 8.sp, letterSpacing = 0.04.em)
+    val SearchInput = TextStyle(fontFamily = JetBrainsMono, fontSize = 18.sp)
+    val Empty = TextStyle(fontFamily = JetBrainsMono, fontSize = 13.sp)
+    val PanelState = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 0.08.em)
+    val Pill = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+    val Button = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.1.em)
+    val PieceData = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold, fontSize = 15.sp)
 }

@@ -100,4 +100,13 @@ class AppRepository(context: Context) {
             launcherApps.startMainActivity(ComponentName(app.packageName, app.activityName), user, null, null)
         }.isSuccess
     }
+
+    /** Busqueda web del texto con el buscador por defecto del sistema. */
+    fun webSearch(text: String): Boolean = runCatching {
+        appContext.startActivity(
+            Intent(Intent.ACTION_WEB_SEARCH)
+                .putExtra(android.app.SearchManager.QUERY, text)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }.isSuccess
 }
