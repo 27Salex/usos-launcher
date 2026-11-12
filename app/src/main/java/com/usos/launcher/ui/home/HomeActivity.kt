@@ -28,8 +28,11 @@ class HomeActivity : ComponentActivity() {
         )
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.refreshUsage()
+                var ticks = 0
                 while (true) {
                     viewModel.tickLeisure()
+                    if (++ticks % 120 == 0) viewModel.refreshUsage() // cada minuto
                     delay(500)
                 }
             }

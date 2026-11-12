@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -35,6 +36,15 @@ class AppConfigStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    /** Modifica la configuracion guardada con [transform]; solo escribe si hay cambios. */
+    suspend fun update(transform: (Map<String, AppConfig>) -> Map<String, AppConfig>) {
+        dataStore.edit { prefs ->
+            val current = decode(prefs[key])
+            val next = transform(current)
+            if (next != current) prefs[key] = json.encodeToString(serializer, next.values.toList())
+        }
+    }
+
     private fun decode(raw: String?): Map<String, AppConfig> {
         if (raw.isNullOrEmpty()) return emptyMap()
         return runCatching { json.decodeFromString(serializer, raw) }
@@ -55,6 +65,15 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     val lastOpenSection: Flow<Section?> = dataStore.data.map { prefs ->
         prefs[lastOpenKey]?.let { name -> Section.entries.firstOrNull { it.name == name } }
     }.distinctUntilChanged()
+
+    private val onboardingKey = booleanPreferencesKey("onboarding_done")
+
+    /** false hasta que el usuario termina o salta el primer arranque. */
+    val onboardingDone: Flow<Boolean> = dataStore.data.map { it[onboardingKey] ?: false }.distinctUntilChanged()
+
+    suspend fun setOnboardingDone(done: Boolean) { dataStore.edit { it[onboardingKey] = done } }
+
+    suspend fun setAccent(argb: Int) { dataStore.edit { it[accentKey] = argb } }
 
     suspend fun setLastOpenSection(section: Section?) {
         dataStore.edit { if (section == null) it.remove(lastOpenKey) else it[lastOpenKey] = section.name }

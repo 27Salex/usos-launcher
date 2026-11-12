@@ -46,5 +46,6 @@ object UsosType {
     val PanelState = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 0.08.em)
     val Pill = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Medium, fontSize = 13.sp)
     val Button = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.1.em)
+    val BigNumber = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold, fontSize = 40.sp)
     val PieceData = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold, fontSize = 15.sp)
 }

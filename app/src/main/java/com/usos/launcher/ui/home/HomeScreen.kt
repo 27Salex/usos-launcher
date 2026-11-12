@@ -46,7 +46,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Intent
+import android.provider.Settings
+import androidx.compose.ui.platform.LocalContext
 import com.usos.launcher.data.leisure.LeisureStatus
+import com.usos.launcher.data.sections.Highlight
+import com.usos.launcher.data.usage.UsageSummary
+import com.usos.launcher.ui.appdetail.AppDetailScreen
+import com.usos.launcher.ui.appdetail.DetailActions
+import com.usos.launcher.ui.settings.OnboardingScreen
+import com.usos.launcher.ui.settings.SettingsActions
+import com.usos.launcher.ui.settings.SettingsScreen
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.search.SearchOverlay
 import com.usos.launcher.ui.theme.LocalAccent
@@ -72,6 +82,9 @@ fun HomeScreen(viewModel: HomeViewModel) {
     val searchOpen by viewModel.searchOpen.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val searchItems by viewModel.searchItems.collectAsStateWithLifecycle()
+    val route by viewModel.route.collectAsStateWithLifecycle()
+    val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val blockerActive by viewModel.blockerActive.collectAsStateWithLifecycle()
     val animations = LocalAnimationsEnabled.current
     val animationsNow by rememberUpdatedState(animations)
     val pager = rememberPagerState(initialPage = 1) { 3 }
@@ -100,9 +113,12 @@ fun HomeScreen(viewModel: HomeViewModel) {
                     state = state,
                     notice = notice,
                     leisure = leisure,
+                    blockerActive = blockerActive,
                     searchActive = searchOpen || searchProgress.value > 0f,
                     onToggle = viewModel::toggleSection,
                     onOpenApp = viewModel::openApp,
+                    onLongPressApp = viewModel::openDetail,
+                    onOpenSettings = viewModel::openSettings,
                     onOpenSearch = viewModel::openSearch,
                     onThaw = viewModel::startThaw,
                     onCancelThaw = viewModel::cancelThaw,
@@ -118,7 +134,43 @@ fun HomeScreen(viewModel: HomeViewModel) {
             onQueryChange = viewModel::onQueryChange,
             onSubmit = viewModel::submitSearch,
             onPick = viewModel::pickFromSearch,
+            onLongPick = { viewModel.openDetail(it.app) },
+            onClose = viewModel::closeSearch,
         )
+        // Pantallas superpuestas: cada una registra su propio "atras" y vuelve al inicio.
+        when (val r = route) {
+            is Route.Detail -> detail?.let { ui ->
+                AppDetailScreen(
+                    ui,
+                    DetailActions(
+                        onShowUsage = { viewModel.setShowUsage(r.key, it) },
+                        onSection = { viewModel.setSection(r.key, it) },
+                        onInMosaic = { viewModel.setInMosaic(r.key, it) },
+                        onCode = { viewModel.setCode(r.key, it) },
+                        onHighlight = { viewModel.setHighlight(r.key, it) },
+                        onBack = viewModel::closeOverlay,
+                    ),
+                )
+            }
+            Route.Settings -> {
+                val budget by viewModel.budget.collectAsStateWithLifecycle()
+                val wait by viewModel.wait.collectAsStateWithLifecycle()
+                val orderLists by viewModel.orderLists.collectAsStateWithLifecycle()
+                SettingsScreen(
+                    budget, wait, orderLists,
+                    SettingsActions(
+                        onBudget = viewModel::setBudget,
+                        onWait = viewModel::setWait,
+                        onAccent = viewModel::setAccent,
+                        onMove = viewModel::moveInSection,
+                        onRestartOnboarding = viewModel::restartOnboarding,
+                        onBack = viewModel::closeOverlay,
+                    ),
+                )
+            }
+            Route.Onboarding -> OnboardingScreen(onFinish = viewModel::finishOnboarding)
+            Route.Home -> Unit
+        }
     }
 }
 
@@ -146,6 +198,9 @@ private fun HomePage(
     searchActive: Boolean,
     onToggle: (Section) -> Unit,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
+    onLongPressApp: (com.usos.launcher.domain.AppEntry) -> Unit,
+    onOpenSettings: () -> Unit,
+    blockerActive: Boolean,
     onOpenSearch: () -> Unit,
     onThaw: (Int) -> Unit,
     onCancelThaw: () -> Unit,
@@ -155,7 +210,7 @@ private fun HomePage(
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Column(Modifier.fillMaxSize().padding(horizontal = UsosDimens.ScreenMargin)) {
         Spacer(Modifier.height(topSpacing()))
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { DotClock(now) }
+        Box(Modifier.fillMaxWidth().tap(onLongClick = onOpenSettings) { }, contentAlignment = Alignment.Center) { DotClock(now) }
         Spacer(Modifier.height(15.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { DateLabel(now.toLocalDate()) }
         Spacer(Modifier.height(16.dp))
@@ -166,8 +221,8 @@ private fun HomePage(
             if (state != null) {
                 state.sections.forEach { s ->
                     SectionBlock(
-                        s, isOpen = state.open == s.section, leisure = leisure,
-                        onToggle = onToggle, onOpenApp = onOpenApp,
+                        s, isOpen = state.open == s.section, leisure = leisure, blockerActive = blockerActive,
+                        onToggle = onToggle, onOpenApp = onOpenApp, onLongPressApp = onLongPressApp,
                         onThaw = onThaw, onCancelThaw = onCancelThaw, onFreeze = onFreeze,
                     )
                 }
@@ -185,8 +240,10 @@ private fun SectionBlock(
     s: SectionUi,
     isOpen: Boolean,
     leisure: LeisureStatus?,
+    blockerActive: Boolean,
     onToggle: (Section) -> Unit,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
+    onLongPressApp: (com.usos.launcher.domain.AppEntry) -> Unit,
     onThaw: (Int) -> Unit,
     onCancelThaw: () -> Unit,
     onFreeze: () -> Unit,
@@ -234,17 +291,30 @@ private fun SectionBlock(
                 alpha = rise
                 translationY = (1f - rise) * risePx
             }
-        if (isLeisure && leisure !is LeisureStatus.Open) {
-            LeisurePanel(leisure, onThaw, onCancelThaw, contentModifier)
-        } else {
-            Mosaic(
-                tiles = s.tiles,
-                onOpenApp = onOpenApp,
-                modifier = contentModifier,
-                trailing = (leisure as? LeisureStatus.Open)?.let { open ->
-                    { cellModifier -> FreezeTile(open.minutesLeft, cellModifier, onFreeze) }
-                },
-            )
+        val context = LocalContext.current
+        Column(contentModifier) {
+            if (isLeisure && !blockerActive) {
+                Box(
+                    Modifier.fillMaxWidth().height(UsosDimens.MinTouch).tap {
+                        runCatching { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                    },
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    UsosText("BLOQUEO INACTIVO · ACTIVAR", UsosType.Label, accent)
+                }
+            }
+            if (isLeisure && leisure !is LeisureStatus.Open) {
+                LeisurePanel(leisure, onThaw, onCancelThaw)
+            } else {
+                Mosaic(
+                    tiles = s.tiles,
+                    onOpenApp = onOpenApp,
+                    onLongPressApp = onLongPressApp,
+                    trailing = (leisure as? LeisureStatus.Open)?.let { open ->
+                        { cellModifier -> FreezeTile(open.minutesLeft, cellModifier, onFreeze) }
+                    },
+                )
+            }
         }
     }
 }
@@ -254,6 +324,7 @@ private fun SectionBlock(
 private fun Mosaic(
     tiles: List<TileUi>,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
+    onLongPressApp: (com.usos.launcher.domain.AppEntry) -> Unit,
     modifier: Modifier = Modifier,
     trailing: (@Composable (Modifier) -> Unit)? = null,
 ) {
@@ -261,7 +332,7 @@ private fun Mosaic(
         val cell = (maxWidth - TileColumnGap * 2) / 3
         val cells: List<@Composable (Modifier) -> Unit> =
             tiles.map { tile ->
-                val c: @Composable (Modifier) -> Unit = { m -> AppTile(tile, m, onOpenApp) }
+                val c: @Composable (Modifier) -> Unit = { m -> AppTile(tile, m, onOpenApp, onLongPressApp) }
                 c
             } + listOfNotNull(trailing)
         Column(verticalArrangement = Arrangement.spacedBy(TileRowGap)) {
@@ -295,19 +366,39 @@ private fun AppTile(
     tile: TileUi,
     modifier: Modifier,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
+    onLongPressApp: (com.usos.launcher.domain.AppEntry) -> Unit,
 ) {
+    val accent = LocalAccent.current
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+    val fill = when (tile.highlight) {
+        Highlight.NORMAL -> UsosColors.Surface
+        Highlight.ACCENT -> accent
+        Highlight.WHITE -> UsosColors.Text
+        Highlight.OUTLINE -> UsosColors.Background
+    }
+    val edge = when (tile.highlight) {
+        Highlight.NORMAL -> UsosColors.Border
+        Highlight.ACCENT -> accent
+        Highlight.WHITE -> UsosColors.Text
+        Highlight.OUTLINE -> UsosColors.Text
+    }
+    val filled = tile.highlight == Highlight.ACCENT || tile.highlight == Highlight.WHITE
+    val codeColor = if (filled) UsosColors.OnAccent else UsosColors.Text
+    val nameColor = if (filled) UsosColors.OnAccent else UsosColors.TextSecondary
     Column(
         modifier
             .alpha(if (tile.dimmed) 0.35f else 1f)
-            .background(UsosColors.Surface, shape)
-            .border(1.dp, UsosColors.Border, shape)
-            .tap { onOpenApp(tile.app) }
+            .background(fill, shape)
+            .border(1.dp, edge, shape)
+            .tap(onLongClick = { onLongPressApp(tile.app) }) { onOpenApp(tile.app) }
             .padding(12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText(tile.code, UsosType.TileCode, UsosColors.Text)
-        UsosText(tile.app.label.uppercase(), UsosType.TileName, UsosColors.TextSecondary)
+        UsosText(tile.code, UsosType.TileCode, codeColor)
+        Column {
+            tile.usageMin?.let { UsosText(UsageSummary.format(it), UsosType.Label, codeColor) }
+            UsosText(tile.app.label.uppercase(), UsosType.TileName, nameColor)
+        }
     }
 }
 

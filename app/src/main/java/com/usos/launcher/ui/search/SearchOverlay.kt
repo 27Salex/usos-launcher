@@ -14,7 +14,12 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -67,6 +72,8 @@ fun SearchOverlay(
     onQueryChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onPick: (SearchItem) -> Unit,
+    onLongPick: (SearchItem) -> Unit,
+    onClose: () -> Unit,
 ) {
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -79,6 +86,15 @@ fun SearchOverlay(
             focusManager.clearFocus()
             keyboard?.hide()
         }
+    }
+
+    // El teclado intercepta el primer "atras": si se oculta con la busqueda abierta, se cierra la busqueda
+    // en esa misma pulsacion (una sola en total).
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    var imeWasShown by remember(open) { mutableStateOf(false) }
+    LaunchedEffect(open, imeVisible) {
+        if (!open) return@LaunchedEffect
+        if (imeVisible) imeWasShown = true else if (imeWasShown) onClose()
     }
     if (!open && progress <= 0f) return
 
@@ -122,7 +138,7 @@ fun SearchOverlay(
                             )
                         }
                         items(group.items.chunked(4), key = { row -> group.section.name + row.first().app.key }) { row ->
-                            GridRow(row, onPick)
+                            GridRow(row, onPick, onLongPick)
                         }
                     }
                 }
@@ -160,18 +176,23 @@ fun SearchOverlay(
 }
 
 @Composable
-private fun GridRow(row: List<SearchItem>, onPick: (SearchItem) -> Unit) {
+private fun GridRow(row: List<SearchItem>, onPick: (SearchItem) -> Unit, onLongPick: (SearchItem) -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(bottom = GridGap),
         horizontalArrangement = Arrangement.spacedBy(GridGap),
     ) {
-        row.forEach { item -> SmallTile(item, Modifier.weight(1f), onPick) }
+        row.forEach { item -> SmallTile(item, Modifier.weight(1f), onPick, onLongPick) }
         repeat(4 - row.size) { Box(Modifier.weight(1f)) }
     }
 }
 
 @Composable
-private fun SmallTile(item: SearchItem, modifier: Modifier, onPick: (SearchItem) -> Unit) {
+private fun SmallTile(
+    item: SearchItem,
+    modifier: Modifier,
+    onPick: (SearchItem) -> Unit,
+    onLongPick: (SearchItem) -> Unit,
+) {
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
     val dim = item.app.isQuiet
     val nameColor = if (item.frozen) UsosColors.LeisureFrozen else UsosColors.TextSecondary
@@ -181,7 +202,7 @@ private fun SmallTile(item: SearchItem, modifier: Modifier, onPick: (SearchItem)
             .alpha(if (dim) 0.35f else 1f)
             .background(UsosColors.Surface, shape)
             .border(1.dp, UsosColors.Border, shape)
-            .tap { onPick(item) }
+            .tap(onLongClick = { onLongPick(item) }) { onPick(item) }
             .padding(8.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {

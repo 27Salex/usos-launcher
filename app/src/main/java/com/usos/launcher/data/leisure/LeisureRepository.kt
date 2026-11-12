@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Clock
 
 /**
@@ -36,6 +38,11 @@ class LeisureRepository(
     private val _status = MutableStateFlow<LeisureStatus?>(null)
     val status: StateFlow<LeisureStatus?> = _status
 
+    private val _budget = MutableStateFlow(LeisureLimits.DEFAULT_BUDGET_MIN)
+    val budget: StateFlow<Int> = _budget
+    private val _wait = MutableStateFlow(LeisureLimits.DEFAULT_WAIT_SECONDS)
+    val wait: StateFlow<Int> = _wait
+
     private val writes = Channel<Pair<LeisureState, Int>>(Channel.CONFLATED)
 
     init {
@@ -55,7 +62,11 @@ class LeisureRepository(
         }
     }
 
-    suspend fun load() {
+    private val loadMutex = Mutex()
+
+    /** Lee el estado guardado. Idempotente: lo llaman el launcher y el servicio. */
+    suspend fun load() = loadMutex.withLock {
+        if (machine != null) return@withLock
         val p = dataStore.data.first()
         val state = LeisureState(
             dailyBudgetMin = LeisureLimits.clampBudget(p[budgetKey] ?: LeisureLimits.DEFAULT_BUDGET_MIN),
@@ -100,6 +111,8 @@ class LeisureRepository(
         if (m.state != before || waitChangedSinceWrite()) writes.trySend(m.state to waitSeconds)
         lastWrittenWait = waitSeconds
         _status.value = status
+        _budget.value = m.state.dailyBudgetMin
+        _wait.value = waitSeconds
         return status
     }
 

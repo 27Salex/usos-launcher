@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Usos</string>
+    <string name="accessibility_description">Mantiene congeladas las apps de ocio: si abres una sin haber descongelado el ocio, te devuelve al inicio, y cierra la sesión de ocio cuando se acaba el tiempo. Solo detecta qué app se abre; no lee el contenido de la pantalla.</string>
 </resources>

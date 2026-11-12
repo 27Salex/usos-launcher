@@ -8,6 +8,15 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.usos.launcher.AppContainer
 import com.usos.launcher.UsosApp
+import android.os.SystemClock
+import com.usos.launcher.data.sections.AppConfig
+import com.usos.launcher.data.sections.Highlight
+import com.usos.launcher.data.sections.PlacedApp
+import com.usos.launcher.data.sections.SectionOrder
+import com.usos.launcher.data.usage.UsageSummary
+import com.usos.launcher.service.LauncherAlert
+import com.usos.launcher.service.isBlockerEnabled
+import com.usos.launcher.ui.appdetail.DetailUi
 import com.usos.launcher.data.sections.DEFAULT_ACCENT
 import com.usos.launcher.data.leisure.LeisureStatus
 import com.usos.launcher.data.sections.MOSAIC_CAPACITY
@@ -31,7 +40,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class TileUi(val app: AppEntry, val code: String, val dimmed: Boolean)
+data class TileUi(
+    val app: AppEntry,
+    val code: String,
+    val dimmed: Boolean,
+    val highlight: Highlight = Highlight.NORMAL,
+    val usageMin: Int? = null,
+)
 
 data class SectionUi(val section: Section, val count: Int, val tiles: List<TileUi>)
 
@@ -54,6 +69,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
 
+    private val _route = MutableStateFlow<Route>(Route.Home)
+    val route: StateFlow<Route> = _route
+
+    private class DetailExtras(val key: String, val hasPermission: Boolean, val usage: UsageSummary?, val storage: Long?)
+    private val detailExtras = MutableStateFlow<DetailExtras?>(null)
+    private val todayUsage = MutableStateFlow<Map<String, Int>>(emptyMap())
+    private val usageRepo = container.usageRepository
+
+    private val _blockerActive = MutableStateFlow(true)
+    val blockerActive: StateFlow<Boolean> = _blockerActive
+    private var blockedAt = -10_000L
+
+    val budget: StateFlow<Int> = leisureRepo.budget
+    val wait: StateFlow<Int> = leisureRepo.wait
+
     private val apps: StateFlow<List<AppEntry>?> = repository.apps
         .map<List<AppEntry>, List<AppEntry>?> { it }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -73,7 +103,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.Eagerly, Color(DEFAULT_ACCENT))
 
     /** null hasta que apps, configuración y sección abierta están listas. */
-    val state: StateFlow<HomeUiState?> = combine(apps, configStore.configs, open, openLoaded) { a, c, o, loaded ->
+    val state: StateFlow<HomeUiState?> = combine(apps, configStore.configs, open, openLoaded, todayUsage) { a, c, o, loaded, usage ->
         if (a == null || !loaded || a.any { it.key !in c }) return@combine null
         val grouped = SectionLayout.build(a, c)
         HomeUiState(
@@ -83,7 +113,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     section = section,
                     count = placed.size,
                     tiles = SectionLayout.mosaic(placed, if (section == Section.LEISURE) LEISURE_APP_SLOTS else MOSAIC_CAPACITY)
-                        .map { TileUi(it.app, it.code, it.app.isQuiet) },
+                        .map {
+                            TileUi(
+                                it.app, it.code, it.app.isQuiet, it.config.highlight,
+                                usageMin = if (it.config.showUsage) usage[it.app.packageName] ?: 0 else null,
+                            )
+                        },
                 )
             },
             open = o,
@@ -101,6 +136,26 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** Apps de cada seccion, en su orden, para la pantalla de ajustes. */
+    val orderLists: StateFlow<List<Pair<Section, List<PlacedApp>>>> = combine(apps, configs) { a, c ->
+        val grouped = SectionLayout.build(a.orEmpty(), c)
+        (Section.home + Section.NONE).map { it to grouped[it].orEmpty() }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val detail: StateFlow<DetailUi?> = combine(_route, apps, configs, detailExtras) { r, a, c, extras ->
+        val key = (r as? Route.Detail)?.key ?: return@combine null
+        val app = a?.firstOrNull { it.key == key } ?: return@combine null
+        val cfg = c[key] ?: return@combine null
+        val placed = SectionLayout.build(a, c)[cfg.section].orEmpty()
+        val ex = extras?.takeIf { it.key == key }
+        DetailUi(
+            app = app, config = cfg, code = cfg.code?.takeIf { it.isNotBlank() } ?: app.defaultCode,
+            usage = ex?.usage, hasPermission = ex?.hasPermission ?: usageRepo.hasPermission(),
+            storageBytes = ex?.storage,
+            mosaicFull = placed.count { it.config.inMosaic } >= capacityFor(cfg.section),
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     private var noticeJob: Job? = null
 
     init {
@@ -111,6 +166,143 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
         viewModelScope.launch {
             apps.collect { list -> if (list != null) configStore.reconcile(list) }
+        }
+        viewModelScope.launch {
+            if (!settings.onboardingDone.first()) _route.value = Route.Onboarding
+        }
+        viewModelScope.launch {
+            container.pendingAlert.collect { alert ->
+                if (alert == null) return@collect
+                container.pendingAlert.value = null
+                if (SystemClock.elapsedRealtime() - alert.atMs < 10_000) onAlert(alert)
+            }
+        }
+        refreshBlocker()
+    }
+
+    private fun onAlert(alert: LauncherAlert) {
+        blockedAt = SystemClock.elapsedRealtime()
+        if (_route.value !is Route.Onboarding) _route.value = Route.Home
+        if (alert.revealLeisure) revealLeisure() else closeSearch()
+        showNotice(alert.text)
+    }
+
+    fun refreshBlocker() { _blockerActive.value = isBlockerEnabled(container.appContext) }
+
+    /** Minutos de hoy para las piezas con uso y, si hay una ficha abierta, sus datos. */
+    fun refreshUsage() {
+        viewModelScope.launch {
+            val perm = usageRepo.hasPermission()
+            todayUsage.value = if (perm) runCatching { usageRepo.todayMinutes() }.getOrDefault(emptyMap()) else emptyMap()
+            val key = (_route.value as? Route.Detail)?.key ?: return@launch
+            val app = apps.value?.firstOrNull { it.key == key } ?: return@launch
+            detailExtras.value = DetailExtras(
+                key, perm,
+                usage = if (perm) runCatching { usageRepo.summary(app.packageName) }.getOrNull() else null,
+                storage = if (perm) usageRepo.storageBytes(app.packageName, app.userSerial) else null,
+            )
+        }
+    }
+
+    // ---- Navegacion entre pantallas ----
+
+    fun openDetail(app: AppEntry) {
+        closeSearch()
+        detailExtras.value = null
+        _route.value = Route.Detail(app.key)
+        refreshUsage()
+    }
+
+    fun openSettings() { _route.value = Route.Settings }
+
+    /** Atras desde ficha o ajustes. */
+    fun closeOverlay() {
+        _route.value = Route.Home
+        detailExtras.value = null
+    }
+
+    /** Terminar o saltar el primer arranque. */
+    fun finishOnboarding() {
+        _route.value = Route.Home
+        viewModelScope.launch { settings.setOnboardingDone(true) }
+    }
+
+    fun restartOnboarding() {
+        viewModelScope.launch { settings.setOnboardingDone(false) }
+        _route.value = Route.Onboarding
+    }
+
+    // ---- Ficha de app ----
+
+    private fun capacityFor(section: Section) =
+        if (section == Section.LEISURE) LEISURE_APP_SLOTS else MOSAIC_CAPACITY
+
+    private fun updateConfig(key: String, change: (AppConfig) -> AppConfig) {
+        viewModelScope.launch {
+            configStore.update { all -> all[key]?.let { all + (key to change(it)) } ?: all }
+        }
+    }
+
+    fun setShowUsage(key: String, on: Boolean) {
+        updateConfig(key) { it.copy(showUsage = on) }
+        refreshUsage()
+    }
+
+    fun setHighlight(key: String, h: Highlight) = updateConfig(key) { it.copy(highlight = h) }
+
+    /** Dos letras o digitos; vacio vuelve al codigo por defecto. */
+    fun setCode(key: String, raw: String) {
+        val code = raw.filter { it.isLetterOrDigit() }.take(2).uppercase().ifEmpty { null }
+        updateConfig(key) { it.copy(code = code) }
+    }
+
+    fun setSection(key: String, section: Section) {
+        viewModelScope.launch {
+            configStore.update { all ->
+                val cfg = all[key] ?: return@update all
+                if (cfg.section == section) return@update all
+                val inSection = all.values.filter { it.section == section && it.key != key }
+                val room = section != Section.NONE && inSection.count { it.inMosaic } < capacityFor(section)
+                all + (key to cfg.copy(
+                    section = section,
+                    order = (inSection.maxOfOrNull { it.order } ?: -1) + 1,
+                    inMosaic = room,
+                    manual = true,
+                ))
+            }
+        }
+    }
+
+    fun setInMosaic(key: String, on: Boolean) {
+        viewModelScope.launch {
+            var full = false
+            configStore.update { all ->
+                val cfg = all[key] ?: return@update all
+                val others = all.values.count { it.section == cfg.section && it.inMosaic && it.key != key }
+                if (on && others >= capacityFor(cfg.section)) {
+                    full = true
+                    return@update all
+                }
+                all + (key to cfg.copy(inMosaic = on, manual = true))
+            }
+            if (full) showNotice("MOSAICO LLENO")
+        }
+    }
+
+    // ---- Ajustes ----
+
+    fun setBudget(min: Int) { leisureRepo.setBudget(min) }
+
+    fun setWait(seconds: Int) { leisureRepo.setWaitSeconds(seconds) }
+
+    fun setAccent(argb: Int) { viewModelScope.launch { settings.setAccent(argb) } }
+
+    /** Sube o baja [delta] posiciones una app dentro de su seccion. */
+    fun moveInSection(section: Section, key: String, delta: Int) {
+        val keys = orderLists.value.firstOrNull { it.first == section }?.second?.map { it.config.key } ?: return
+        val orders = SectionOrder.move(keys, key, delta) ?: return
+        viewModelScope.launch {
+            configStore.update { all -> all.mapValues { (k, c) -> orders[k]?.let { c.copy(order = it) } ?: c } }
         }
     }
 
@@ -135,6 +327,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     /** Botón de inicio: cierra la sección abierta (sin olvidar la recordada) y vuelve a la página central. */
     fun onHomePressed() {
+        // El aviso del servicio ya llevo al usuario a donde toca; no lo deshacemos con el HOME que lo acompana.
+        if (SystemClock.elapsedRealtime() - blockedAt < 2000) {
+            _homeEvents.tryEmit(Unit)
+            return
+        }
+        if (_route.value !is Route.Onboarding) closeOverlay()
         closeSearch()
         open.value = null
         _homeEvents.tryEmit(Unit)
@@ -175,7 +373,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun tickLeisure() { leisureRepo.tick() }
+    fun tickLeisure() {
+        leisureRepo.tick()
+        refreshBlocker()
+    }
 
     fun startThaw(durationMin: Int) { leisureRepo.startThaw(durationMin) }
 
