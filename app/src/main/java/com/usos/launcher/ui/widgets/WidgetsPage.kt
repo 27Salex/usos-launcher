@@ -377,7 +377,7 @@ fun WidgetsPage(
             }
 
         if (picking) {
-            WidgetPicker(manager, onPick = { picking = false; actions.onAdd(it) }, onClose = { picking = false })
+            WidgetPicker(manager, grayscale, onPick = { picking = false; actions.onAdd(it) }, onClose = { picking = false })
         }
     }
 }
