@@ -45,6 +45,9 @@ class AppContainer(context: Context) {
         FeedRepository(FeedDatabase.create(appContext).dao(), OkHttpFeedFetcher(httpClient))
     }
     val thumbnailLoader: ThumbnailLoader by lazy { ThumbnailLoader(httpClient) }
+    val weatherRepository: com.usos.launcher.data.weather.WeatherRepository by lazy {
+        com.usos.launcher.data.weather.WeatherRepository(appContext, settingsStore, httpClient)
+    }
     val agendaRepository = AgendaRepository(appContext)
 
     /** Host de widgets con id fijo: los ids asignados sobreviven a reinicios. */

@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.os.Bundle
+import android.util.SizeF
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -50,7 +52,7 @@ import com.usos.launcher.ui.theme.tap
 class WidgetsActions(
     val onAdd: (AppWidgetProviderInfo) -> Unit,
     val onMove: (id: Int, delta: Int) -> Unit,
-    val onSize: (id: Int, size: WidgetSize) -> Unit,
+    val onHeight: (id: Int, heightDp: Int) -> Unit,
     val onRemove: (id: Int) -> Unit,
 )
 
@@ -67,6 +69,7 @@ fun WidgetsPage(
     var picking by rememberSaveable { mutableStateOf(false) }
     var menuFor by rememberSaveable { mutableStateOf<Int?>(null) }
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val density = LocalContext.current.resources.displayMetrics.density
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = UsosDimens.ScreenMargin)) {
@@ -91,17 +94,35 @@ fun WidgetsPage(
         val menuWidget = widgets.firstOrNull { it.id == menuFor }
         if (menuWidget != null) {
             val idx = widgets.indexOf(menuWidget)
+            val dims = remember(menuWidget.id) { WidgetDims.of(manager.getAppWidgetInfo(menuWidget.id), density) }
+            val current = dims.height(menuWidget.heightDp)
             WidgetMenu(
-                menuWidget, canUp = idx > 0, canDown = idx < widgets.lastIndex,
+                current, dims, canUp = idx > 0, canDown = idx < widgets.lastIndex,
                 onUp = { actions.onMove(menuWidget.id, -1) },
                 onDown = { actions.onMove(menuWidget.id, 1) },
-                onSize = { actions.onSize(menuWidget.id, it) },
+                onStep = { actions.onHeight(menuWidget.id, WidgetSizing.step(current, it, dims.base, dims.max)) },
                 onRemove = { menuFor = null; actions.onRemove(menuWidget.id) },
                 onClose = { menuFor = null },
             )
         }
         if (picking) {
             WidgetPicker(manager, onPick = { picking = false; actions.onAdd(it) }, onClose = { picking = false })
+        }
+    }
+}
+
+/** Limites de alto de un widget, en dp, sacados de su AppWidgetProviderInfo. */
+private class WidgetDims(val base: Int, val max: Int, val default: Int) {
+    fun height(chosen: Int) = WidgetSizing.heightDp(chosen, base, max, default)
+
+    companion object {
+        fun of(info: AppWidgetProviderInfo?, density: Float): WidgetDims {
+            if (info == null) return WidgetDims(WidgetSizing.MIN_BASE_DP, WidgetSizing.MIN_BASE_DP * 4, WidgetSizing.MIN_BASE_DP)
+            fun dp(px: Int) = (px / density).toInt()
+            val base = WidgetSizing.baseDp(dp(info.minHeight), dp(info.minResizeHeight))
+            val max = WidgetSizing.maxDp(base, dp(info.maxResizeHeight))
+            val def = WidgetSizing.defaultDp(dp(info.minHeight), info.targetCellHeight)
+            return WidgetDims(base, max, def)
         }
     }
 }
@@ -116,18 +137,20 @@ private fun WidgetBox(
 ) {
     val density = LocalContext.current.resources.displayMetrics.density
     val info = remember(widget.id) { manager.getAppWidgetInfo(widget.id) }
+    val dims = remember(widget.id) { WidgetDims.of(info, density) }
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
-    val heightDp = WidgetSizing.heightDp(info?.let { (it.minHeight / density).toInt() } ?: 0, widget.size)
-    BoxWithConstraints(
-        Modifier.fillMaxWidth().height(heightDp.dp)
-            .clip(shape).background(UsosColors.Surface, shape).border(1.dp, UsosColors.Border, shape),
-    ) {
+    val heightDp = dims.height(widget.heightDp)
+    BoxWithConstraints(Modifier.fillMaxWidth().height(heightDp.dp).clip(shape)) {
         if (info == null) {
-            Box(Modifier.fillMaxSize().tap(onLongClick = onLongPress) { }.padding(16.dp), contentAlignment = Alignment.CenterStart) {
+            Box(
+                Modifier.fillMaxSize().background(UsosColors.Surface, shape).border(1.dp, UsosColors.Border, shape)
+                    .tap(onLongClick = onLongPress) { }.padding(16.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
                 UsosText("WIDGET NO DISPONIBLE", UsosType.Label, UsosColors.TextSecondary)
             }
         } else {
-            val widthDp = maxWidth.value.toInt()
+            val widthDp = maxWidth.value
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx -> host.createView(ctx, widget.id, info) },
@@ -136,8 +159,8 @@ private fun WidgetBox(
                         it.onLongPress = onLongPress
                         it.setGrayscale(grayscale)
                     }
-                    // Tamano real en dp para que el widget elija su disposicion.
-                    view.updateAppWidgetSize(Bundle(), widthDp, heightDp, widthDp, heightDp)
+                    // Tamano real (ancho util x alto elegido) para que el widget elija su disposicion.
+                    view.updateAppWidgetSize(Bundle(), listOf(SizeF(widthDp, heightDp.toFloat())))
                 },
             )
         }
@@ -146,12 +169,13 @@ private fun WidgetBox(
 
 @Composable
 private fun WidgetMenu(
-    widget: HostedWidget,
+    height: Int,
+    dims: WidgetDims,
     canUp: Boolean,
     canDown: Boolean,
     onUp: () -> Unit,
     onDown: () -> Unit,
-    onSize: (WidgetSize) -> Unit,
+    onStep: (Int) -> Unit,
     onRemove: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -168,11 +192,11 @@ private fun WidgetMenu(
         ) {
             MenuRow("SUBIR", canUp, UsosColors.Text, onUp)
             MenuRow("BAJAR", canDown, UsosColors.Text, onDown)
-            UsosText("TAMAÑO", UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 10.dp, bottom = 6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WidgetSize.entries.forEach { s ->
-                    UsosPill(s.label, filled = s == widget.size, onClick = { onSize(s) }, modifier = Modifier.weight(1f))
-                }
+            UsosText("ALTO", UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 10.dp, bottom = 2.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                UsosPill("−", filled = false, enabled = height > dims.base, onClick = { onStep(-1) }, modifier = Modifier.width(72.dp))
+                UsosText("$height DP", UsosType.Pill, UsosColors.Text)
+                UsosPill("+", filled = false, enabled = height < dims.max, onClick = { onStep(1) }, modifier = Modifier.width(72.dp))
             }
             Spacer(Modifier.height(6.dp))
             MenuRow("QUITAR", true, LocalAccent.current, onRemove)

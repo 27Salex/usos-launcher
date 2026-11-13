@@ -75,6 +75,7 @@ fun SearchOverlay(
     onSubmit: () -> Unit,
     onPick: (SearchItem) -> Unit,
     onLongPick: (SearchItem) -> Unit,
+    onOpenSettings: () -> Unit,
     onClose: () -> Unit,
 ) {
     val focus = remember { FocusRequester() }
@@ -113,6 +114,7 @@ fun SearchOverlay(
         val topY = statusTop + 8.dp
 
         val groups = remember(items, query) { SearchFilter.groups(items, query) }
+        val showSettings = SearchFilter.matchesSettings(query)
         Column(
             Modifier
                 .fillMaxSize()
@@ -127,7 +129,18 @@ fun SearchOverlay(
                     top = 8.dp, bottom = navBar + 16.dp,
                 ),
             ) {
-                if (groups.isEmpty()) {
+                if (showSettings) {
+                    item(key = "settings") {
+                        Box(
+                            Modifier.fillMaxWidth().padding(top = 8.dp).height(UsosDimens.MinTouch + 8.dp)
+                                .background(UsosColors.Surface, RoundedCornerShape(UsosDimens.RadiusPiece))
+                                .border(1.dp, LocalAccent.current, RoundedCornerShape(UsosDimens.RadiusPiece))
+                                .tap { onOpenSettings() }.padding(horizontal = 16.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) { UsosText("AJUSTES", UsosType.Button, LocalAccent.current) }
+                    }
+                }
+                if (groups.isEmpty() && !showSettings) {
                     item(key = "empty") {
                         UsosText("Nada con ese nombre.", UsosType.Empty, UsosColors.TextSecondary, Modifier.padding(vertical = 8.dp))
                     }

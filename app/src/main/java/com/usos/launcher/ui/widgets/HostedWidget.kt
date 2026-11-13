@@ -12,22 +12,37 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
-/** Tamano elegido: bajo = minHeight declarado, medio = x1,5, alto = x2 (con suelo de [WidgetSizing.MIN_BASE_DP]). */
-enum class WidgetSize(val factor: Float, val label: String) {
-    LOW(1f, "BAJO"), MEDIUM(1.5f, "MEDIO"), HIGH(2f, "ALTO"),
-}
-
-/** Widget colocado: el id lo asigna AppWidgetHost y se conserva entre reinicios. El orden es el de la lista. */
+/** Widget colocado: el id lo asigna AppWidgetHost y se conserva entre reinicios. El orden es el de la lista. `heightDp` 0 = por defecto. */
 @Serializable
-data class HostedWidget(val id: Int, val size: WidgetSize = WidgetSize.LOW)
+data class HostedWidget(val id: Int, val heightDp: Int = 0)
 
 /** Calculos puros de tamano y de lista. */
 object WidgetSizing {
-    const val MIN_BASE_DP = 72
+    const val STEP_DP = 48
+    const val MIN_BASE_DP = 48
+    const val MAX_FACTOR = 4
 
-    /** Alto en dp para un widget cuyo minHeight declarado es [declaredMinHeightDp]. */
-    fun heightDp(declaredMinHeightDp: Int, size: WidgetSize): Int =
-        (maxOf(declaredMinHeightDp, MIN_BASE_DP) * size.factor).toInt()
+    /** Alto minimo en dp: minResizeHeight si existe, si no minHeight (con suelo de un paso). */
+    fun baseDp(minHeightDp: Int, minResizeHeightDp: Int): Int =
+        maxOf(if (minResizeHeightDp > 0) minResizeHeightDp else minHeightDp, MIN_BASE_DP)
+
+    /** Alto maximo: 4x la base, limitado por maxResizeHeight si el widget lo declara. */
+    fun maxDp(base: Int, maxResizeHeightDp: Int): Int {
+        val cap = base * MAX_FACTOR
+        return if (maxResizeHeightDp > 0) maxOf(base, minOf(cap, maxResizeHeightDp)) else cap
+    }
+
+    /** Alto inicial: el mayor entre minHeight declarado y el de targetCellHeight (n*70-30 dp). */
+    fun defaultDp(minHeightDp: Int, targetCellHeight: Int): Int =
+        maxOf(minHeightDp, if (targetCellHeight > 0) targetCellHeight * 70 - 30 else 0)
+
+    /** Alto a dibujar: el elegido (o el por defecto) dentro de [base, max]. */
+    fun heightDp(chosenDp: Int, base: Int, max: Int, defaultDp: Int): Int =
+        (if (chosenDp > 0) chosenDp else defaultDp).coerceIn(base, max)
+
+    /** Alto tras pulsar - / + : un paso de [STEP_DP], dentro de [base, max]. */
+    fun step(current: Int, delta: Int, base: Int, max: Int): Int =
+        (current + delta * STEP_DP).coerceIn(base, max)
 
     /** Ids que el host tiene asignados y que ya no estan guardados: se borran al arrancar. */
     fun orphans(hostIds: Collection<Int>, saved: List<HostedWidget>): List<Int> {
@@ -42,8 +57,8 @@ object WidgetSizing {
         return list.toMutableList().apply { add(to, removeAt(from)) }
     }
 
-    fun withSize(list: List<HostedWidget>, id: Int, size: WidgetSize): List<HostedWidget> =
-        list.map { if (it.id == id) it.copy(size = size) else it }
+    fun withHeight(list: List<HostedWidget>, id: Int, heightDp: Int): List<HostedWidget> =
+        list.map { if (it.id == id) it.copy(heightDp = heightDp) else it }
 }
 
 /** Widgets colocados, como un JSON en DataStore. */

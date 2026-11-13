@@ -45,6 +45,10 @@ class HomeActivity : ComponentActivity() {
         manualCalendarRequest = false
     }
 
+    private val locationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        viewModel.onLocationResult(granted)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         widgetAdder = WidgetAdder(this, container, viewModel::addWidget, viewModel::discardWidgetId)
@@ -62,12 +66,20 @@ class HomeActivity : ComponentActivity() {
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.locationRequestEvents.collect {
+                    locationPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.refreshUsage()
+                viewModel.refreshWeather()
                 viewModel.refreshInfo()
                 var ticks = 0
                 while (true) {
                     viewModel.tickLeisure()
-                    if (++ticks % 120 == 0) { viewModel.refreshUsage(); viewModel.refreshInfo() } // cada minuto
+                    if (++ticks % 120 == 0) { viewModel.refreshUsage(); viewModel.refreshInfo(); viewModel.refreshWeather() } // cada minuto
                     delay(500)
                 }
             }

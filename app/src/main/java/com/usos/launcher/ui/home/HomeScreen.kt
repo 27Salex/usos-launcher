@@ -96,6 +96,9 @@ fun HomeScreen(
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val widgets by viewModel.widgets.collectAsStateWithLifecycle()
     val grayscale by viewModel.widgetsGrayscale.collectAsStateWithLifecycle()
+    val clockPrefs by viewModel.clockPrefs.collectAsStateWithLifecycle()
+    val weatherPrefs by viewModel.weatherPrefs.collectAsStateWithLifecycle()
+    val weather by viewModel.weather.collectAsStateWithLifecycle()
     val animations = LocalAnimationsEnabled.current
     val animationsNow by rememberUpdatedState(animations)
     val pager = rememberPagerState(initialPage = 1) { 3 }
@@ -127,7 +130,7 @@ fun HomeScreen(
                     actions = com.usos.launcher.ui.widgets.WidgetsActions(
                         onAdd = onAddWidget,
                         onMove = viewModel::moveWidget,
-                        onSize = viewModel::setWidgetSize,
+                        onHeight = viewModel::setWidgetHeight,
                         onRemove = viewModel::removeWidget,
                     ),
                     topSpacing = topSpacing(),
@@ -148,6 +151,10 @@ fun HomeScreen(
                     onCancelThaw = viewModel::cancelThaw,
                     onFreeze = viewModel::freezeLeisure,
                     onOpenInfo = viewModel::openInfo,
+                    clock = clockPrefs,
+                    weatherPrefs = weatherPrefs,
+                    weather = weather,
+                    onOpenWeather = viewModel::openWeatherApp,
                 )
             }
         }
@@ -162,6 +169,7 @@ fun HomeScreen(
             onSubmit = viewModel::submitSearch,
             onPick = viewModel::pickFromSearch,
             onLongPick = { viewModel.openDetail(it.app) },
+            onOpenSettings = viewModel::openSettings,
             onClose = viewModel::closeSearch,
         )
         // Pantallas superpuestas: cada una registra su propio "atras" y vuelve al inicio.
@@ -187,8 +195,14 @@ fun HomeScreen(
                 val perHour by viewModel.feedsPerHour.collectAsStateWithLifecycle()
                 val calendarGranted by viewModel.calendarGranted.collectAsStateWithLifecycle()
                 val provider by viewModel.suggestProvider.collectAsStateWithLifecycle()
+                val clock by viewModel.clockPrefs.collectAsStateWithLifecycle()
+                val weatherPrefs by viewModel.weatherPrefs.collectAsStateWithLifecycle()
+                val cities by viewModel.cityResults.collectAsStateWithLifecycle()
                 SettingsScreen(
-                    budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
+                    com.usos.launcher.ui.settings.SettingsUi(
+                        budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
+                        clock, weatherPrefs, cities,
+                    ),
                     SettingsActions(
                         onBudget = viewModel::setBudget,
                         onWait = viewModel::setWait,
@@ -200,6 +214,20 @@ fun HomeScreen(
                         onCalendarPermission = viewModel::requestCalendar,
                         onMove = viewModel::moveInSection,
                         onRestartOnboarding = viewModel::restartOnboarding,
+                        onClockType = viewModel::setClockType,
+                        onClockSeconds = viewModel::setClockSeconds,
+                        onClockAnimated = viewModel::setClockAnimated,
+                        onWeatherOn = viewModel::setWeatherOn,
+                        onWeatherFahrenheit = viewModel::setWeatherFahrenheit,
+                        onWeatherIcon = viewModel::setWeatherIcon,
+                        onWeatherText = viewModel::setWeatherText,
+                        onWeatherMinMax = viewModel::setWeatherMinMax,
+                        onWeatherAuto = { if (it) viewModel.setWeatherAuto() else viewModel.setWeatherManual() },
+                        onSearchCity = viewModel::searchCities,
+                        onPickCity = viewModel::pickCity,
+                        onWeatherBelow = viewModel::setWeatherBelowClock,
+                        onWeatherAccent = viewModel::setWeatherAccent,
+                        onBlackWallpaper = viewModel::applyBlackWallpaper,
                         onBack = viewModel::closeOverlay,
                     ),
                 )
@@ -235,14 +263,19 @@ private fun HomePage(
     onCancelThaw: () -> Unit,
     onFreeze: () -> Unit,
     onOpenInfo: (com.usos.launcher.data.info.InfoKind) -> Unit,
+    clock: com.usos.launcher.data.sections.ClockPrefs,
+    weatherPrefs: com.usos.launcher.data.sections.WeatherPrefs,
+    weather: com.usos.launcher.data.weather.WeatherNow?,
+    onOpenWeather: () -> Unit,
 ) {
     val now by rememberNow()
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    Column(Modifier.fillMaxSize().padding(horizontal = UsosDimens.ScreenMargin)) {
+    // Pulsación larga en cualquier zona vacía de inicio abre Ajustes (lo que tiene toque propio la consume).
+    Column(
+        Modifier.fillMaxSize().tap(onLongClick = onOpenSettings) { }.padding(horizontal = UsosDimens.ScreenMargin),
+    ) {
         Spacer(Modifier.height(topSpacing()))
-        Box(Modifier.fillMaxWidth().tap(onLongClick = onOpenSettings) { }, contentAlignment = Alignment.Center) { DotClock(now) }
-        Spacer(Modifier.height(15.dp))
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { DateLabel(now.toLocalDate()) }
+        ClockBlock(now, clock, weatherPrefs, weather, onWeather = onOpenWeather)
         Spacer(Modifier.height(16.dp))
         WeekStrip(now.toLocalDate())
         Spacer(Modifier.height(12.dp))

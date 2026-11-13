@@ -28,7 +28,15 @@ class UsosWidgetHost(context: Context, hostId: Int) : AppWidgetHost(context, hos
 class UsosHostView(context: Context) : AppWidgetHostView(context) {
     var onLongPress: (() -> Unit)? = null
 
+    init {
+        setPadding(0, 0, 0, 0) // sin el padding por defecto del host: el widget usa todo el hueco
+        clipToPadding = false
+    }
+
+    override fun setPadding(left: Int, top: Int, right: Int, bottom: Int) = super.setPadding(0, 0, 0, 0)
+
     private var consumed = false
+    private var grayscaleOn: Boolean? = null
     private var downX = 0f
     private var downY = 0f
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
@@ -71,6 +79,8 @@ class UsosHostView(context: Context) : AppWidgetHostView(context) {
 
     /** Escala de grises como capa de hardware: ColorMatrix con saturacion 0. */
     fun setGrayscale(on: Boolean) {
+        if (grayscaleOn == on) return
+        grayscaleOn = on
         if (on) {
             val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0f) }) }
             setLayerType(View.LAYER_TYPE_HARDWARE, paint)

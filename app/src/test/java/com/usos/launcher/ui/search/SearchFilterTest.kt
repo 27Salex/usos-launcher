@@ -3,6 +3,7 @@ package com.usos.launcher.ui.search
 import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -60,4 +61,14 @@ class SearchFilterTest {
     @Test fun queryIsTrimmed() = assertEquals(listOf("Netflix"), labels(SearchFilter.groups(items, "  netflix ")))
 
     @Test fun keepsFrozenFlag() = assertTrue(SearchFilter.groups(items, "net")[0].items[0].frozen)
+
+    @Test fun settingsResultMatchesAjustesAndUsos() {
+        assertTrue(SearchFilter.matchesSettings("ajustes"))
+        assertTrue(SearchFilter.matchesSettings(" Aju"))
+        assertTrue(SearchFilter.matchesSettings("usos"))
+        assertTrue(SearchFilter.matchesSettings("us"))
+        assertFalse(SearchFilter.matchesSettings("a"))
+        assertFalse(SearchFilter.matchesSettings("maps"))
+        assertFalse(SearchFilter.matchesSettings(""))
+    }
 }

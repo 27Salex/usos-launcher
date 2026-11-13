@@ -8,12 +8,32 @@ class WidgetSizingTest {
     private val b = HostedWidget(2)
     private val c = HostedWidget(3)
 
-    @Test fun heights() {
-        assertEquals(110, WidgetSizing.heightDp(110, WidgetSize.LOW))
-        assertEquals(165, WidgetSizing.heightDp(110, WidgetSize.MEDIUM))
-        assertEquals(220, WidgetSizing.heightDp(110, WidgetSize.HIGH))
-        assertEquals(72, WidgetSizing.heightDp(40, WidgetSize.LOW))
-        assertEquals(144, WidgetSizing.heightDp(0, WidgetSize.HIGH))
+    @Test fun baseAndMax() {
+        assertEquals(110, WidgetSizing.baseDp(110, 0))
+        assertEquals(80, WidgetSizing.baseDp(110, 80))
+        assertEquals(48, WidgetSizing.baseDp(10, 0))
+        assertEquals(440, WidgetSizing.maxDp(110, 0))
+        assertEquals(300, WidgetSizing.maxDp(110, 300))
+        assertEquals(110, WidgetSizing.maxDp(110, 50))
+    }
+
+    @Test fun defaultUsesCellsWhenBigger() {
+        assertEquals(110, WidgetSizing.defaultDp(110, 0))
+        assertEquals(180, WidgetSizing.defaultDp(110, 3))
+        assertEquals(110, WidgetSizing.defaultDp(110, 1))
+    }
+
+    @Test fun heightIsClamped() {
+        assertEquals(110, WidgetSizing.heightDp(0, 110, 440, 110))
+        assertEquals(440, WidgetSizing.heightDp(900, 110, 440, 110))
+        assertEquals(110, WidgetSizing.heightDp(20, 110, 440, 110))
+        assertEquals(200, WidgetSizing.heightDp(200, 110, 440, 110))
+    }
+
+    @Test fun steps() {
+        assertEquals(158, WidgetSizing.step(110, 1, 110, 440))
+        assertEquals(110, WidgetSizing.step(110, -1, 110, 440))
+        assertEquals(440, WidgetSizing.step(430, 1, 110, 440))
     }
 
     @Test fun orphansAreHostIdsNotSaved() {
@@ -30,7 +50,7 @@ class WidgetSizingTest {
         assertEquals(l, WidgetSizing.move(l, 99, 1))
     }
 
-    @Test fun setsSize() {
-        assertEquals(listOf(a, b.copy(size = WidgetSize.HIGH)), WidgetSizing.withSize(listOf(a, b), 2, WidgetSize.HIGH))
+    @Test fun setsHeight() {
+        assertEquals(listOf(a, b.copy(heightDp = 200)), WidgetSizing.withHeight(listOf(a, b), 2, 200))
     }
 }

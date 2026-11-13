@@ -48,4 +48,11 @@ class DotMatrixTest {
         assertEquals(true, DotPosition(55 + 2 * 9, 0) in pos)
         assertEquals(41 * 4 + 5 + 14 * 4, DotMatrix.widthDp("11:11"))
     }
+
+    @Test fun layoutByCharMatchesFlatLayout() {
+        val flat = DotMatrix.layout("09:41")
+        val byChar = DotMatrix.layoutByChar("09:41")
+        assertEquals(5, byChar.size)
+        assertEquals(flat, byChar.flatten())
+    }
 }

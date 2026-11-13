@@ -78,6 +78,13 @@ class FeedRepository(
         return ok
     }
 
+    /** Crea los feeds por defecto (sin descargar) si no hay ninguno; true si los creo. */
+    suspend fun seedDefaults(defaults: List<Pair<String, String>>): Boolean {
+        if (dao.feedsNow().isNotEmpty()) return false
+        defaults.forEach { (title, url) -> runCatching { dao.insertFeed(Feed(url = url, title = title)) } }
+        return true
+    }
+
     suspend fun lastFetchedAt(): Long? = dao.feedsNow().minOfOrNull { it.lastFetchedAt }
 
     private suspend fun store(feedId: Long, parsed: ParsedFeed) {
@@ -141,4 +148,19 @@ class ThumbnailLoader(private val http: OkHttpClient) {
     private companion object {
         const val MAX_BYTES = 3L * 1024 * 1024
     }
+}
+
+/** Feeds que se crean en el primer arranque (URLs verificadas con curl: RSS 2.0 valido). */
+object DefaultFeeds {
+    val list: List<Pair<String, String>> = listOf(
+        "El País" to "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",
+        "elDiario.es" to "https://www.eldiario.es/rss/",
+        "20minutos" to "https://www.20minutos.es/rss/",
+        "Xataka" to "https://www.xataka.com/index.xml",
+        "Genbeta" to "https://www.genbeta.com/index.xml",
+        "Applesfera" to "https://www.applesfera.com/index.xml",
+        "La Vanguardia" to "https://www.lavanguardia.com/rss/home.xml",
+        "El Periódico" to "https://www.elperiodico.com/es/rss/rss_portada.xml",
+        "324" to "https://api.3cat.cat/noticies?_format=rss&origen=frontal&frontal=n324-portada-noticia&version=2.0",
+    )
 }

@@ -21,6 +21,12 @@ object SearchFilter {
     fun normalize(text: String): String =
         Normalizer.normalize(text, Normalizer.Form.NFD).replace(combiningMarks, "").lowercase()
 
+    /** true si el texto (2+ letras) es el inicio de «ajustes» o de «usos»: aparece el resultado AJUSTES. */
+    fun matchesSettings(query: String): Boolean {
+        val q = normalize(query.trim())
+        return q.length >= 2 && ("ajustes".startsWith(q) || "usos".startsWith(q))
+    }
+
     /** Grupos con coincidencias, en orden, y apps en orden alfabetico. Sin texto, todas las apps. */
     fun groups(items: List<SearchItem>, query: String): List<SearchGroup> {
         val q = normalize(query.trim())

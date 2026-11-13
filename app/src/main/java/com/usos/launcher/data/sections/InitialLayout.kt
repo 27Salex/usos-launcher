@@ -30,8 +30,8 @@ object InitialLayout {
         // Hablar
         Entry(Section.TALK, pkgs("com.whatsapp")),
         Entry(Section.TALK, pkgs("org.telegram.messenger")),
-        Entry(Section.TALK, pkgs("com.samsung.android.messaging", "com.google.android.apps.messaging")),
-        Entry(Section.TALK, pkgs("com.samsung.android.dialer")),
+        Entry(Section.TALK, pkgs("com.samsung.android.messaging", "com.google.android.apps.messaging", "com.android.mms")),
+        Entry(Section.TALK, pkgs("com.samsung.android.dialer", "com.google.android.dialer", "com.android.dialer")),
         Entry(Section.TALK, pkgs("com.google.android.gm")),
         // Moverse (Mapas es pieza de información en la Fase 8; aquí es una app más)
         Entry(Section.MOVE, pkgs("com.google.android.apps.maps")),
@@ -43,11 +43,14 @@ object InitialLayout {
         },
         // Personal
         Entry(Section.PERSONAL, pkgs("org.mozilla.firefox")),
-        Entry(Section.PERSONAL, pkgs("com.sec.android.app.camera")),
+        Entry(Section.PERSONAL, pkgs(
+            "com.sec.android.app.camera", "com.google.android.GoogleCamera", "com.android.camera", "com.android.camera2",
+            "com.motorola.camera3", "com.oplus.camera", "com.oneplus.camera",
+        )),
         Entry(Section.PERSONAL, pkgs("com.spotify.music")),
         Entry(Section.PERSONAL, pkgs("com.anthropic.claude")),
         byLabel(Section.PERSONAL) { it.trim().equals("lumi", ignoreCase = true) },
-        Entry(Section.PERSONAL, pkgs("com.samsung.android.calendar")),
+        Entry(Section.PERSONAL, pkgs("com.samsung.android.calendar", "com.google.android.calendar", "com.android.calendar")),
         // Ocio
         Entry(Section.LEISURE, pkgs("com.netflix.mediaclient")),
         Entry(Section.LEISURE, pkgs("com.disney.disneyplus")),

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.usos.launcher.data.feeds.FeedLimits
@@ -14,6 +15,7 @@ import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -106,6 +108,71 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     suspend fun setOnboardingDone(done: Boolean) { dataStore.edit { it[onboardingKey] = done } }
 
     suspend fun setAccent(argb: Int) { dataStore.edit { it[accentKey] = argb } }
+
+    // ---- Reloj, tiempo y primer reparto de feeds ----
+    private val clockTypeKey = stringPreferencesKey("clock_type")
+    private val clockSecondsKey = booleanPreferencesKey("clock_seconds")
+    private val clockAnimatedKey = booleanPreferencesKey("clock_animated")
+
+    val clockPrefs: Flow<ClockPrefs> = dataStore.data.map {
+        ClockPrefs(ClockType.fromName(it[clockTypeKey]), it[clockSecondsKey] ?: false, it[clockAnimatedKey] ?: true)
+    }.distinctUntilChanged()
+
+    suspend fun setClockType(t: ClockType) { dataStore.edit { it[clockTypeKey] = t.name } }
+    suspend fun setClockSeconds(on: Boolean) { dataStore.edit { it[clockSecondsKey] = on } }
+    suspend fun setClockAnimated(on: Boolean) { dataStore.edit { it[clockAnimatedKey] = on } }
+
+    private val wOnKey = booleanPreferencesKey("weather_on")
+    private val wFahrenheitKey = booleanPreferencesKey("weather_fahrenheit")
+    private val wIconKey = booleanPreferencesKey("weather_icon")
+    private val wTextKey = booleanPreferencesKey("weather_text")
+    private val wMinMaxKey = booleanPreferencesKey("weather_minmax")
+    private val wAutoKey = booleanPreferencesKey("weather_auto")
+    private val wCityKey = stringPreferencesKey("weather_city")
+    private val wLatKey = doublePreferencesKey("weather_lat")
+    private val wLonKey = doublePreferencesKey("weather_lon")
+    private val wBelowKey = booleanPreferencesKey("weather_below_clock")
+    private val wAccentKey = booleanPreferencesKey("weather_accent")
+    private val wCacheKey = stringPreferencesKey("weather_cache")
+    private val feedsSeededKey = booleanPreferencesKey("feeds_seeded")
+
+    val weatherPrefs: Flow<WeatherPrefs> = dataStore.data.map {
+        WeatherPrefs(
+            on = it[wOnKey] ?: false,
+            fahrenheit = it[wFahrenheitKey] ?: false,
+            icon = it[wIconKey] ?: true,
+            text = it[wTextKey] ?: true,
+            minMax = it[wMinMaxKey] ?: false,
+            auto = it[wAutoKey] ?: true,
+            cityName = it[wCityKey] ?: "",
+            lat = it[wLatKey] ?: 0.0,
+            lon = it[wLonKey] ?: 0.0,
+            belowClock = it[wBelowKey] ?: false,
+            accentColor = it[wAccentKey] ?: false,
+        )
+    }.distinctUntilChanged()
+
+    suspend fun setWeatherOn(on: Boolean) { dataStore.edit { it[wOnKey] = on } }
+    suspend fun setWeatherFahrenheit(on: Boolean) { dataStore.edit { it[wFahrenheitKey] = on } }
+    suspend fun setWeatherIcon(on: Boolean) { dataStore.edit { it[wIconKey] = on } }
+    suspend fun setWeatherText(on: Boolean) { dataStore.edit { it[wTextKey] = on } }
+    suspend fun setWeatherMinMax(on: Boolean) { dataStore.edit { it[wMinMaxKey] = on } }
+    suspend fun setWeatherAuto(on: Boolean) { dataStore.edit { it[wAutoKey] = on } }
+    suspend fun setWeatherBelowClock(on: Boolean) { dataStore.edit { it[wBelowKey] = on } }
+    suspend fun setWeatherAccent(on: Boolean) { dataStore.edit { it[wAccentKey] = on } }
+    suspend fun setWeatherCity(name: String, lat: Double, lon: Double) {
+        dataStore.edit { it[wCityKey] = name; it[wLatKey] = lat; it[wLonKey] = lon; it[wAutoKey] = false; it.remove(wCacheKey) }
+    }
+
+    /** Ultimo tiempo descargado (JSON de WeatherNow) y la ultima ubicacion automatica usada. */
+    val weatherCache: Flow<String?> = dataStore.data.map { it[wCacheKey] }.distinctUntilChanged()
+    suspend fun setWeatherCache(json: String?) {
+        dataStore.edit { if (json == null) it.remove(wCacheKey) else it[wCacheKey] = json }
+    }
+
+    /** Los feeds por defecto se crean una sola vez, si al primer arranque no hay ninguno. */
+    suspend fun feedsSeeded(): Boolean = dataStore.data.first()[feedsSeededKey] ?: false
+    suspend fun setFeedsSeeded() { dataStore.edit { it[feedsSeededKey] = true } }
 
     suspend fun setLastOpenSection(section: Section?) {
         dataStore.edit { if (section == null) it.remove(lastOpenKey) else it[lastOpenKey] = section.name }

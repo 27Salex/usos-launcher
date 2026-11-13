@@ -31,6 +31,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
+import kotlinx.coroutines.delay
+import com.usos.launcher.data.sections.ClockPrefs
+import com.usos.launcher.data.sections.ClockType
+import com.usos.launcher.data.sections.WeatherPrefs
+import com.usos.launcher.data.weather.GeoPlace
 import com.usos.launcher.data.feeds.FeedLimits
 import com.usos.launcher.data.leisure.LeisureLimits
 import com.usos.launcher.data.sections.PlacedApp
@@ -57,23 +69,42 @@ class SettingsActions(
     val onCalendarPermission: () -> Unit,
     val onMove: (Section, String, Int) -> Unit,
     val onRestartOnboarding: () -> Unit,
+    val onClockType: (ClockType) -> Unit,
+    val onClockSeconds: (Boolean) -> Unit,
+    val onClockAnimated: (Boolean) -> Unit,
+    val onWeatherOn: (Boolean) -> Unit,
+    val onWeatherFahrenheit: (Boolean) -> Unit,
+    val onWeatherIcon: (Boolean) -> Unit,
+    val onWeatherText: (Boolean) -> Unit,
+    val onWeatherMinMax: (Boolean) -> Unit,
+    val onWeatherAuto: (Boolean) -> Unit,
+    val onSearchCity: (String) -> Unit,
+    val onPickCity: (GeoPlace) -> Unit,
+    val onWeatherBelow: (Boolean) -> Unit,
+    val onWeatherAccent: (Boolean) -> Unit,
+    val onBlackWallpaper: () -> Unit,
     val onBack: () -> Unit,
 )
 
+class SettingsUi(
+    val budget: Int,
+    val wait: Int,
+    val orderLists: List<Pair<Section, List<PlacedApp>>>,
+    val suggestionsOn: Boolean,
+    val provider: SuggestProvider,
+    val grayscale: Boolean,
+    val feedsPerHour: Int,
+    val calendarGranted: Boolean,
+    val clock: ClockPrefs,
+    val weather: WeatherPrefs,
+    val cityResults: List<GeoPlace>,
+)
+
 @Composable
-fun SettingsScreen(
-    budget: Int,
-    wait: Int,
-    orderLists: List<Pair<Section, List<PlacedApp>>>,
-    suggestionsOn: Boolean,
-    provider: SuggestProvider,
-    grayscale: Boolean,
-    feedsPerHour: Int,
-    calendarGranted: Boolean,
-    actions: SettingsActions,
-) {
+fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
     BackHandler { actions.onBack() }
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
+    var confirmWallpaper by rememberSaveable { mutableStateOf(false) }
     Column(
         Modifier
             .fillMaxSize()
@@ -86,79 +117,29 @@ fun SettingsScreen(
             ),
     ) {
         UsosText("Ajustes", UsosType.PanelTitle, UsosColors.Text)
-        Spacer(Modifier.height(20.dp))
 
-        Heading("OCIO")
-        UsosRow("PRESUPUESTO DIARIO") {
-            Stepper("$budget MIN",
-                onMinus = { actions.onBudget(budget - LeisureLimits.BUDGET_STEP_MIN) },
-                onPlus = { actions.onBudget(budget + LeisureLimits.BUDGET_STEP_MIN) },
-                minusEnabled = budget > LeisureLimits.MIN_BUDGET_MIN,
-                plusEnabled = budget < LeisureLimits.MAX_BUDGET_MIN)
-        }
-        UsosRow("ESPERA AL DESCONGELAR") {
-            Stepper("$wait S",
-                onMinus = { actions.onWait(wait - 5) },
-                onPlus = { actions.onWait(wait + 5) },
-                minusEnabled = wait > LeisureLimits.MIN_WAIT_SECONDS,
-                plusEnabled = wait < LeisureLimits.MAX_WAIT_SECONDS)
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Heading("BÚSQUEDA")
-        UsosRow("SUGERENCIAS WEB") { UsosSwitch(suggestionsOn, actions.onSuggestionsOn) }
-        UsosText(
-            "Cada pulsación se envía al proveedor elegido (tras 250 ms sin teclear).",
-            UsosType.Label, UsosColors.TextSecondary,
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SuggestProvider.entries.forEach { p ->
-                UsosPill(
-                    p.label, filled = p == provider, enabled = suggestionsOn,
-                    onClick = { actions.onProvider(p) }, modifier = Modifier.weight(1f),
-                )
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Heading("WIDGETS")
-        UsosRow("ESCALA DE GRISES") { UsosSwitch(grayscale, actions.onGrayscale) }
-
-        Spacer(Modifier.height(20.dp))
-        Heading("NOTICIAS")
-        UsosRow("ARTÍCULOS POR HORA") {
-            Stepper("$feedsPerHour",
-                onMinus = { actions.onFeedsPerHour(feedsPerHour - 1) },
-                onPlus = { actions.onFeedsPerHour(feedsPerHour + 1) },
-                minusEnabled = feedsPerHour > FeedLimits.MIN_PER_HOUR,
-                plusEnabled = feedsPerHour < FeedLimits.MAX_PER_HOUR)
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Heading("AGENDA")
-        if (calendarGranted) {
-            UsosText("Permiso de calendario concedido.", UsosType.Label, UsosColors.TextSecondary)
-        } else {
-            UsosText("Sin permiso la pieza de agenda no se dibuja.", UsosType.Label, UsosColors.TextSecondary)
-            Spacer(Modifier.height(8.dp))
-            UsosPill("CONCEDER CALENDARIO", filled = false, onClick = actions.onCalendarPermission, modifier = Modifier.fillMaxWidth())
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Heading("ACENTO")
+        Group("INICIO")
+        SubHeading("ACENTO")
         val accent = LocalAccent.current
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             UsosColors.AccentChoices.forEach { c ->
                 Swatch(c, selected = c.toArgb() == accent.toArgb()) { actions.onAccent(c.toArgb()) }
             }
         }
-
-        Spacer(Modifier.height(20.dp))
-        Heading("ORDEN DE APPS")
+        Spacer(Modifier.height(12.dp))
+        SubHeading("AGENDA")
+        if (ui.calendarGranted) {
+            UsosText("Permiso de calendario concedido.", UsosType.Label, UsosColors.TextSecondary)
+        } else {
+            UsosText("Sin permiso la pieza de agenda no se dibuja.", UsosType.Label, UsosColors.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            UsosPill("CONCEDER CALENDARIO", filled = false, onClick = actions.onCalendarPermission, modifier = Modifier.fillMaxWidth())
+        }
+        Spacer(Modifier.height(12.dp))
+        SubHeading("ORDEN DE APPS")
         UsosText("Las primeras entran al mosaico (●).", UsosType.Label, UsosColors.TextSecondary)
         Spacer(Modifier.height(8.dp))
-        orderLists.forEach { (section, placed) ->
+        ui.orderLists.forEach { (section, placed) ->
             val open = expanded == section.name
             Row(
                 Modifier.fillMaxWidth().height(UsosDimens.MinTouch + 4.dp).tap { expanded = if (open) null else section.name },
@@ -185,15 +166,168 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(Modifier.height(24.dp))
-        Heading("PRIMER ARRANQUE")
-        UsosPill("VOLVER A EMPEZAR", filled = false, onClick = actions.onRestartOnboarding, modifier = Modifier.fillMaxWidth())
+        Group("RELOJ")
+        SubHeading("TIPO")
+        Choice(ClockType.entries.map { it.label }, ClockType.entries.indexOf(ui.clock.type), 2) {
+            actions.onClockType(ClockType.entries[it])
+        }
+        UsosRow("SEGUNDOS") { UsosSwitch(ui.clock.seconds, actions.onClockSeconds) }
+        UsosRow("RELOJ ANIMADO") { UsosSwitch(ui.clock.animated, actions.onClockAnimated) }
+        UsosText("Animación muy sutil; se desactiva con las animaciones reducidas del sistema.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+
+        Group("TIEMPO")
+        val w = ui.weather
+        UsosRow("MOSTRAR TIEMPO") { UsosSwitch(w.on, actions.onWeatherOn) }
+        UsosText(
+            "Open-Meteo, sin cuenta. Con ubicación automática se pide el permiso de ubicación aproximada.",
+            UsosType.Label, UsosColors.TextSecondary, maxLines = 3,
+        )
+        if (w.on) {
+            SubHeading("UBICACIÓN", top = 8.dp)
+            Choice(listOf("AUTOMÁTICA", "CIUDAD"), if (w.auto) 0 else 1, 2) { actions.onWeatherAuto(it == 0) }
+            if (!w.auto) {
+                Spacer(Modifier.height(4.dp))
+                UsosText(if (w.hasCity) "CIUDAD: ${w.cityName.uppercase()}" else "ELIGE UNA CIUDAD", UsosType.Label, accent)
+                Spacer(Modifier.height(6.dp))
+                CityField(ui.cityResults, actions)
+            }
+            UsosRow("UNIDADES") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    UsosPill("°C", filled = !w.fahrenheit, onClick = { actions.onWeatherFahrenheit(false) }, modifier = Modifier.width(64.dp))
+                    UsosPill("°F", filled = w.fahrenheit, onClick = { actions.onWeatherFahrenheit(true) }, modifier = Modifier.width(64.dp))
+                }
+            }
+            UsosRow("ICONO") { UsosSwitch(w.icon, actions.onWeatherIcon) }
+            UsosRow("TEXTO DE ESTADO") { UsosSwitch(w.text, actions.onWeatherText) }
+            UsosRow("MÁX / MÍN DEL DÍA") { UsosSwitch(w.minMax, actions.onWeatherMinMax) }
+            SubHeading("POSICIÓN", top = 8.dp)
+            Choice(listOf("JUNTO A LA FECHA", "BAJO EL RELOJ"), if (w.belowClock) 1 else 0, 2) { actions.onWeatherBelow(it == 1) }
+            SubHeading("COLOR")
+            Choice(listOf("BLANCO", "ACENTO"), if (w.accentColor) 1 else 0, 2) { actions.onWeatherAccent(it == 1) }
+        }
+
+        Group("OCIO")
+        UsosRow("PRESUPUESTO DIARIO") {
+            Stepper("${ui.budget} MIN",
+                onMinus = { actions.onBudget(ui.budget - LeisureLimits.BUDGET_STEP_MIN) },
+                onPlus = { actions.onBudget(ui.budget + LeisureLimits.BUDGET_STEP_MIN) },
+                minusEnabled = ui.budget > LeisureLimits.MIN_BUDGET_MIN,
+                plusEnabled = ui.budget < LeisureLimits.MAX_BUDGET_MIN)
+        }
+        UsosRow("ESPERA AL DESCONGELAR") {
+            Stepper("${ui.wait} S",
+                onMinus = { actions.onWait(ui.wait - 5) },
+                onPlus = { actions.onWait(ui.wait + 5) },
+                minusEnabled = ui.wait > LeisureLimits.MIN_WAIT_SECONDS,
+                plusEnabled = ui.wait < LeisureLimits.MAX_WAIT_SECONDS)
+        }
+
+        Group("BÚSQUEDA")
+        UsosRow("SUGERENCIAS WEB") { UsosSwitch(ui.suggestionsOn, actions.onSuggestionsOn) }
+        UsosText(
+            "Cada pulsación se envía al proveedor elegido (tras 250 ms sin teclear).",
+            UsosType.Label, UsosColors.TextSecondary, maxLines = 2,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SuggestProvider.entries.forEach { p ->
+                UsosPill(
+                    p.label, filled = p == ui.provider, enabled = ui.suggestionsOn,
+                    onClick = { actions.onProvider(p) }, modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        Group("WIDGETS")
+        UsosRow("ESCALA DE GRISES") { UsosSwitch(ui.grayscale, actions.onGrayscale) }
+        UsosText("Apágala para ver los colores originales de los widgets.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+
+        Group("NOTICIAS")
+        UsosRow("ARTÍCULOS POR HORA") {
+            Stepper("${ui.feedsPerHour}",
+                onMinus = { actions.onFeedsPerHour(ui.feedsPerHour - 1) },
+                onPlus = { actions.onFeedsPerHour(ui.feedsPerHour + 1) },
+                minusEnabled = ui.feedsPerHour > FeedLimits.MIN_PER_HOUR,
+                plusEnabled = ui.feedsPerHour < FeedLimits.MAX_PER_HOUR)
+        }
+
+        Group("SISTEMA")
+        if (!confirmWallpaper) {
+            UsosPill("PONER FONDO NEGRO (INICIO Y BLOQUEO)", filled = false, onClick = { confirmWallpaper = true }, modifier = Modifier.fillMaxWidth())
+        } else {
+            UsosText("Sustituye el fondo de pantalla de inicio y de bloqueo por uno negro.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                UsosPill("CONFIRMAR", filled = true, onClick = { confirmWallpaper = false; actions.onBlackWallpaper() }, modifier = Modifier.weight(1f))
+                UsosPill("CANCELAR", filled = false, onClick = { confirmWallpaper = false }, modifier = Modifier.weight(1f))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        UsosPill("VOLVER A EMPEZAR (PRIMER ARRANQUE)", filled = false, onClick = actions.onRestartOnboarding, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+/** Cabecera de grupo: texto fuerte y una linea fina debajo. */
+@Composable
+private fun Group(text: String) {
+    Spacer(Modifier.height(28.dp))
+    UsosText(text, UsosType.PanelState, UsosColors.Text)
+    Spacer(Modifier.height(4.dp))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(UsosColors.Border))
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun SubHeading(text: String, top: androidx.compose.ui.unit.Dp = 0.dp) {
+    UsosText(text, UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = top, bottom = 4.dp))
+}
+
+/** Opciones excluyentes en pildoras, en filas de [columns]. */
+@Composable
+private fun Choice(options: List<String>, selected: Int, columns: Int, onSelect: (Int) -> Unit) {
+    options.chunked(columns).forEachIndexed { r, row ->
+        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEachIndexed { c, label ->
+                val i = r * columns + c
+                UsosPill(label, filled = i == selected, onClick = { onSelect(i) }, modifier = Modifier.weight(1f))
+            }
+            repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+        }
     }
 }
 
 @Composable
-private fun Heading(text: String) {
-    UsosText(text, UsosType.Label, UsosColors.TextSecondary, Modifier.padding(bottom = 4.dp))
+private fun CityField(results: List<GeoPlace>, actions: SettingsActions) {
+    var text by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(text) {
+        delay(400)
+        actions.onSearchCity(text)
+    }
+    val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+    Box(
+        Modifier.fillMaxWidth().height(UsosDimens.MinTouch + 4.dp)
+            .background(UsosColors.Surface, shape).border(1.dp, UsosColors.Border, shape).padding(horizontal = 16.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        if (text.isEmpty()) UsosText("BUSCAR CIUDAD", UsosType.SearchHint, UsosColors.TextSecondary)
+        BasicTextField(
+            value = text, onValueChange = { text = it }, singleLine = true,
+            textStyle = UsosType.Pill.copy(color = UsosColors.Text),
+            cursorBrush = SolidColor(LocalAccent.current),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    results.forEach { p ->
+        Row(
+            Modifier.fillMaxWidth().height(UsosDimens.MinTouch).tap { text = ""; actions.onPickCity(p) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            UsosText(p.label, UsosType.Pill, UsosColors.Text, Modifier.weight(1f))
+            UsosText(p.country.orEmpty().uppercase(), UsosType.Label, UsosColors.TextSecondary)
+        }
+    }
 }
 
 @Composable

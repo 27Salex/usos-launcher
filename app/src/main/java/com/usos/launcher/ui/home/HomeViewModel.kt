@@ -24,7 +24,12 @@ import com.usos.launcher.data.usage.UsageSummary
 import com.usos.launcher.data.suggest.SuggestFlow
 import com.usos.launcher.data.suggest.SuggestProvider
 import com.usos.launcher.ui.widgets.HostedWidget
-import com.usos.launcher.ui.widgets.WidgetSize
+import com.usos.launcher.data.sections.ClockPrefs
+import com.usos.launcher.data.sections.ClockType
+import com.usos.launcher.data.sections.WeatherPrefs
+import com.usos.launcher.data.weather.GeoPlace
+import com.usos.launcher.data.weather.WeatherNow
+import com.usos.launcher.data.feeds.DefaultFeeds
 import com.usos.launcher.ui.widgets.WidgetSizing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -100,6 +105,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val widgetsGrayscale: StateFlow<Boolean> = settings.widgetsGrayscale
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val clockPrefs: StateFlow<ClockPrefs> = settings.clockPrefs.stateIn(viewModelScope, SharingStarted.Eagerly, ClockPrefs())
+    val weatherPrefs: StateFlow<WeatherPrefs> = settings.weatherPrefs.stateIn(viewModelScope, SharingStarted.Eagerly, WeatherPrefs())
+    private val weatherRepo = container.weatherRepository
+    val weather: StateFlow<WeatherNow?> = weatherRepo.cached.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    private val _cityResults = MutableStateFlow<List<GeoPlace>>(emptyList())
+    val cityResults: StateFlow<List<GeoPlace>> = _cityResults
+    private val locationRequests = Channel<Unit>(Channel.BUFFERED)
+    val locationRequestEvents = locationRequests.receiveAsFlow()
 
     private val _route = MutableStateFlow<Route>(Route.Home)
     val route: StateFlow<Route> = _route
@@ -238,12 +252,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
         viewModelScope.launch { cleanOrphanWidgets() }
+        viewModelScope.launch { seedDefaultFeeds() }
         viewModelScope.launch {
             // Primer arranque: el diálogo de calendario se pide una sola vez, cuando ya no hay onboarding.
             if (settings.onboardingDone.first()) askCalendarOnce()
         }
         refreshInfo()
         refreshBlocker()
+    }
+
+    /** Primer arranque: si no hay feeds, crea los de por defecto una sola vez y los descarga. */
+    private suspend fun seedDefaultFeeds() {
+        if (settings.feedsSeeded()) return
+        settings.setFeedsSeeded()
+        val repo = container.feedRepository
+        if (repo.seedDefaults(DefaultFeeds.list)) runCatching { repo.refreshAll() }
     }
 
     /** Borra del host los ids que no estan guardados (alta interrumpida, datos perdidos). */
@@ -263,8 +286,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.widgetStore.update { WidgetSizing.move(it, id, delta) } }
     }
 
-    fun setWidgetSize(id: Int, size: WidgetSize) {
-        viewModelScope.launch { container.widgetStore.update { WidgetSizing.withSize(it, id, size) } }
+    fun setWidgetHeight(id: Int, heightDp: Int) {
+        viewModelScope.launch { container.widgetStore.update { WidgetSizing.withHeight(it, id, heightDp) } }
     }
 
     fun removeWidget(id: Int) {
@@ -315,7 +338,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         refreshUsage()
     }
 
-    fun openSettings() { _route.value = Route.Settings }
+    fun openSettings() { closeSearch(); _route.value = Route.Settings }
 
     /** Atras desde ficha o ajustes. */
     fun closeOverlay() {
@@ -361,6 +384,93 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             InfoKind.MAPS -> InfoLauncher.navigateHome(ctx)
         }
         if (!ok) showNotice("NO SE PUDO ABRIR")
+    }
+
+    // ---- Reloj, tiempo, fondo ----
+
+    fun setClockType(t: ClockType) { viewModelScope.launch { settings.setClockType(t) } }
+    fun setClockSeconds(on: Boolean) { viewModelScope.launch { settings.setClockSeconds(on) } }
+    fun setClockAnimated(on: Boolean) { viewModelScope.launch { settings.setClockAnimated(on) } }
+
+    /** Activar el tiempo con ubicacion automatica pide primero el permiso; el resultado decide si queda activo. */
+    fun setWeatherOn(on: Boolean) {
+        viewModelScope.launch {
+            if (on && weatherPrefs.value.auto && !weatherRepo.hasLocationPermission()) {
+                locationRequests.send(Unit)
+            } else {
+                settings.setWeatherOn(on)
+                if (on) weatherRepo.refreshIfStale()
+            }
+        }
+    }
+
+    fun onLocationResult(granted: Boolean) {
+        viewModelScope.launch {
+            settings.setWeatherOn(granted)
+            if (granted) { weatherRepo.invalidate(); weatherRepo.refreshIfStale() }
+        }
+    }
+
+    fun setWeatherAuto() {
+        viewModelScope.launch {
+            settings.setWeatherAuto(true)
+            weatherRepo.invalidate()
+            if (weatherPrefs.value.on && !weatherRepo.hasLocationPermission()) locationRequests.send(Unit)
+            else weatherRepo.refreshIfStale()
+        }
+    }
+
+    fun setWeatherManual() { viewModelScope.launch { settings.setWeatherAuto(false); weatherRepo.invalidate(); weatherRepo.refreshIfStale() } }
+    fun setWeatherFahrenheit(on: Boolean) { viewModelScope.launch { settings.setWeatherFahrenheit(on) } }
+    fun setWeatherIcon(on: Boolean) { viewModelScope.launch { settings.setWeatherIcon(on) } }
+    fun setWeatherText(on: Boolean) { viewModelScope.launch { settings.setWeatherText(on) } }
+    fun setWeatherMinMax(on: Boolean) { viewModelScope.launch { settings.setWeatherMinMax(on) } }
+    fun setWeatherBelowClock(on: Boolean) { viewModelScope.launch { settings.setWeatherBelowClock(on) } }
+    fun setWeatherAccent(on: Boolean) { viewModelScope.launch { settings.setWeatherAccent(on) } }
+
+    fun refreshWeather() { viewModelScope.launch { weatherRepo.refreshIfStale() } }
+
+    fun searchCities(query: String) {
+        viewModelScope.launch { _cityResults.value = weatherRepo.searchCities(query) }
+    }
+
+    fun pickCity(p: GeoPlace) {
+        _cityResults.value = emptyList()
+        viewModelScope.launch {
+            settings.setWeatherCity(p.label, p.lat, p.lon)
+            weatherRepo.invalidate()
+            weatherRepo.refreshIfStale()
+        }
+    }
+
+    /** Toque en el tiempo: abre la app del tiempo del fabricante si existe; si no, busca «tiempo» en la web. */
+    fun openWeatherApp() {
+        val pm = container.appContext.packageManager
+        val intent = WEATHER_PACKAGES.firstNotNullOfOrNull { pm.getLaunchIntentForPackage(it) }
+        val opened = intent != null && runCatching {
+            container.appContext.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.isSuccess
+        if (!opened) repository.webSearch("tiempo")
+    }
+
+    /** Pone un bitmap negro como fondo de inicio y de bloqueo. */
+    fun applyBlackWallpaper() {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val ctx = container.appContext
+                    val wm = android.app.WallpaperManager.getInstance(ctx)
+                    val dm = ctx.resources.displayMetrics
+                    val w = wm.desiredMinimumWidth.takeIf { it > 0 } ?: dm.widthPixels
+                    val h = wm.desiredMinimumHeight.takeIf { it > 0 } ?: dm.heightPixels
+                    val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.RGB_565)
+                    bmp.eraseColor(android.graphics.Color.BLACK)
+                    wm.setBitmap(bmp, null, true, android.app.WallpaperManager.FLAG_SYSTEM or android.app.WallpaperManager.FLAG_LOCK)
+                    bmp.recycle()
+                }.isSuccess
+            }
+            showNotice(if (ok) "FONDO NEGRO APLICADO" else "NO SE PUDO CAMBIAR EL FONDO")
+        }
     }
 
     fun setFeedsPerHour(n: Int) { viewModelScope.launch { settings.setFeedsPerHour(n) } }
@@ -537,6 +647,13 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     companion object {
         /** El mosaico de Ocio reserva una celda para la pieza CONGELAR. */
         const val LEISURE_APP_SLOTS = MOSAIC_CAPACITY - 1
+
+        /** Apps del tiempo conocidas por fabricante, por orden; si no hay ninguna se busca «tiempo» en la web. */
+        val WEATHER_PACKAGES = listOf(
+            "com.sec.android.daemonapp", "com.miui.weather2", "com.coloros.weather2", "net.oneplus.weather",
+            "com.oneplus.weather", "com.motorola.timeweatherwidget", "com.huawei.android.totemweather",
+            "com.google.android.apps.weather",
+        )
 
         val Factory = viewModelFactory {
             initializer { HomeViewModel((this[APPLICATION_KEY] as UsosApp).container) }

@@ -66,4 +66,20 @@ object DotMatrix {
         }
         return out
     }
+
+    /** Como [layout], pero una lista de puntos por caracter (para animar solo los que cambian). */
+    fun layoutByChar(text: String): List<List<DotPosition>> {
+        val out = ArrayList<List<DotPosition>>()
+        var x = 0
+        for (ch in text) {
+            if (ch == ':') {
+                out += COLON_ROWS.map { DotPosition(x, it * STEP_DP) }
+                x += DOT_DP + GAP_DP
+            } else {
+                out += dots(ch - '0').map { DotPosition(x + it.col * STEP_DP, it.row * STEP_DP) }
+                x += DIGIT_WIDTH_DP + GAP_DP
+            }
+        }
+        return out
+    }
 }

@@ -126,9 +126,8 @@ fun OnboardingScreen(onFinish: () -> Unit) {
             })
         }
         Step(
-            "4 · BATERÍA (SAMSUNG)", ok = null,
-            text = "Para que el sistema no detenga el servicio: Batería > Límites de uso en segundo plano > Apps que nunca se suspenden > añade Usos. " +
-                "O bien Info de la app > Batería > Sin restricciones.",
+            "4 · BATERÍA", ok = null,
+            text = batteryHint(android.os.Build.MANUFACTURER),
         ) {
             UsosPill("ABRIR INFO DE LA APP", filled = false, modifier = Modifier.fillMaxWidth(),
                 onClick = { start(context, appDetails(context)) })
@@ -164,4 +163,18 @@ private fun Step(title: String, ok: Boolean?, text: String, actions: @Composable
         Spacer(Modifier.height(12.dp))
         actions()
     }
+}
+
+/** Pasos de batería para que el sistema no detenga el servicio, adaptados al fabricante. */
+fun batteryHint(manufacturer: String): String {
+    val m = manufacturer.lowercase()
+    val detail = when {
+        "samsung" in m -> "Batería > Límites de uso en segundo plano > Apps que nunca se suspenden > añade Usos."
+        "xiaomi" in m || "redmi" in m || "poco" in m ->
+            "Info de la app > Ahorro de batería > Sin restricciones, y activa el inicio automático."
+        "oppo" in m || "realme" in m || "oneplus" in m -> "Info de la app > Uso de batería > Permitir actividad en segundo plano."
+        "huawei" in m || "honor" in m -> "Batería > Inicio de aplicaciones > Usos > gestionar manualmente (todo activado)."
+        else -> "Ajustes > Apps > Usos > Batería > Sin restricciones."
+    }
+    return "Para que el sistema no detenga el servicio: $detail O bien Info de la app > Batería > Sin restricciones."
 }
