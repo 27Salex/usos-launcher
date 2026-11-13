@@ -1,6 +1,21 @@
 # Usos
 
+[![Release](https://img.shields.io/github/v/release/27Salex/usos-launcher?style=flat-square)](https://github.com/27Salex/usos-launcher/releases/latest)
+[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue?style=flat-square)](LICENSE)
+![Android 13+](https://img.shields.io/badge/Android-13%2B-3ddc84?style=flat-square)
+
+**Website:** https://27salex.github.io/usos-launcher/ | **Latest release / Descargar:** https://github.com/27Salex/usos-launcher/releases/latest
+
 Minimalist, anti-procrastination Android launcher. Español: [más abajo](#usos-en-español).
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/home.png" width="200" alt="Home"></td>
+    <td><img src="docs/screenshots/search.png" width="200" alt="Search"></td>
+    <td><img src="docs/screenshots/feeds.png" width="200" alt="News feeds"></td>
+    <td><img src="docs/screenshots/settings.png" width="200" alt="Settings"></td>
+  </tr>
+</table>
 
 
 ## What it is
@@ -37,9 +52,9 @@ No analytics, no accounts, no tracking. The network is used only for: your news 
 
 Signing uses your own key, read from `~/.android/usos/keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Without that file the release build still succeeds and produces an **unsigned** APK (`app/build/outputs/apk/release/app-release-unsigned.apk`) that you must sign yourself. Never commit keys. Note that updates only work between APKs signed with the same key.
 
-## Translate
+## Contributing and translating
 
-See [TRANSLATING.md](TRANSLATING.md).
+Pull requests welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the [developer wiki](https://github.com/27Salex/usos-launcher/wiki) (also in [docs/wiki](docs/wiki)). To add a language: [TRANSLATING.md](TRANSLATING.md).
 
 ## License
 
@@ -49,6 +64,17 @@ See [TRANSLATING.md](TRANSLATING.md).
 
 # Usos en español
 
+**Web:** https://27salex.github.io/usos-launcher/ | **Última release:** https://github.com/27Salex/usos-launcher/releases/latest
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/home.png" width="200" alt="Inicio"></td>
+    <td><img src="docs/screenshots/search.png" width="200" alt="Búsqueda"></td>
+    <td><img src="docs/screenshots/feeds.png" width="200" alt="Noticias"></td>
+    <td><img src="docs/screenshots/settings.png" width="200" alt="Ajustes"></td>
+  </tr>
+</table>
+
 Launcher Android minimalista contra la procrastinación: una pantalla negra con reloj de puntos, secciones por uso que se despliegan en un **mosaico**, **Ocio congelado** (presupuesto diario de minutos y espera antes de abrir), **búsqueda universal** con botón de IA, **widgets** y **noticias por lecturas** (abrir un artículo no leído gasta una lectura que se repone con el tiempo).
 
 **Instalación:** descarga `usos-X.Y.Z.apk` de [Releases](https://github.com/27Salex/usos-launcher/releases), permite instalar apps desconocidas, ábrelo, elige Usos como app de inicio y concede lo que pide el primer arranque: acceso de uso, servicio de accesibilidad (en Android 13+ puede hacer falta *Permitir ajustes restringidos* en la info de la app) y batería sin restricciones.
@@ -57,4 +83,4 @@ Launcher Android minimalista contra la procrastinación: una pantalla negra con 
 
 **Privacidad:** sin analíticas. Red solo para tus feeds, sugerencias opcionales, tiempo opcional y la comprobación de actualizaciones.
 
-**Compilar:** `./gradlew test assembleRelease`; firma con tu propia clave en `~/.android/usos/keystore.properties`. Sin ella sale un APK sin firmar. **Traducir:** [TRANSLATING.md](TRANSLATING.md). **Licencia:** PolyForm Noncommercial 1.0.0 (uso personal y no comercial libre, sin uso comercial).
+**Compilar:** `./gradlew test assembleRelease`; firma con tu propia clave en `~/.android/usos/keystore.properties`. Sin ella sale un APK sin firmar. **Traducir:** [TRANSLATING.md](TRANSLATING.md). **Contribuir:** [CONTRIBUTING.md](CONTRIBUTING.md) y la [wiki](https://github.com/27Salex/usos-launcher/wiki) para desarrolladores. **Licencia:** PolyForm Noncommercial 1.0.0 (uso personal y no comercial libre, sin uso comercial).
