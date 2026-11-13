@@ -184,7 +184,7 @@ fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
             }
             Choice(TileSize.entries.map { it.label }, TileSize.entries.indexOf(spec.size), 4) { actions.onInfoSize(k, TileSize.entries[it]) }
         }
-        UsosPill("EDITAR MOSAICO", filled = false, onClick = actions.onEditMosaic, modifier = Modifier.fillMaxWidth())
+        UsosPill("EDITAR INICIO", filled = false, onClick = actions.onEditMosaic, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
         SubHeading("ORDEN DE APPS")
         UsosText("Las primeras entran al mosaico (●).", UsosType.Label, UsosColors.TextSecondary)

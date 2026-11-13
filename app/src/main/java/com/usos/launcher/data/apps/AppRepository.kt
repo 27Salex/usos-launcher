@@ -71,7 +71,6 @@ class AppRepository(context: Context) {
             val quiet = userManager.isQuietModeEnabled(profile)
             for (info in launcherApps.getActivityList(null, profile)) {
                 val pkg = info.componentName.packageName
-                if (pkg == appContext.packageName) continue
                 val version = if (isMain) {
                     runCatching { pm.getPackageInfo(pkg, 0).versionName }.getOrNull()
                 } else {

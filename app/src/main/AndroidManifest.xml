@@ -47,6 +47,17 @@
             </intent-filter>
         </activity>
 
+        <activity-alias
+            android:name=".SettingsAlias"
+            android:exported="true"
+            android:label="Usos"
+            android:targetActivity=".ui.home.HomeActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <service
             android:name=".service.BlockerService"
             android:exported="false"

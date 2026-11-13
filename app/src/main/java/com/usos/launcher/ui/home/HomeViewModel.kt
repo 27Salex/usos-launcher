@@ -85,6 +85,7 @@ data class SectionUi(
     val placements: List<Placement> = emptyList(),
     val freeze: Cell? = null,
     val rowsUsed: Int = 0,
+    val rows: Int = 2,
 )
 
 /** Pieza de información de una sección: tamaño, si está oculta y si hay algo que mostrar. */
@@ -241,6 +242,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     placements = packed.placements,
                     freeze = packed.reserved,
                     rowsUsed = packed.rowsUsed,
+                    rows = extras.prefs.rowsFor(section),
                 )
             },
             open = o,
@@ -365,6 +367,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private fun onAlert(alert: LauncherAlert) {
         blockedAt = SystemClock.elapsedRealtime()
         if (_route.value !is Route.Onboarding) _route.value = Route.Home
+        exitEdit()
         if (alert.revealLeisure) revealLeisure() else closeSearch()
         showNotice(alert.text)
     }
@@ -394,6 +397,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         _route.value = Route.Detail(app.key)
         refreshUsage()
     }
+
+    fun openDetailByKey(key: String) { apps.value?.firstOrNull { it.key == key }?.let { openDetail(it) } }
 
     fun openSettings() { closeSearch(); _route.value = Route.Settings }
 
@@ -616,8 +621,114 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun setIconMode(m: IconMode) { viewModelScope.launch { container.displayStore.setIconMode(m) } }
     fun setIconShowCode(on: Boolean) { viewModelScope.launch { container.displayStore.setIconShowCode(on) } }
 
-    fun openMosaicEditor() { _route.value = Route.MosaicEditor }
-    fun closeMosaicEditor() { _route.value = Route.Settings }
+    // ---- Edicion directa de inicio ----
+
+    private val _editing = MutableStateFlow(false)
+    val editing: StateFlow<Boolean> = _editing
+
+    fun enterEdit() { _editing.value = true; closeSearch() }
+    fun exitEdit() { _editing.value = false }
+
+    /** Desde Ajustes: vuelve a inicio y entra en edicion. */
+    fun startHomeEdit() { closeOverlay(); enterEdit() }
+
+    /** Piezas de mosaico de [section] como las coloca la vista (sin la app de Mapas si la pieza de Mapas la sustituye). */
+    private fun mosaicEntries(section: Section, cfgs: Collection<AppConfig>): List<MosaicEntry> {
+        val mapsInfo = infoSpecs.value[section]?.let { it.kind == InfoKind.MAPS && it.visibleSize != null } == true
+        return cfgs.filter { it.section == section && !(mapsInfo && it.packageName == InfoPieces.MAPS_PACKAGE) }
+            .sortedBy { it.order }.map { MosaicEntry(it.key, it.size, it.inMosaic) }
+    }
+
+    private fun layoutOf(section: Section, entries: List<MosaicEntry>, info: TileSize?, rows: Int = mosaicPrefs.value.rowsFor(section)) =
+        SectionMosaic.layout(
+            mosaicPrefs.value.columns, rows, info, entries, SectionMosaic.reservesFreeze(section),
+        )
+
+    /** Suelta [key] en [section]: la mueve ahi si hace falta, la mete en el mosaico y la ordena segun [target]. */
+    fun placeTile(key: String, section: Section, target: Cell) {
+        val ui = state.value?.sections?.firstOrNull { it.section == section } ?: return
+        viewModelScope.launch {
+            var full = false
+            configStore.update { all ->
+                val cfg = all[key] ?: return@update all
+                val inSection = all.values.filter { it.section == section }.sortedBy { it.order }.map { it.key }
+                val order = com.usos.launcher.data.sections.MosaicEdit.reorder(
+                    inSection, ui.placements, key, target, ui.columns,
+                )
+                val updated = all.mapValues { (k, c) ->
+                    val idx = order.indexOf(k)
+                    when {
+                        k == key -> c.copy(section = section, order = idx, inMosaic = true, manual = true)
+                        idx >= 0 -> c.copy(order = idx)
+                        else -> c
+                    }
+                }
+                val info = infoSpecs.value[section]?.visibleSize
+                if (key in layoutOf(section, mosaicEntries(section, updated.values), info).skipped) {
+                    full = true
+                    return@update all
+                }
+                updated
+            }
+            if (full) showNotice("MOSAICO LLENO")
+        }
+    }
+
+    fun removeFromMosaic(key: String) {
+        viewModelScope.launch {
+            configStore.update { all -> all[key]?.let { all + (key to it.copy(inMosaic = false, manual = true)) } ?: all }
+        }
+    }
+
+    /** Cambia el tamaño de una app solo si no oculta otras piezas. */
+    fun resizeTile(key: String, size: TileSize) {
+        viewModelScope.launch {
+            var rejected = false
+            configStore.update { all ->
+                val cfg = all[key] ?: return@update all
+                if (cfg.size == size) return@update all
+                val info = infoSpecs.value[cfg.section]?.visibleSize
+                val before = layoutOf(cfg.section, mosaicEntries(cfg.section, all.values), info)
+                val next = all + (key to cfg.copy(size = size, manual = true))
+                val after = layoutOf(cfg.section, mosaicEntries(cfg.section, next.values), info)
+                if (!com.usos.launcher.data.sections.MosaicEdit.noNewlySkipped(before, after)) {
+                    rejected = true
+                    all
+                } else next
+            }
+            if (rejected) showNotice("NO CABE")
+        }
+    }
+
+    fun resizeInfo(kind: InfoKind, size: TileSize) {
+        val section = InfoPieces.sectionOf(kind)
+        val cfgs = configs.value.values
+        val entries = mosaicEntries(section, cfgs)
+        val cur = infoSpecs.value[section]?.visibleSize
+        val before = layoutOf(section, entries, cur)
+        val after = layoutOf(section, entries, size)
+        if (!com.usos.launcher.data.sections.MosaicEdit.noNewlySkipped(before, after)) {
+            showNotice("NO CABE")
+            return
+        }
+        setInfoSize(kind, size)
+    }
+
+    /** Suma o resta una fila al mosaico de [section]; restar no puede ocultar piezas. */
+    fun changeRows(section: Section, delta: Int) {
+        val rows = mosaicPrefs.value.rowsFor(section)
+        val next = (rows + delta).coerceIn(MosaicPacker.MIN_ROWS, MosaicPacker.MAX_ROWS)
+        if (next == rows) return
+        if (delta < 0) {
+            val entries = mosaicEntries(section, configs.value.values)
+            val info = infoSpecs.value[section]?.visibleSize
+            if (!com.usos.launcher.data.sections.MosaicEdit.noNewlySkipped(layoutOf(section, entries, info, rows), layoutOf(section, entries, info, next))) {
+                showNotice("NO CABEN EN MENOS FILAS")
+                return
+            }
+        }
+        setRows(section, next)
+    }
 
     // ---- Ajustes ----
 
@@ -664,6 +775,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
         if (_route.value !is Route.Onboarding) closeOverlay()
         closeSearch()
+        exitEdit()
         open.value = null
         _homeEvents.tryEmit(Unit)
     }

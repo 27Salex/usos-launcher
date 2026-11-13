@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlin.math.roundToInt
 
 /** Widget colocado: el id lo asigna AppWidgetHost y se conserva entre reinicios. El orden es el de la lista. `heightDp` 0 = por defecto. */
 @Serializable
@@ -40,9 +41,30 @@ object WidgetSizing {
     fun heightDp(chosenDp: Int, base: Int, max: Int, defaultDp: Int): Int =
         (if (chosenDp > 0) chosenDp else defaultDp).coerceIn(base, max)
 
-    /** Alto tras pulsar - / + : un paso de [STEP_DP], dentro de [base, max]. */
-    fun step(current: Int, delta: Int, base: Int, max: Int): Int =
-        (current + delta * STEP_DP).coerceIn(base, max)
+    // Edicion por filas de celda (unidad = alto de celda del mosaico + separacion).
+    const val CELL_DP = 95
+    const val GAP_DP = 10
+    const val MIN_ROWS = 1
+    const val MAX_ROWS = 5
+
+    fun rowsToDp(rows: Int): Int = rows.coerceIn(MIN_ROWS, MAX_ROWS).let { it * CELL_DP + (it - 1) * GAP_DP }
+
+    /** Filas de celda mas cercanas a un alto en dp (1..5). */
+    fun dpToRows(dp: Int): Int = ((dp + GAP_DP).toFloat() / (CELL_DP + GAP_DP)).roundToInt().coerceIn(MIN_ROWS, MAX_ROWS)
+
+    /** Filas tras arrastrar el tirador [dragDp] desde [startRows]. */
+    fun snapRows(startRows: Int, dragDp: Float): Int =
+        (startRows + (dragDp / (CELL_DP + GAP_DP)).roundToInt()).coerceIn(MIN_ROWS, MAX_ROWS)
+
+    /** Posicion final al soltar el widget [from] desplazado [offsetPx]: cuantos de los demas tienen el centro por encima del suyo. */
+    fun targetIndex(heightsPx: List<Float>, gapPx: Float, from: Int, offsetPx: Float): Int {
+        if (from !in heightsPx.indices) return from
+        val tops = ArrayList<Float>(heightsPx.size)
+        var y = 0f
+        heightsPx.forEach { tops += y; y += it + gapPx }
+        val centre = tops[from] + heightsPx[from] / 2f + offsetPx
+        return heightsPx.indices.count { it != from && tops[it] + heightsPx[it] / 2f < centre }
+    }
 
     /** Ids que el host tiene asignados y que ya no estan guardados: se borran al arrancar. */
     fun orphans(hostIds: Collection<Int>, saved: List<HostedWidget>): List<Int> {

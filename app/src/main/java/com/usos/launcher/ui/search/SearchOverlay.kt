@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.usos.launcher.ui.theme.SettingsGlyph
+import com.usos.launcher.ui.theme.swipeVertical
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -116,15 +119,19 @@ fun SearchOverlay(
 
         val groups = remember(items, query) { SearchFilter.groups(items, query) }
         val showSettings = SearchFilter.matchesSettings(query)
+        val listState = rememberLazyListState()
         Column(
             Modifier
                 .fillMaxSize()
+                // Deslizar hacia abajo con la lista arriba del todo cierra la busqueda.
+                .swipeVertical(accept = { !listState.canScrollBackward }, onDown = onClose)
                 .alpha(p)
                 .padding(top = topY + SearchFieldHeight + 8.dp)
                 .imePadding(),
         ) {
             LazyColumn(
                 Modifier.fillMaxSize(),
+                state = listState,
                 contentPadding = PaddingValues(
                     start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin,
                     top = 8.dp, bottom = navBar + 16.dp,
@@ -197,8 +204,9 @@ fun SearchOverlay(
                 cursorBrush = SolidColor(LocalAccent.current),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                modifier = Modifier.fillMaxWidth().padding(end = 36.dp).focusRequester(focus),
             )
+            SettingsGlyph(onOpenSettings, Modifier.align(Alignment.CenterEnd).offset(x = 12.dp).alpha(p))
         }
     }
 }

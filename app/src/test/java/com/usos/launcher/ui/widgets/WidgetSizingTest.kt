@@ -30,10 +30,29 @@ class WidgetSizingTest {
         assertEquals(200, WidgetSizing.heightDp(200, 110, 440, 110))
     }
 
-    @Test fun steps() {
-        assertEquals(158, WidgetSizing.step(110, 1, 110, 440))
-        assertEquals(110, WidgetSizing.step(110, -1, 110, 440))
-        assertEquals(440, WidgetSizing.step(430, 1, 110, 440))
+    @Test fun rowsAndDp() {
+        assertEquals(95, WidgetSizing.rowsToDp(1))
+        assertEquals(200, WidgetSizing.rowsToDp(2))
+        assertEquals(95 * 5 + 40, WidgetSizing.rowsToDp(9))
+        assertEquals(1, WidgetSizing.dpToRows(30))
+        assertEquals(2, WidgetSizing.dpToRows(190))
+        assertEquals(5, WidgetSizing.dpToRows(2000))
+    }
+
+    @Test fun snapRowsFollowsDragAndClamps() {
+        assertEquals(3, WidgetSizing.snapRows(2, 100f))
+        assertEquals(2, WidgetSizing.snapRows(2, 40f))
+        assertEquals(1, WidgetSizing.snapRows(2, -500f))
+        assertEquals(5, WidgetSizing.snapRows(4, 500f))
+    }
+
+    @Test fun targetIndexFromDragOffset() {
+        val h = listOf(100f, 100f, 100f)
+        assertEquals(1, WidgetSizing.targetIndex(h, 0f, 0, 120f))
+        assertEquals(2, WidgetSizing.targetIndex(h, 0f, 0, 260f))
+        assertEquals(0, WidgetSizing.targetIndex(h, 0f, 0, 20f))
+        assertEquals(1, WidgetSizing.targetIndex(h, 0f, 2, -120f))
+        assertEquals(0, WidgetSizing.targetIndex(h, 0f, 2, -400f))
     }
 
     @Test fun orphansAreHostIdsNotSaved() {

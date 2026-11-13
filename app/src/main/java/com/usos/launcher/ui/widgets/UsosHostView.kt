@@ -22,7 +22,7 @@ class UsosWidgetHost(context: Context, hostId: Int) : AppWidgetHost(context, hos
 
 /**
  * AppWidgetHostView que detecta la pulsacion larga sin romper los toques normales: el DOWN y los
- * movimientos pasan a la vista del widget; solo si el dedo sigue quieto [ViewConfiguration.getLongPressTimeout]
+ * movimientos pasan a la vista del widget; solo si el dedo sigue quieto (tolerancia 2x slop) 600 ms
  * se cancela el toque hacia el hijo y el resto del gesto se consume aqui.
  */
 class UsosHostView(context: Context) : AppWidgetHostView(context) {
@@ -39,7 +39,7 @@ class UsosHostView(context: Context) : AppWidgetHostView(context) {
     private var grayscaleOn: Boolean? = null
     private var downX = 0f
     private var downY = 0f
-    private val slop = ViewConfiguration.get(context).scaledTouchSlop
+    private val slop = ViewConfiguration.get(context).scaledTouchSlop * 2
 
     private val fire = Runnable {
         val now = SystemClock.uptimeMillis()
@@ -57,7 +57,7 @@ class UsosHostView(context: Context) : AppWidgetHostView(context) {
                 consumed = false
                 downX = ev.x
                 downY = ev.y
-                postDelayed(fire, ViewConfiguration.getLongPressTimeout().toLong())
+                postDelayed(fire, LONG_PRESS_MS)
             }
             MotionEvent.ACTION_MOVE ->
                 if (!consumed && (abs(ev.x - downX) > slop || abs(ev.y - downY) > slop)) removeCallbacks(fire)
@@ -66,10 +66,20 @@ class UsosHostView(context: Context) : AppWidgetHostView(context) {
         return consumed
     }
 
+    /** Si el widget pide el gesto (scroll interno), no hay pulsacion larga. */
+    override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
+        if (disallowIntercept && !consumed) removeCallbacks(fire)
+        super.requestDisallowInterceptTouchEvent(disallowIntercept)
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!consumed) return super.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) consumed = false
         return true
+    }
+
+    companion object {
+        const val LONG_PRESS_MS = 600L
     }
 
     override fun onDetachedFromWindow() {
