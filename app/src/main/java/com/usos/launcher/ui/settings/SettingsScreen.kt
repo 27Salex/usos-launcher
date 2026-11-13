@@ -154,8 +154,8 @@ private enum class Cat(@StringRes val titleRes: Int) {
 }
 
 @Composable
-fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
-    var page by rememberSaveable { mutableStateOf<String?>(null) }
+fun SettingsScreen(initialCategory: String?, ui: SettingsUi, actions: SettingsActions) {
+    var page by rememberSaveable(initialCategory) { mutableStateOf<String?>(initialCategory) }
     // Atrás vuelve a la lista de categorías y, desde la lista, sale de Ajustes.
     val goBack: () -> Unit = { if (page != null) page = null else actions.onBack() }
     BackHandler { goBack() }

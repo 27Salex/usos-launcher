@@ -429,7 +429,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     fun openDetailByKey(key: String) { apps.value?.firstOrNull { it.key == key }?.let { openDetail(it) } }
 
-    fun openSettings() { closeSearch(); _route.value = Route.Settings }
+    fun openSettings(category: String? = null) { closeSearch(); _route.value = Route.Settings(category) }
+    val installedApps: StateFlow<List<AppEntry>?> get() = apps
 
     /** Atras desde ficha o ajustes. */
     fun closeOverlay() {

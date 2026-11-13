@@ -148,6 +148,7 @@ fun HomeScreen(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val searchItems by viewModel.searchItems.collectAsStateWithLifecycle()
     val route by viewModel.route.collectAsStateWithLifecycle()
+    val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val blockerActive by viewModel.blockerActive.collectAsStateWithLifecycle()
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
@@ -251,11 +252,12 @@ fun HomeScreen(
                         onReconfigure = onReconfigureWidget,
                     ),
                     topSpacing = topSpacing(),
-                    onOpenSettings = viewModel::openSettings,
+                    onOpenSettings = { viewModel.openSettings(SettingsCat.WIDGETS) },
+                    apps = installedApps.orEmpty(),
                     editing = widgetsEditing,
                     onEditingChange = { widgetsEditing = it },
                 )
-                2 -> com.usos.launcher.ui.feeds.FeedsPage(feedsVm, topSpacing(), onManage = { feedManager = true }, onOpenSettings = viewModel::openSettings)
+                2 -> com.usos.launcher.ui.feeds.FeedsPage(feedsVm, topSpacing(), onManage = { feedManager = true }, onOpenSettings = { viewModel.openSettings(SettingsCat.NEWS) })
                 else -> HomePage(
                     state = state,
                     notice = notice,
@@ -339,7 +341,7 @@ fun HomeScreen(
                     ),
                 )
             }
-            Route.Settings -> {
+            is Route.Settings -> {
                 val budget by viewModel.budget.collectAsStateWithLifecycle()
                 val wait by viewModel.wait.collectAsStateWithLifecycle()
                 val orderLists by viewModel.orderLists.collectAsStateWithLifecycle()
@@ -362,6 +364,7 @@ fun HomeScreen(
                 val versionName = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
                 val allApps = remember(orderLists) { orderLists.flatMap { (_, l) -> l.map { it.app } }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() } }
                 SettingsScreen(
+                    r.category,
                     com.usos.launcher.ui.settings.SettingsUi(
                         budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
                         clock, weatherPrefs, cities, iconPrefs, mosaicPrefs, infoSpecs, searchEngine, recentColors,

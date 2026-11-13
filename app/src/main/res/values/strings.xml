@@ -150,6 +150,11 @@
     <string name="widgets_edit">EDITAR</string>
     <string name="widgets_add">AÑADIR</string>
     <string name="widgets_add_title">Añadir</string>
+    <string name="widgets_search_hint">Buscar app o widget</string>
+    <plurals name="widgets_count">
+        <item quantity="one">%1$d widget</item>
+        <item quantity="other">%1$d widgets</item>
+    </plurals>
     <string name="widgets_none_installed">No hay widgets instalados.</string>
     <string name="widgets_empty">Sin widgets. Pulsa EDITAR para añadir el primero.</string>
     <string name="widgets_empty_editing">Sin widgets. Pulsa AÑADIR.</string>

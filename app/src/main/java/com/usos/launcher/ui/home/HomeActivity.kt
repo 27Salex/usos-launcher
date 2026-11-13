@@ -51,7 +51,7 @@ class HomeActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null && isSettingsAlias(intent)) viewModel.openSettings()
+        if (savedInstanceState == null && isSettingsAlias(intent)) viewModel.openSettings(category = null)
         widgetAdder = WidgetAdder(this, container, viewModel::addWidget, viewModel::discardWidgetId)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -118,7 +118,7 @@ class HomeActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (isSettingsAlias(intent)) {
-            viewModel.openSettings()
+            viewModel.openSettings(category = null)
         } else if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) {
             viewModel.onHomePressed()
         }

@@ -110,6 +110,7 @@ fun WidgetsPage(
     actions: WidgetsActions,
     topSpacing: Dp,
     onOpenSettings: () -> Unit,
+    apps: List<com.usos.launcher.domain.AppEntry>,
     editing: Boolean,
     onEditingChange: (Boolean) -> Unit,
 ) {
@@ -376,7 +377,7 @@ fun WidgetsPage(
             }
 
         if (picking) {
-            WidgetPicker(manager, grayscale, onPick = { picking = false; actions.onAdd(it) }, onClose = { picking = false })
+            WidgetPicker(manager, grayscale, apps, onPick = { picking = false; actions.onAdd(it) }, onClose = { picking = false })
         }
     }
 }

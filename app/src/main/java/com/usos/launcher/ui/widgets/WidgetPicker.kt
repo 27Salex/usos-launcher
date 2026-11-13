@@ -23,6 +23,16 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.pluralStringResource
+import com.usos.launcher.data.sections.IconMode
+import com.usos.launcher.ui.search.SearchFilter
+import com.usos.launcher.ui.theme.LocalAccent
+import com.usos.launcher.ui.theme.LocalIconPrefs
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -153,7 +163,13 @@ private fun loadGroups(context: Context, manager: AppWidgetManager): List<Picker
 
 /** Selector propio: widgets instalados agrupados por app, con vista previa. */
 @Composable
-fun WidgetPicker(manager: AppWidgetManager, grayscale: Boolean, onPick: (AppWidgetProviderInfo) -> Unit, onClose: () -> Unit) {
+fun WidgetPicker(
+    manager: AppWidgetManager,
+    grayscale: Boolean,
+    apps: List<com.usos.launcher.domain.AppEntry>,
+    onPick: (AppWidgetProviderInfo) -> Unit,
+    onClose: () -> Unit,
+) {
     BackHandler { onClose() }
     val context = LocalContext.current
     var groups by remember { mutableStateOf<List<PickerGroup>?>(null) }
@@ -168,18 +184,70 @@ fun WidgetPicker(manager: AppWidgetManager, grayscale: Boolean, onPick: (AppWidg
             ScreenHeader(stringResource(R.string.widgets_add_title), onBack = onClose, modifier = Modifier.weight(1f))
             UsosPill(stringResource(R.string.close), filled = false, onClick = onClose)
         }
+        var query by rememberSaveable { mutableStateOf("") }
+        var expanded by rememberSaveable { mutableStateOf(setOf<String>()) }
+        val fieldShape = RoundedCornerShape(UsosDimens.RadiusPiece)
+        Box(
+            Modifier.fillMaxWidth().padding(vertical = 8.dp).height(56.dp)
+                .background(UsosColors.Surface, fieldShape).border(1.dp, UsosColors.Border, fieldShape)
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (query.isEmpty()) UsosText(stringResource(R.string.widgets_search_hint), UsosType.SearchHint, UsosColors.TextSecondary)
+            BasicTextField(
+                value = query, onValueChange = { query = it }, singleLine = true,
+                textStyle = UsosType.SearchInput.copy(color = UsosColors.Text),
+                cursorBrush = SolidColor(LocalAccent.current),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        val q = SearchFilter.normalize(query.trim())
+        val searching = q.isNotEmpty()
         val list = groups
+        val shown = remember(list, q) {
+            if (list == null || !searching) list
+            else list.mapNotNull { g ->
+                if (SearchFilter.normalize(g.appName).contains(q)) g
+                else g.entries.filter { SearchFilter.normalize(it.label).contains(q) }
+                    .takeIf { it.isNotEmpty() }?.let { PickerGroup(g.appName, g.packageName, it) }
+            }
+        }
+        val iconsOn = LocalIconPrefs.current.mode != IconMode.NONE
+        val appByPkg = remember(apps) { apps.filter { it.isMainProfile }.associateBy { it.packageName } }
         when {
-            list == null -> Unit
-            list.isEmpty() -> Box(Modifier.padding(top = 16.dp)) {
+            shown == null -> Unit
+            list.isNullOrEmpty() -> Box(Modifier.padding(top = 16.dp)) {
                 UsosText(stringResource(R.string.widgets_none_installed), UsosType.Empty, UsosColors.TextSecondary)
             }
+            shown.isEmpty() -> Box(Modifier.padding(top = 16.dp)) {
+                UsosText(stringResource(R.string.search_nothing), UsosType.Empty, UsosColors.TextSecondary)
+            }
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
-                list.forEach { g ->
+                shown.forEach { g ->
+                    val open = searching || g.packageName in expanded
                     item(key = "g-" + g.packageName) {
-                        UsosText(g.appName.uppercase(), UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 18.dp, bottom = 4.dp))
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = UsosDimens.MinTouch + 8.dp)
+                                .tap { expanded = if (g.packageName in expanded) expanded - g.packageName else expanded + g.packageName }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            val entry = appByPkg[g.packageName]
+                            if (iconsOn && entry != null) {
+                                com.usos.launcher.ui.theme.AppIconOrNull(entry, 28.dp, UsosColors.Text) { Spacer(Modifier.size(28.dp)) }
+                            }
+                            Column(Modifier.weight(1f)) {
+                                UsosText(g.appName, UsosType.Pill, UsosColors.Text, maxLines = 1)
+                                UsosText(
+                                    pluralStringResource(R.plurals.widgets_count, g.entries.size, g.entries.size),
+                                    UsosType.Label, UsosColors.TextSecondary,
+                                )
+                            }
+                            UsosText(if (open) "-" else "+", UsosType.Pill, UsosColors.TextSecondary)
+                        }
                     }
-                    items(g.entries, key = { it.key }) { e ->
+                    if (open) items(g.entries, key = { it.key }) { e ->
                         Column(
                             Modifier.fillMaxWidth().padding(vertical = 6.dp)
                                 .clip(RoundedCornerShape(UsosDimens.RadiusPiece))

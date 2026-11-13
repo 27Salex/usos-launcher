@@ -154,13 +154,23 @@ fun Modifier.tapOutside(
     }
 }
 
-/** Botón discreto de ajustes: tres puntos grises, zona táctil de 44 dp. */
+/** Boton discreto de ajustes: engranaje de puntos (centro + corona de 8), zona tactil de 44 dp. */
 @Composable
 fun SettingsGlyph(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier.size(UsosDimens.MinTouch).tap { onClick() }, contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(18.dp, 4.dp)) {
-            val r = 2.dp.toPx()
-            for (i in 0..2) drawCircle(UsosColors.TextSecondary, r, Offset(r + i * (size.width - 2 * r) / 2f, size.height / 2))
+        Canvas(Modifier.size(24.dp)) {
+            val c = Offset(size.width / 2f, size.height / 2f)
+            val ring = size.width * 0.36f
+            val r = size.width * 0.075f
+            drawCircle(UsosColors.TextSecondary, r * 1.5f, c)
+            for (i in 0 until 8) {
+                val a = Math.toRadians(i * 45.0)
+                val big = i % 2 == 0
+                drawCircle(
+                    UsosColors.TextSecondary, if (big) r * 1.25f else r,
+                    Offset(c.x + (ring * Math.cos(a)).toFloat(), c.y + (ring * Math.sin(a)).toFloat()),
+                )
+            }
         }
     }
 }
