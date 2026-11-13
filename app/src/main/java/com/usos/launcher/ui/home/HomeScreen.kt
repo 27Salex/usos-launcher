@@ -1,6 +1,13 @@
 package com.usos.launcher.ui.home
 
 import androidx.compose.runtime.snapshotFlow
+import android.util.Log
+import com.usos.launcher.BuildConfig
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
@@ -163,34 +170,57 @@ fun HomeScreen(
     val searchProgress = remember { Animatable(0f) }
     LaunchedEffect(searchOpen, animations) {
         val target = if (searchOpen) 1f else 0f
-        if (animations) searchProgress.animateTo(target, usosTween(true)) else searchProgress.snapTo(target)
+        try {
+            if (animations) searchProgress.animateTo(target, usosTween(true)) else searchProgress.snapTo(target)
+        } finally {
+            // Si la animación se corta, el progreso nunca queda a medias con la búsqueda cerrada (el overlay taparía el pager).
+            if (!searchOpen) withContext(NonCancellable) { searchProgress.snapTo(0f) }
+        }
     }
 
     // Atrás cierra la búsqueda; en inicio no hace nada más.
     BackHandler(enabled = true) { if (aiPicker) aiPicker = false else if (searchOpen) viewModel.closeSearch() else if (editing) { if (edit.selectedKey != null) edit.clearSelection() else viewModel.exitEdit() } }
 
 
-    // Al abrir el cajón (búsqueda) el pager vuelve a Inicio sin animación: al cerrarlo nunca se ve otra página.
-    LaunchedEffect(searchOpen) {
-        if (searchOpen) pager.requestScrollToPage(1)
+    // Al abrir el cajón (búsqueda) o entrar en edición el pager vuelve a Inicio sin animación. No se usa
+    // requestScrollToPage (se aplica en la siguiente medición, aun con un arrastre de usuario en curso): se espera
+    // a que no haya gesto y se hace scrollToPage, que toma el mutex del scroll de forma ordenada.
+    suspend fun goHomeNow() {
+        if (pager.currentPage == PagerLock.HOME_PAGE && pager.currentPageOffsetFraction == 0f) return
+        withTimeoutOrNull(500) { snapshotFlow { pager.isScrollInProgress }.first { !it } }
+        pager.scrollToPage(PagerLock.HOME_PAGE)
     }
-    LaunchedEffect(editing) { if (!editing) edit.reset() }
+    LaunchedEffect(searchOpen) { if (searchOpen) goHomeNow() }
+    LaunchedEffect(editing) {
+        if (!editing) edit.reset() else goHomeNow() // «Editar inicio» desde Ajustes puede llegar con el pager en Widgets/Noticias
+    }
 
     LaunchedEffect(pager) {
         viewModel.homeEvents.collect {
             widgetsEditing = false // el botón inicio sale también de la edición de widgets (si no, el pager quedaba bloqueado)
-            if (animationsNow) pager.animateScrollToPage(1, animationSpec = usosTween(true))
-            else pager.scrollToPage(1)
+            edit.reset()
+            if (animationsNow) pager.animateScrollToPage(PagerLock.HOME_PAGE, animationSpec = usosTween(true))
+            else pager.scrollToPage(PagerLock.HOME_PAGE)
         }
     }
     // Red de seguridad: la edición de widgets solo existe en su página; al salir de ella se apaga.
     LaunchedEffect(pager) {
-        snapshotFlow { pager.settledPage }.collect { if (it != 0) widgetsEditing = false }
+        snapshotFlow { PagerLock.widgetsEditingValid(widgetsEditing, pager.settledPage) to pager.settledPage }
+            .collect { (valid, page) -> if (!valid && page != PagerLock.WIDGETS_PAGE) widgetsEditing = false }
     }
     // Si el pager queda a medio camino sin gesto en curso (p. ej. un arrastre cancelado al abrir el cajón), se asienta.
     LaunchedEffect(pager) {
-        snapshotFlow { pager.isScrollInProgress to pager.currentPageOffsetFraction }.collect { (moving, frac) ->
-            if (!moving && frac != 0f) pager.scrollToPage(pager.currentPage)
+        snapshotFlow { PagerLock.needsSettle(pager.isScrollInProgress, pager.currentPageOffsetFraction) }
+            .collect { if (it) pager.scrollToPage(pager.currentPage) }
+    }
+    if (BuildConfig.DEBUG) {
+        LaunchedEffect(editing) { Log.d("UsosPager", "editing=$editing") }
+        LaunchedEffect(widgetsEditing) { Log.d("UsosPager", "widgetsEditing=$widgetsEditing") }
+        LaunchedEffect(searchOpen) { Log.d("UsosPager", "searchOpen=$searchOpen") }
+        LaunchedEffect(pager) {
+            launch { snapshotFlow { pager.isScrollInProgress }.collect { Log.d("UsosPager", "isScrollInProgress=$it") } }
+            launch { snapshotFlow { pager.settledPage }.collect { Log.d("UsosPager", "settledPage=$it") } }
+            launch { snapshotFlow { pager.currentPageOffsetFraction }.collect { Log.d("UsosPager", "offsetFraction=$it") } }
         }
     }
 
@@ -205,7 +235,7 @@ fun HomeScreen(
     Box(Modifier.fillMaxSize().background(UsosColors.Background)) {
         HorizontalPager(
             state = pager, modifier = Modifier.fillMaxSize(),
-            userScrollEnabled = !editing && !widgetsEditing && !searchOpen,
+            userScrollEnabled = PagerLock.scrollEnabled(editing, widgetsEditing, searchOpen, pager.currentPage),
         ) { page ->
             when (page) {
                 0 -> com.usos.launcher.ui.widgets.WidgetsPage(
@@ -787,12 +817,17 @@ private fun PieceEditLayer(
                         edit.start(key, section, t, c.positionInRoot(), down.position, c.size)
                         edit.pointer = c.positionInRoot() + moved.position
                         edit.updateHover()
-                        val finished = drag(moved.id) { change ->
-                            change.consume()
-                            coords?.let { edit.pointer = it.positionInRoot() + change.position }
-                            edit.updateHover()
+                        var finished = false
+                        try {
+                            finished = drag(moved.id) { change ->
+                                change.consume()
+                                coords?.let { edit.pointer = it.positionInRoot() + change.position }
+                                edit.updateHover()
+                            }
+                        } finally {
+                            // También si el gesto se cancela por una excepción (nodo quitado, edición terminada).
+                            if (finished) edit.drop(actionsNow) else edit.cancel()
                         }
-                        if (finished) edit.drop(actionsNow) else edit.cancel()
                     }
                 } else if (selected) Modifier else Modifier.pressGestures(onLongPress = select) { select() },
             ),

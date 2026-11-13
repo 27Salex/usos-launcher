@@ -153,14 +153,17 @@ fun ResizeHandles(
                         down.consume()
                         start(axes)
                         var completed = false
-                        while (true) {
-                            val c = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
-                            if (c.changedToUpIgnoreConsumed()) { c.consume(); completed = true; break }
-                            if (!c.pressed) break
-                            c.consume()
-                            delta(c.position.x - down.position.x, c.position.y - down.position.y, axes)
+                        try {
+                            while (true) {
+                                val c = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                                if (c.changedToUpIgnoreConsumed()) { c.consume(); completed = true; break }
+                                if (!c.pressed) break
+                                c.consume()
+                                delta(c.position.x - down.position.x, c.position.y - down.position.y, axes)
+                            }
+                        } finally {
+                            end(completed) // también si el gesto se cancela por una excepción
                         }
-                        end(completed)
                     }
                 },
             contentAlignment = Alignment.Center,

@@ -285,13 +285,17 @@ fun WidgetsPage(
                                                                 dragPointer = l.positionInRoot() + moved.position
                                                                 hoverCell = null
                                                                 updateDragPreview()
-                                                                val finished = drag(moved.id) { change ->
-                                                                    change.consume()
-                                                                    layer?.let { dragPointer = it.positionInRoot() + change.position }
-                                                                    updateDragPreview()
+                                                                var finished = false
+                                                                try {
+                                                                    finished = drag(moved.id) { change ->
+                                                                        change.consume()
+                                                                        layer?.let { dragPointer = it.positionInRoot() + change.position }
+                                                                        updateDragPreview()
+                                                                    }
+                                                                } finally {
+                                                                    if (finished) dropDrag()
+                                                                    else { dragId = null; hoverCell = null; preview = null }
                                                                 }
-                                                                if (finished) dropDrag()
-                                                                else { dragId = null; hoverCell = null; preview = null }
                                                             }
                                                         } else if (selected) Modifier
                                                         else Modifier.pressGestures(longMs = 400, onLongPress = select) { select() },

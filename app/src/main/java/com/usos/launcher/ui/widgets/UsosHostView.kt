@@ -61,7 +61,11 @@ class UsosHostView(context: Context) : AppWidgetHostView(context) {
             }
             MotionEvent.ACTION_MOVE ->
                 if (!consumed && (abs(ev.x - downX) > slop || abs(ev.y - downY) > slop)) removeCallbacks(fire)
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> removeCallbacks(fire)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                removeCallbacks(fire)
+                // El widget pudo pedir requestDisallowIntercept(true): se libera siempre al terminar el gesto.
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
         }
         return consumed
     }
