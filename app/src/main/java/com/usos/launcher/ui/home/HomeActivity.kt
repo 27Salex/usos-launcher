@@ -88,7 +88,7 @@ class HomeActivity : ComponentActivity() {
         setContent {
             val accent by viewModel.accent.collectAsStateWithLifecycle()
             UsosTheme(accent) {
-                HomeScreen(viewModel, onAddWidget = widgetAdder::start)
+                HomeScreen(viewModel, onAddWidget = widgetAdder::start, onReconfigureWidget = widgetAdder::reconfigure)
             }
         }
     }

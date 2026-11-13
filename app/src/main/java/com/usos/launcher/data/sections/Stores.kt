@@ -90,6 +90,12 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     /** Escala de grises global de los widgets. Activada por defecto. */
     val widgetsGrayscale: Flow<Boolean> = dataStore.data.map { it[grayscaleKey] ?: true }.distinctUntilChanged()
 
+    private val thumbsGrayKey = booleanPreferencesKey("feeds_thumbs_gray")
+
+    /** Miniaturas de noticias en gris (solo al dibujar; la caché guarda el color). Apagado por defecto. */
+    val thumbsGray: Flow<Boolean> = dataStore.data.map { it[thumbsGrayKey] ?: false }.distinctUntilChanged()
+    suspend fun setThumbsGray(on: Boolean) { dataStore.edit { it[thumbsGrayKey] = on } }
+
     private val perHourKey = intPreferencesKey("feeds_per_hour")
     private val feedsHiddenKey = booleanPreferencesKey("feeds_hidden")
     private val feedsKeepKey = intPreferencesKey("feeds_keep")

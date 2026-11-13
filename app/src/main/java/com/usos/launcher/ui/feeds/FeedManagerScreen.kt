@@ -40,6 +40,7 @@ import com.usos.launcher.data.feeds.SuggestedFeeds
 import com.usos.launcher.ui.theme.tap
 import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.UsosColors
+import com.usos.launcher.ui.theme.ScreenHeader
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosPill
 import com.usos.launcher.ui.theme.UsosText
@@ -68,7 +69,7 @@ fun FeedManagerScreen(vm: FeedsViewModel, onBack: () -> Unit) {
                 start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin,
             ),
     ) {
-        UsosText("Feeds", UsosType.PanelTitle, UsosColors.Text)
+        ScreenHeader("Feeds", onBack = onBack)
         Spacer(Modifier.height(16.dp))
         UsosText("AÑADIR · URL DE FEED, DE WEB O DOMINIO", UsosType.Label, UsosColors.TextSecondary)
         Spacer(Modifier.height(8.dp))

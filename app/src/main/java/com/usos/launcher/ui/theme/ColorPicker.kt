@@ -3,8 +3,8 @@ package com.usos.launcher.ui.theme
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -48,11 +51,11 @@ private val Hues = listOf(0f, 60f, 120f, 180f, 240f, 300f, 360f).map { Color(Col
  */
 @Composable
 fun ColorPicker(initial: Int, recent: List<Int>, onCommit: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val start = remember(initial) { ColorMath.argbToHsv(initial) }
-    var hue by remember(initial) { mutableFloatStateOf(start[0]) }
-    var sat by remember(initial) { mutableFloatStateOf(start[1]) }
-    var value by remember(initial) { mutableFloatStateOf(start[2]) }
-    var hex by remember(initial) { mutableStateOf(ColorMath.toHex(initial)) }
+    val start = remember { ColorMath.argbToHsv(initial) }
+    var hue by remember { mutableFloatStateOf(start[0]) }
+    var sat by remember { mutableFloatStateOf(start[1]) }
+    var value by remember { mutableFloatStateOf(start[2]) }
+    var hex by remember { mutableStateOf(ColorMath.toHex(initial)) }
     val commit by rememberUpdatedState(onCommit)
     val current = ColorMath.hsvToArgb(hue, sat, value)
 
@@ -62,28 +65,22 @@ fun ColorPicker(initial: Int, recent: List<Int>, onCommit: (Int) -> Unit, modifi
         hex = ColorMath.toHex(argb)
     }
 
+    // Un cambio externo del color (no el que acabamos de confirmar nosotros) reinicia el selector;
+    // así confirmar no devuelve el tono a 0 cuando S o V valen 0.
+    LaunchedEffect(initial) { if (initial != ColorMath.hsvToArgb(hue, sat, value)) setFrom(initial) }
+
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Cuadro saturación (x) / valor (y).
         Canvas(
             Modifier.fillMaxWidth().height(170.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures(onPress = { o ->
-                        sat = (o.x / size.width).coerceIn(0f, 1f)
-                        value = 1f - (o.y / size.height).coerceIn(0f, 1f)
+                .dragPosition(
+                    onPos = { o, sz ->
+                        sat = (o.x / sz.width).coerceIn(0f, 1f)
+                        value = 1f - (o.y / sz.height).coerceIn(0f, 1f)
                         hex = ColorMath.toHex(ColorMath.hsvToArgb(hue, sat, value))
-                        if (tryAwaitRelease()) commit(ColorMath.hsvToArgb(hue, sat, value))
-                    })
-                }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragEnd = { commit(ColorMath.hsvToArgb(hue, sat, value)) },
-                    ) { change, _ ->
-                        change.consume()
-                        sat = (change.position.x / size.width).coerceIn(0f, 1f)
-                        value = 1f - (change.position.y / size.height).coerceIn(0f, 1f)
-                        hex = ColorMath.toHex(ColorMath.hsvToArgb(hue, sat, value))
-                    }
-                },
+                    },
+                    onEnd = { commit(ColorMath.hsvToArgb(hue, sat, value)) },
+                ),
         ) {
             val pure = Color(ColorMath.hsvToArgb(hue, 1f, 1f))
             drawRect(Brush.horizontalGradient(listOf(Color.White, pure)), size = size)
@@ -96,22 +93,13 @@ fun ColorPicker(initial: Int, recent: List<Int>, onCommit: (Int) -> Unit, modifi
         // Barra de tono.
         Canvas(
             Modifier.fillMaxWidth().height(32.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures(onPress = { o ->
-                        hue = (o.x / size.width).coerceIn(0f, 1f) * 360f
+                .dragPosition(
+                    onPos = { o, sz ->
+                        hue = (o.x / sz.width).coerceIn(0f, 1f) * 360f
                         hex = ColorMath.toHex(ColorMath.hsvToArgb(hue, sat, value))
-                        if (tryAwaitRelease()) commit(ColorMath.hsvToArgb(hue, sat, value))
-                    })
-                }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragEnd = { commit(ColorMath.hsvToArgb(hue, sat, value)) },
-                    ) { change, _ ->
-                        change.consume()
-                        hue = (change.position.x / size.width).coerceIn(0f, 1f) * 360f
-                        hex = ColorMath.toHex(ColorMath.hsvToArgb(hue, sat, value))
-                    }
-                },
+                    },
+                    onEnd = { commit(ColorMath.hsvToArgb(hue, sat, value)) },
+                ),
         ) {
             drawRect(Brush.horizontalGradient(Hues), size = Size(size.width, size.height))
             val x = hue / 360f * size.width
@@ -173,3 +161,24 @@ fun ColorPicker(initial: Int, recent: List<Int>, onCommit: (Int) -> Unit, modifi
         Spacer(Modifier.padding(0.dp))
     }
 }
+
+/**
+ * Toque o arrastre sobre un área: [onPos] con cada posición (también el DOWN) y [onEnd] al soltar. Consume los
+ * eventos, así el scroll de un padre no roba el gesto.
+ */
+private fun Modifier.dragPosition(onPos: (Offset, IntSize) -> Unit, onEnd: () -> Unit): Modifier =
+    pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            down.consume()
+            onPos(down.position, size)
+            while (true) {
+                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                if (change.changedToUpIgnoreConsumed()) { change.consume(); break }
+                if (!change.pressed) break
+                onPos(change.position, size)
+                change.consume()
+            }
+            onEnd()
+        }
+    }

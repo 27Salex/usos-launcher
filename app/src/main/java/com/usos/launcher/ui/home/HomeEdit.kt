@@ -1,7 +1,6 @@
 package com.usos.launcher.ui.home
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,20 +24,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.toSize
 import com.usos.launcher.data.sections.Cell
 import com.usos.launcher.data.sections.MosaicEdit
+import com.usos.launcher.data.sections.PackResult
 import com.usos.launcher.data.sections.PlacedApp
+import com.usos.launcher.data.sections.SectionMosaic
+import com.usos.launcher.ui.theme.ResizeAxes
 import com.usos.launcher.data.sections.TileSize
 import com.usos.launcher.data.info.InfoKind
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.LocalOnAccent
 import com.usos.launcher.ui.theme.UsosColors
+import com.usos.launcher.ui.theme.BackGlyph
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosPill
 import com.usos.launcher.ui.theme.UsosText
@@ -66,42 +69,90 @@ class GridGeom(
 
 fun LayoutCoordinates.rootRect(): Rect? = if (isAttached) Rect(positionInRoot(), size.toSize()) else null
 
-/** Estado del arrastre en curso (una sola pieza a la vez). Las posiciones se guardan en coordenadas de raíz. */
+/** Colocación en vivo de una sección mientras se arrastra o redimensiona (lo que pasaría si se soltara ahora). */
+class EditPreview(val section: Section, val key: String, val layout: PackResult)
+
+/**
+ * Estado de la edición de inicio: selección (bolitas / tiradores), arrastre de una pieza y vista previa.
+ * Las posiciones se guardan en coordenadas de raíz.
+ */
 @Stable
 class EditState {
+    // Selección
+    var selectedKey by mutableStateOf<String?>(null)
+    var selectedSection: Section? = null
+    var selectedRect by mutableStateOf<Rect?>(null)
+    var resizing by mutableStateOf(false)
+
+    // Arrastre
     var dragKey by mutableStateOf<String?>(null)
     var dragSection: Section? = null
     var dragTile by mutableStateOf<TileUi?>(null)
-    var dragSize by mutableStateOf(androidx.compose.ui.unit.IntSize.Zero)
+    var dragSize by mutableStateOf(IntSize.Zero)
     var pointer by mutableStateOf(Offset.Zero)
     var grab = Offset.Zero
     var hoverSection by mutableStateOf<Section?>(null)
     var hoverRemove by mutableStateOf(false)
     var hoverCell by mutableStateOf<Cell?>(null)
+
+    // Redimensionado
     var resizeKey by mutableStateOf<String?>(null)
     var resizeSize by mutableStateOf<TileSize?>(null)
+    var frozenRect by mutableStateOf<Rect?>(null)
+    private var resizeFrom = TileSize.S1X1
 
+    // Vista previa: la de ahora y la última soltada (se mantiene hasta que llega el estado guardado, sin parpadeo)
+    var preview by mutableStateOf<EditPreview?>(null)
+    var held by mutableStateOf<EditPreview?>(null)
+
+    /** Secciones tal como las dibuja la vista ahora (las actualiza HomePage en cada composición). */
+    var sections: Map<Section, SectionUi> = emptyMap()
+    var viewport: LayoutCoordinates? = null
     val headers = HashMap<Section, LayoutCoordinates>()
     val grids = HashMap<Section, GridGeom>()
     var removeZone: LayoutCoordinates? = null
 
     val dragging get() = dragKey != null
 
-    fun start(key: String, section: Section, tile: TileUi, tileOrigin: Offset, grab: Offset, size: androidx.compose.ui.unit.IntSize) {
+    fun select(key: String, section: Section) {
+        if (selectedKey != key) { selectedKey = key; selectedSection = section; selectedRect = null; resizing = false }
+    }
+
+    fun clearSelection() {
+        selectedKey = null; selectedSection = null; selectedRect = null; resizing = false
+        resizeKey = null; resizeSize = null; frozenRect = null; preview = null
+    }
+
+    fun reset() { cancel(); clearSelection(); held = null }
+
+    fun start(key: String, section: Section, tile: TileUi, tileOrigin: Offset, grab: Offset, size: IntSize) {
         dragKey = key; dragSection = section; dragTile = tile; dragSize = size
         this.grab = grab
         pointer = tileOrigin + grab
+        hoverCell = null
         updateHover()
     }
 
     fun updateHover() {
         val p = pointer
+        val inList = viewport?.rootRect()?.contains(p) != false
         hoverRemove = removeZone?.rootRect()?.contains(p) == true
-        hoverSection = headers.entries.firstOrNull { (s, c) -> s != dragSection && c.rootRect()?.contains(p) == true }?.key
-        val g = dragSection?.let { grids[it] }
+        hoverSection = if (!inList) null else
+            headers.entries.firstOrNull { (s, c) -> s != dragSection && c.rootRect()?.contains(p) == true }?.key
+        val sec = dragSection
+        val g = sec?.let { grids[it] }
         hoverCell = if (hoverRemove || hoverSection != null || g == null || !g.coords.isAttached) null else {
             val o = g.coords.positionInRoot()
-            MosaicEdit.cellAt(p.x - o.x, p.y - o.y, g.stepX, g.stepY, g.columns, g.rows)
+            MosaicEdit.hoverCell(hoverCell, p.x - o.x, p.y - o.y, g.stepX, g.stepY, g.columns, g.rows)
+        }
+        preview = run {
+            val key = dragKey ?: return@run null
+            val cell = hoverCell ?: return@run null
+            val ui = sections[sec ?: return@run null] ?: return@run null
+            MosaicEdit.previewMove(
+                ui.columns, ui.rows, ui.infoSize, ui.entries, ui.placements, key, cell,
+                SectionMosaic.reservesFreeze(ui.section),
+            )?.let { EditPreview(ui.section, key, it.layout) }
         }
     }
 
@@ -111,10 +162,12 @@ class EditState {
         if (key != null && section != null) {
             val toSection = hoverSection
             val cell = hoverCell
+            val pv = preview
             when {
-                hoverRemove -> actions.onRemove(key)
-                toSection != null -> actions.onToSection(key, toSection)
-                cell != null -> actions.onPlace(key, section, cell)
+                hoverRemove -> { actions.onRemove(key); clearSelection() }
+                toSection != null -> { actions.onToSection(key, toSection); clearSelection() }
+                cell != null && pv != null -> { held = pv; actions.onPlace(key, section, cell) }
+                // Fuera de una zona válida (o sin sitio): la pieza vuelve a su lugar sin cambios.
             }
         }
         cancel()
@@ -122,7 +175,44 @@ class EditState {
 
     fun cancel() {
         dragKey = null; dragSection = null; dragTile = null
-        hoverSection = null; hoverRemove = false; hoverCell = null
+        hoverSection = null; hoverRemove = false; hoverCell = null; preview = null
+    }
+
+    // ---- Redimensionado ----
+
+    fun beginResize() {
+        val key = selectedKey ?: return
+        val sec = selectedSection ?: return
+        val pl = sections[sec]?.placements?.firstOrNull { it.key == key } ?: return
+        resizeFrom = TileSize.entries.firstOrNull { it.colSpan == pl.colSpan && it.rowSpan == pl.rowSpan } ?: TileSize.S1X1
+        resizeKey = key; resizeSize = resizeFrom; frozenRect = selectedRect
+    }
+
+    fun updateResize(dx: Float, dy: Float, axes: ResizeAxes) {
+        val key = resizeKey ?: return
+        val sec = selectedSection ?: return
+        val g = grids[sec] ?: return
+        val ui = sections[sec] ?: return
+        val size = MosaicEdit.snapSize(resizeFrom, if (axes.x) dx else 0f, if (axes.y) dy else 0f, g.stepX, g.stepY)
+        if (size == resizeSize) return
+        resizeSize = size
+        preview = if (size == resizeFrom) null else
+            MosaicEdit.previewResize(
+                ui.columns, ui.rows, ui.infoSize, ui.entries, key, size, SectionMosaic.reservesFreeze(sec),
+            )?.let { EditPreview(sec, key, it) }
+    }
+
+    fun endResize(actions: EditActions, completed: Boolean) {
+        val key = resizeKey
+        val sec = selectedSection
+        val size = resizeSize
+        val pv = preview
+        if (completed && key != null && sec != null && size != null && size != resizeFrom && pv != null) {
+            held = pv
+            if (key == SectionMosaic.INFO_KEY) sections[sec]?.info?.let { actions.onResizeInfo(it.kind, size) }
+            else actions.onResize(key, size)
+        }
+        resizeKey = null; resizeSize = null; frozenRect = null; preview = null
     }
 }
 
@@ -155,17 +245,6 @@ fun RemoveZone(hover: Boolean, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         UsosText("QUITAR DE INICIO", UsosType.Button, if (hover) LocalOnAccent.current else UsosColors.Text)
-    }
-}
-
-/** Tirador de tamaño: esquina en L de acento. */
-@Composable
-fun ResizeGlyph(modifier: Modifier = Modifier) {
-    val accent = LocalAccent.current
-    Canvas(modifier.size(14.dp)) {
-        val w = 2.dp.toPx()
-        drawLine(accent, Offset(size.width, 0f), Offset(size.width, size.height), w)
-        drawLine(accent, Offset(0f, size.height), Offset(size.width, size.height), w)
     }
 }
 
@@ -205,7 +284,10 @@ fun AddPicker(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            UsosText("AÑADIR A ${section.title.uppercase()}", UsosType.Button, accent)
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                BackGlyph(onClose)
+                UsosText("AÑADIR A ${section.title.uppercase()}", UsosType.Button, accent)
+            }
             Box(Modifier.height(UsosDimens.MinTouch).pressGestures { onClose() }.padding(start = 16.dp), contentAlignment = Alignment.CenterEnd) {
                 UsosText("CERRAR", UsosType.Button, UsosColors.Text)
             }

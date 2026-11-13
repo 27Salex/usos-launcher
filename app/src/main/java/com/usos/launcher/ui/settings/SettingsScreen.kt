@@ -61,9 +61,12 @@ import com.usos.launcher.ui.theme.ColorMath
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.UsosColors
+import com.usos.launcher.ui.theme.ScreenHeader
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosPill
 import com.usos.launcher.ui.theme.UsosRow
+import androidx.compose.ui.res.stringResource
+import com.usos.launcher.R
 import com.usos.launcher.ui.theme.UsosSwitch
 import com.usos.launcher.ui.theme.UsosText
 import com.usos.launcher.ui.theme.UsosType
@@ -107,6 +110,7 @@ class SettingsActions(
     val onAssistant: (String?) -> Unit,
     val onFeedsKeep: (Int) -> Unit,
     val onClockTap: (String) -> Unit,
+    val onThumbsGray: (Boolean) -> Unit,
     val onBack: () -> Unit,
 )
 
@@ -133,6 +137,7 @@ class SettingsUi(
     val clockTap: String,
     val allApps: List<com.usos.launcher.domain.AppEntry>,
     val versionName: String,
+    val thumbsGray: Boolean,
 )
 
 /** Categorías de la pantalla principal de Ajustes: clave guardada, título y orden. */
@@ -145,7 +150,8 @@ private enum class Cat(val title: String) {
 fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
     var page by rememberSaveable { mutableStateOf<String?>(null) }
     // Atrás vuelve a la lista de categorías y, desde la lista, sale de Ajustes.
-    BackHandler { if (page != null) page = null else actions.onBack() }
+    val goBack: () -> Unit = { if (page != null) page = null else actions.onBack() }
+    BackHandler { goBack() }
     val cat = Cat.entries.firstOrNull { it.name == page }
     Column(
         Modifier
@@ -159,7 +165,7 @@ fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
             ),
     ) {
         if (cat == null) {
-            UsosText("Ajustes", UsosType.PanelTitle, UsosColors.Text)
+            ScreenHeader("Ajustes", onBack = goBack)
             Spacer(Modifier.height(12.dp))
             Cat.entries.forEach { c ->
                 Column(Modifier.fillMaxWidth().tap { page = c.name }.padding(vertical = 10.dp)) {
@@ -168,7 +174,7 @@ fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
                 }
             }
         } else {
-            UsosText(cat.title, UsosType.PanelTitle, UsosColors.Text)
+            ScreenHeader(cat.title, onBack = goBack)
             Spacer(Modifier.height(4.dp))
             when (cat) {
                 Cat.HOME -> HomeSettings(ui, actions)
@@ -424,6 +430,8 @@ private fun NewsSettings(ui: SettingsUi, actions: SettingsActions) {
         actions.onFeedsKeep(FeedLimits.KEEP_CHOICES[it])
     }
     UsosText("Se conservan los más recientes de cada feed; los guardados (estrella) nunca se borran.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+    Spacer(Modifier.height(12.dp))
+    UsosRow(stringResource(R.string.thumbs_gray).uppercase()) { UsosSwitch(ui.thumbsGray, actions.onThumbsGray) }
 }
 
 @Composable

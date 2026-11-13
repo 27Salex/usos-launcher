@@ -2,4 +2,10 @@
 <resources>
     <string name="app_name">Usos</string>
     <string name="accessibility_description">Mantiene congeladas las apps de ocio: si abres una sin haber descongelado el ocio, te devuelve al inicio, y cierra la sesión de ocio cuando se acaba el tiempo. Solo detecta qué app se abre; no lee el contenido de la pantalla.</string>
+    <string name="thumbs_gray">Miniaturas en gris</string>
+    <string name="back">Atrás</string>
+    <string name="bubble_resize">Redimensionar</string>
+    <string name="bubble_settings">Ajustes</string>
+    <string name="bubble_remove">Quitar</string>
+    <string name="bubble_reconfigure">Reconfigurar</string>
 </resources>

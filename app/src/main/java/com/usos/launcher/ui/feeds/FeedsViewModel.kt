@@ -55,6 +55,7 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
     private val repo = app.container.feedRepository
     private val settings = app.container.settingsStore
     val thumbnails get() = app.container.thumbnailLoader
+    val thumbsGray: StateFlow<Boolean> = settings.thumbsGray.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val feeds: StateFlow<List<Feed>> = repo.feeds.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

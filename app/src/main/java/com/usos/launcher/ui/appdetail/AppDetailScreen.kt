@@ -56,6 +56,7 @@ import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.ColorPicker
 import androidx.compose.ui.graphics.toArgb
 import com.usos.launcher.ui.theme.UsosColors
+import com.usos.launcher.ui.theme.BackGlyph
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosPill
 import com.usos.launcher.ui.theme.UsosRow
@@ -112,6 +113,7 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
             ),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            BackGlyph(actions.onBack)
             if (LocalIconPrefs.current.mode != IconMode.NONE) {
                 AppIconImage(app, 32.dp, UsosColors.Text)
                 androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
@@ -188,6 +190,7 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
                     modifier = Modifier.weight(1f),
                 )
             }
+        }
         Spacer(Modifier.height(8.dp))
         val accentNow = LocalAccent.current
         UsosPill(
@@ -198,7 +201,6 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
         if (cfg.highlight == Highlight.COLOR) {
             Spacer(Modifier.height(12.dp))
             ColorPicker(cfg.highlightColor ?: accentNow.toArgb(), ui.recentColors, actions.onHighlightColor)
-        }
         }
 
         Spacer(Modifier.height(28.dp))

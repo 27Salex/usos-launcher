@@ -34,9 +34,9 @@ object WidgetSizing {
     const val CELL_DP = 95
     const val GAP_DP = 10
     const val MIN_ROWS = 1
-    const val MAX_ROWS = 5
+    const val MAX_ROWS = 6
 
-    /** Filas de celda mas cercanas a un alto en dp (1..5). */
+    /** Filas de celda mas cercanas a un alto en dp (1..6). */
     fun dpToRows(dp: Int): Int = ((dp + GAP_DP).toFloat() / (CELL_DP + GAP_DP)).roundToInt().coerceIn(MIN_ROWS, MAX_ROWS)
 
     /** Tamaño efectivo: ancho = todas las columnas si no se ha migrado; filas = las del alto antiguo o [defaultRows]. */
@@ -50,12 +50,36 @@ object WidgetSizing {
         return WidgetCells(c, r.coerceIn(MIN_ROWS, MAX_ROWS))
     }
 
-    /** Tamaño encajado a celdas tras arrastrar el tirador [dxPx], [dyPx]: 1..[columns] de ancho y 1..5 de alto. */
-    fun snapCells(cur: WidgetCells, dxPx: Float, dyPx: Float, stepX: Float, stepY: Float, columns: Int): WidgetCells =
+    /**
+     * Celdas mínimas reales de un widget en un eje: el mínimo declarado ([minDp]: minResizeWidth/Height si existe,
+     * si no minWidth/Height) redondeado hacia abajo a celdas de [cellDp] con separación [gapDp]; 1..[max].
+     */
+    fun minCells(minDp: Int, cellDp: Float, gapDp: Float, max: Int): Int =
+        if (minDp <= 0) 1 else ((minDp + gapDp) / (cellDp + gapDp)).toInt().coerceIn(1, max.coerceAtLeast(1))
+
+    /**
+     * Tamaño encajado a celdas tras arrastrar el tirador [dxPx], [dyPx]: [minCols]..[columns] de ancho y
+     * [minRows]..6 de alto. Cualquier ancho en celdas por encima del mínimo es válido.
+     */
+    fun snapCells(
+        cur: WidgetCells, dxPx: Float, dyPx: Float, stepX: Float, stepY: Float, columns: Int,
+        minCols: Int = 1, minRows: Int = MIN_ROWS,
+    ): WidgetCells =
         WidgetCells(
-            (cur.cols + (dxPx / stepX).roundToInt()).coerceIn(1, columns),
-            (cur.rows + (dyPx / stepY).roundToInt()).coerceIn(MIN_ROWS, MAX_ROWS),
+            (cur.cols + (dxPx / stepX).roundToInt()).coerceIn(minCols.coerceIn(1, columns), columns),
+            (cur.rows + (dyPx / stepY).roundToInt()).coerceIn(minRows.coerceIn(MIN_ROWS, MAX_ROWS), MAX_ROWS),
         )
+
+    /** Orden tentativo y colocación si [dragged] (id) se soltara sobre [target]; sirve para la vista previa. */
+    fun previewMove(
+        columns: Int, sizes: List<Pair<Int, WidgetCells>>, placements: List<com.usos.launcher.data.sections.Placement>,
+        dragged: Int, target: com.usos.launcher.data.sections.Cell,
+    ): Pair<List<Int>, PackResult> {
+        val order = com.usos.launcher.data.sections.MosaicEdit
+            .reorder(sizes.map { it.first.toString() }, placements, dragged.toString(), target, columns).map { it.toInt() }
+        val byId = sizes.toMap()
+        return order to layout(columns, order.mapNotNull { id -> byId[id]?.let { id to it } })
+    }
 
     /** Colocación densa por orden (MosaicPacker); las filas disponibles son la suma de alturas, así que todo cabe. */
     fun layout(columns: Int, sizes: List<Pair<Int, WidgetCells>>): PackResult =

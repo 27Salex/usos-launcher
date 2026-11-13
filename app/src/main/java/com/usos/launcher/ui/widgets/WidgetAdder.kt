@@ -35,6 +35,11 @@ class WidgetAdder(
         }
     }
 
+    /** Reabre la configuración de un widget ya colocado; el widget se actualiza solo, no hay nada que guardar. */
+    fun reconfigure(id: Int) {
+        runCatching { container.widgetHost.startAppWidgetConfigureActivityForResult(activity, id, 0, REQ_RECONFIG, null) }
+    }
+
     private fun configureOrFinish() {
         val info = pendingInfo ?: return
         if (info.configure == null) {
@@ -65,6 +70,7 @@ class WidgetAdder(
 
     /** Devuelve true si el resultado era de este flujo. */
     fun onActivityResult(requestCode: Int, resultCode: Int): Boolean {
+        if (requestCode == REQ_RECONFIG) return true
         if (requestCode != REQ_BIND && requestCode != REQ_CONFIG) return false
         if (pendingId < 0) return true
         if (resultCode != Activity.RESULT_OK) {
@@ -80,5 +86,6 @@ class WidgetAdder(
     private companion object {
         const val REQ_BIND = 7101
         const val REQ_CONFIG = 7102
+        const val REQ_RECONFIG = 7103
     }
 }

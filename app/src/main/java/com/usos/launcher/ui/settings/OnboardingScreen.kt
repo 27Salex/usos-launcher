@@ -38,6 +38,7 @@ import com.usos.launcher.data.usage.hasUsageAccess
 import com.usos.launcher.service.isBlockerEnabled
 import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.UsosColors
+import com.usos.launcher.ui.theme.ScreenHeader
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosPill
 import com.usos.launcher.ui.theme.UsosText
@@ -84,7 +85,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin,
             ),
     ) {
-        UsosText("Primer arranque", UsosType.PanelTitle, UsosColors.Text)
+        ScreenHeader("Primer arranque", onBack = onFinish)
         Spacer(Modifier.height(8.dp))
         UsosText(
             "CUATRO PASOS. PUEDES SALTARLOS Y VOLVER DESDE AJUSTES (PULSACIÓN LARGA EN EL RELOJ).",

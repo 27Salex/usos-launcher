@@ -94,6 +94,9 @@ data class SectionUi(
     val freeze: Cell? = null,
     val rowsUsed: Int = 0,
     val rows: Int = 2,
+    /** Piezas de mosaico en orden (como las empaqueta la vista) y tamaño de la pieza de info visible: base de la vista previa. */
+    val entries: List<MosaicEntry> = emptyList(),
+    val infoSize: TileSize? = null,
 )
 
 /** Pieza de información de una sección: tamaño, si está oculta y si hay algo que mostrar. */
@@ -255,6 +258,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     freeze = packed.reserved,
                     rowsUsed = packed.rowsUsed,
                     rows = extras.prefs.rowsFor(section),
+                    entries = forMosaic.map { it.entry() },
+                    infoSize = if (info != null) infoSize else null,
                 )
             },
             open = o,
@@ -603,6 +608,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     // ---- Noticias ----
 
+    val thumbsGray: StateFlow<Boolean> = settings.thumbsGray.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    fun setThumbsGray(on: Boolean) { viewModelScope.launch { settings.setThumbsGray(on) } }
     val feedsKeep: StateFlow<Int> = settings.feedsKeep.stateIn(viewModelScope, SharingStarted.Eagerly, FeedLimits.DEFAULT_KEEP)
     fun setFeedsKeep(n: Int) {
         viewModelScope.launch {

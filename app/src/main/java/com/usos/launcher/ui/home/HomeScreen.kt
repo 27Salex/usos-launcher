@@ -78,7 +78,23 @@ import com.usos.launcher.ui.theme.LocalIcons
 import androidx.compose.runtime.CompositionLocalProvider
 import com.usos.launcher.ui.theme.UsosType
 import com.usos.launcher.ui.theme.tap
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.animation.core.animateIntOffsetAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.runtime.key
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import com.usos.launcher.R
+import com.usos.launcher.ui.theme.Bubble
+import com.usos.launcher.ui.theme.BubbleKind
+import com.usos.launcher.ui.theme.BubbleRow
+import com.usos.launcher.ui.theme.ResizeHandles
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.systemGestures
@@ -98,6 +114,8 @@ import com.usos.launcher.data.sections.TileSize
 import com.usos.launcher.ui.theme.dashedBorder
 import com.usos.launcher.ui.theme.pressGestures
 import com.usos.launcher.ui.theme.swipeVertical
+import com.usos.launcher.ui.theme.tapOutside
+import com.usos.launcher.ui.theme.verticalGestureLock
 import kotlin.math.roundToInt
 import com.usos.launcher.ui.theme.usosTween
 
@@ -110,6 +128,7 @@ private val ClockTopOffset = 60.dp
 fun HomeScreen(
     viewModel: HomeViewModel,
     onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit,
+    onReconfigureWidget: (Int) -> Unit,
 ) {
     val feedsVm: com.usos.launcher.ui.feeds.FeedsViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(factory = com.usos.launcher.ui.feeds.FeedsViewModel.Factory)
@@ -138,6 +157,9 @@ fun HomeScreen(
     val animations = LocalAnimationsEnabled.current
     val animationsNow by rememberUpdatedState(animations)
     val pager = rememberPagerState(initialPage = 1) { 3 }
+    var verticalGesture by remember { mutableStateOf(false) }
+    var widgetsEditing by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val edit = remember { EditState() }
     val searchProgress = remember { Animatable(0f) }
     LaunchedEffect(searchOpen, animations) {
         val target = if (searchOpen) 1f else 0f
@@ -145,8 +167,14 @@ fun HomeScreen(
     }
 
     // Atrás cierra la búsqueda; en inicio no hace nada más.
-    BackHandler(enabled = true) { if (aiPicker) aiPicker = false else if (searchOpen) viewModel.closeSearch() else if (editing) viewModel.exitEdit() }
+    BackHandler(enabled = true) { if (aiPicker) aiPicker = false else if (searchOpen) viewModel.closeSearch() else if (editing) { if (edit.selectedKey != null) edit.clearSelection() else viewModel.exitEdit() } }
 
+
+    // Al abrir el cajón (búsqueda) el pager vuelve a Inicio sin animación: al cerrarlo nunca se ve otra página.
+    LaunchedEffect(searchOpen) {
+        if (searchOpen) pager.requestScrollToPage(1)
+    }
+    LaunchedEffect(editing) { if (!editing) edit.reset() }
 
     LaunchedEffect(pager) {
         viewModel.homeEvents.collect {
@@ -157,8 +185,11 @@ fun HomeScreen(
 
     val iconPrefs by viewModel.iconPrefs.collectAsStateWithLifecycle()
     CompositionLocalProvider(LocalIconPrefs provides iconPrefs, LocalIcons provides viewModel.iconRepository) {
-    Box(Modifier.fillMaxSize().background(UsosColors.Background)) {
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = !editing) { page ->
+    Box(Modifier.fillMaxSize().background(UsosColors.Background).verticalGestureLock { verticalGesture = it }) {
+        HorizontalPager(
+            state = pager, modifier = Modifier.fillMaxSize(),
+            userScrollEnabled = !editing && !widgetsEditing && !verticalGesture && !searchOpen && searchProgress.value == 0f,
+        ) { page ->
             when (page) {
                 0 -> com.usos.launcher.ui.widgets.WidgetsPage(
                     widgets = widgets,
@@ -171,9 +202,12 @@ fun HomeScreen(
                         onReorder = viewModel::reorderWidgets,
                         onResize = viewModel::resizeWidget,
                         onRemove = viewModel::removeWidget,
+                        onReconfigure = onReconfigureWidget,
                     ),
                     topSpacing = topSpacing(),
                     onOpenSettings = viewModel::openSettings,
+                    editing = widgetsEditing,
+                    onEditingChange = { widgetsEditing = it },
                 )
                 2 -> com.usos.launcher.ui.feeds.FeedsPage(feedsVm, topSpacing(), onManage = { feedManager = true }, onOpenSettings = viewModel::openSettings)
                 else -> HomePage(
@@ -188,6 +222,7 @@ fun HomeScreen(
                     gesturesOn = route == Route.Home && !searchOpen,
                     editing = editing,
                     orderLists = orderLists,
+                    edit = edit,
                     editActions = remember(viewModel) {
                         EditActions(
                             onExit = viewModel::exitEdit,
@@ -274,6 +309,7 @@ fun HomeScreen(
                 val mosaicPrefs by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
                 val infoSpecs by viewModel.infoSpecs.collectAsStateWithLifecycle()
                 val searchKeyboard by viewModel.searchKeyboard.collectAsStateWithLifecycle()
+                val thumbsGray by viewModel.thumbsGray.collectAsStateWithLifecycle()
                 val feedsKeep by viewModel.feedsKeep.collectAsStateWithLifecycle()
                 val clockTap by viewModel.clockTap.collectAsStateWithLifecycle()
                 val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -283,7 +319,7 @@ fun HomeScreen(
                     com.usos.launcher.ui.settings.SettingsUi(
                         budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
                         clock, weatherPrefs, cities, iconPrefs, mosaicPrefs, infoSpecs, searchEngine, recentColors,
-                        searchKeyboard, assistantUi, feedsKeep, clockTap, allApps, versionName,
+                        searchKeyboard, assistantUi, feedsKeep, clockTap, allApps, versionName, thumbsGray,
                     ),
                     SettingsActions(
                         onBudget = viewModel::setBudget,
@@ -323,6 +359,7 @@ fun HomeScreen(
                         onAssistant = viewModel::setAssistantChoice,
                         onFeedsKeep = viewModel::setFeedsKeep,
                         onClockTap = viewModel::setClockTap,
+                        onThumbsGray = viewModel::setThumbsGray,
                         onBack = viewModel::closeOverlay,
                     ),
                 )
@@ -357,6 +394,7 @@ private fun HomePage(
     editing: Boolean,
     orderLists: List<Pair<Section, List<com.usos.launcher.data.sections.PlacedApp>>>,
     editActions: EditActions,
+    edit: EditState,
     onEnterEdit: () -> Unit,
     onThaw: (Int) -> Unit,
     onCancelThaw: () -> Unit,
@@ -376,8 +414,10 @@ private fun HomePage(
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val accent = LocalAccent.current
-    val edit = remember { EditState() }
     val scroll = rememberScrollState()
+    edit.sections = remember(state) { state?.sections?.associateBy { it.section }.orEmpty() }
+    // La colocación soltada se olvida como mucho 900 ms después (normalmente antes, al llegar el estado guardado).
+    LaunchedEffect(edit.held) { if (edit.held != null) { delay(900); edit.held = null } }
     var adding by remember { mutableStateOf<Pair<Section, Cell>?>(null) }
     var pageCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var listCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -421,6 +461,11 @@ private fun HomePage(
         Column(
             Modifier.fillMaxSize()
                 .swipeVertical(enabled = gesturesOn && !editing, accept = { accept(it) }, onUp = { openSearchNow() })
+                .tapOutside(
+                    enabled = editing && edit.selectedKey != null,
+                    inside = { edit.frozenRect ?: edit.selectedRect },
+                    origin = { pageCoords?.positionInRoot() ?: Offset.Zero },
+                ) { if (!edit.dragging) edit.clearSelection() }
                 .padding(horizontal = UsosDimens.ScreenMargin),
         ) {
             Spacer(Modifier.height(topSpacing()))
@@ -429,14 +474,14 @@ private fun HomePage(
             WeekStrip(now.toLocalDate())
             Spacer(Modifier.height(12.dp))
 
-            Column(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { listCoords = it }.verticalScroll(scroll)) {
+            Column(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { listCoords = it; edit.viewport = it }.verticalScroll(scroll)) {
                 if (state != null) {
                     state.sections.forEach { s ->
                         SectionBlock(
                             s, isOpen = state.open == s.section, leisure = leisure, blockerActive = blockerActive,
                             editing = editing, edit = edit, editActions = editActions,
                             onAdd = { cell -> adding = s.section to cell },
-                            onToggle = onToggle, onOpenApp = onOpenApp, onEnterEdit = onEnterEdit,
+                            onToggle = { sec -> edit.clearSelection(); onToggle(sec) }, onOpenApp = onOpenApp, onEnterEdit = onEnterEdit,
                             onThaw = onThaw, onCancelThaw = onCancelThaw, onFreeze = onFreeze, onOpenInfo = onOpenInfo,
                         )
                     }
@@ -456,6 +501,7 @@ private fun HomePage(
         }
 
         if (editing) EditTopBar(onDone = editActions.onExit, modifier = Modifier.padding(top = statusTop))
+        if (editing) EditOverlay(edit, editActions, pageCoords)
 
         edit.dragTile?.let { t ->
             Box(
@@ -586,7 +632,8 @@ private fun SectionBlock(
 /**
  * Rejilla de 3 o 4 columnas; ancho de celda = (ancho útil - 11 dp x (columnas - 1)) / columnas. Las piezas ya
  * vienen colocadas por el empaquetado denso (SectionMosaic / MosaicPacker, puros). En edición se dibuja la
- * rejilla completa (celdas fantasma con «+»), cada pieza con borde discontinuo, arrastre y tirador de tamaño.
+ * rejilla completa (celdas fantasma con «+»), cada pieza con borde discontinuo y, mientras se arrastra o se
+ * redimensiona, la colocación en vivo (`EditState.preview`) con las demás piezas animadas a su sitio.
  */
 @Composable
 private fun Mosaic(
@@ -603,6 +650,9 @@ private fun Mosaic(
 ) {
     val accent = LocalAccent.current
     val density = LocalDensity.current
+    val animations = LocalAnimationsEnabled.current
+    // La colocación soltada se mantiene hasta que llega la guardada (o 900 ms) para no volver atrás un instante.
+    LaunchedEffect(s.placements) { if (edit.held?.section == s.section) edit.held = null }
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val cols = s.columns
         val cell = (maxWidth - TileColumnGap * (cols - 1)) / cols
@@ -614,133 +664,161 @@ private fun Mosaic(
         }
         val stepX = with(density) { (cell + TileColumnGap).toPx() }
         val stepY = with(density) { (tileH + TileRowGap).toPx() }
+        val eff = if (editing) (edit.preview ?: edit.held)?.takeIf { it.section == s.section } else null
+        val placements = eff?.layout?.placements ?: s.placements
+        val freezeCell = if (eff != null) eff.layout.reserved else s.freeze
+        fun sizeOf(cs: Int, rs: Int) = Modifier.size(cell * cs + TileColumnGap * (cs - 1), tileH * rs + TileRowGap * (rs - 1))
         fun place(col: Int, row: Int, cs: Int, rs: Int) = Modifier
             .offset(x = (cell + TileColumnGap) * col, y = (tileH + TileRowGap) * row)
-            .size(cell * cs + TileColumnGap * (cs - 1), tileH * rs + TileRowGap * (rs - 1))
+            .then(sizeOf(cs, rs))
         Box(
             Modifier.fillMaxWidth().height(tileH * rows + TileRowGap * (rows - 1).coerceAtLeast(0))
                 .onGloballyPositioned { if (editing) edit.grids[s.section] = GridGeom(it, cols, s.rows, stepX, stepY) },
         ) {
             if (editing) {
                 val occupied = Array(s.rows) { BooleanArray(cols) }
-                s.placements.forEach { c ->
+                placements.forEach { c ->
                     for (r in c.row until minOf(c.row + c.rowSpan, s.rows)) for (cc in c.col until minOf(c.col + c.colSpan, cols)) occupied[r][cc] = true
                 }
-                s.freeze?.let { if (it.row < s.rows && trailing != null) occupied[it.row][it.col] = true }
+                freezeCell?.let { if (it.row < s.rows && trailing != null) occupied[it.row][it.col] = true }
                 for (r in 0 until s.rows) for (c in 0 until cols) if (!occupied[r][c]) {
-                    val hover = edit.dragSection == s.section && edit.hoverCell == Cell(c, r)
                     Box(
                         place(c, r, 1, 1)
-                            .dashedBorder(if (hover) accent else UsosColors.BorderStrong, UsosDimens.RadiusPiece)
-                            .pressGestures { onAdd(Cell(c, r)) },
+                            .dashedBorder(UsosColors.BorderStrong, UsosDimens.RadiusPiece)
+                            .pressGestures { if (edit.selectedKey != null) edit.clearSelection() else onAdd(Cell(c, r)) },
                         contentAlignment = Alignment.Center,
-                    ) { UsosText("+", UsosType.SectionName, if (hover) accent else UsosColors.TextSecondary) }
+                    ) { UsosText("+", UsosType.SectionName, UsosColors.TextSecondary) }
                 }
             }
-            s.placements.forEach { c ->
-                val isInfo = c.key == com.usos.launcher.data.sections.SectionMosaic.INFO_KEY
-                val tile = if (isInfo) null else s.tiles[c.key]
-                if (!isInfo && tile == null) return@forEach
-                val size = TileSize.entries.firstOrNull { it.colSpan == c.colSpan && it.rowSpan == c.rowSpan } ?: TileSize.S1X1
-                Box(place(c.col, c.row, c.colSpan, c.rowSpan).graphicsLayer { alpha = if (edit.dragKey == c.key) 0.3f else 1f }) {
-                    if (isInfo) {
-                        s.info?.let { info ->
-                            InfoTile(info, Modifier.fillMaxSize(), !editing, onEnterEdit) { onOpenInfo(info.kind) }
+            placements.forEach { c ->
+                key(c.key) {
+                    val isInfo = c.key == com.usos.launcher.data.sections.SectionMosaic.INFO_KEY
+                    val tile = if (isInfo) null else s.tiles[c.key]
+                    if (isInfo || tile != null) {
+                        val target = IntOffset((stepX * c.col).roundToInt(), (stepY * c.row).roundToInt())
+                        val pos by animateIntOffsetAsState(target, usosTween(animations), label = "tile")
+                        val dragged = edit.dragKey == c.key
+                        val showSlot = dragged && eff != null
+                        Box(
+                            Modifier.offset { pos }.then(sizeOf(c.colSpan, c.rowSpan))
+                                .graphicsLayer { alpha = if (dragged) (if (showSlot) 0f else 0.3f) else 1f },
+                        ) {
+                            if (isInfo) {
+                                s.info?.let { info ->
+                                    InfoTile(info, Modifier.fillMaxSize(), !editing, onEnterEdit) { onOpenInfo(info.kind) }
+                                }
+                            } else {
+                                AppTile(tile!!, Modifier.fillMaxSize(), !editing, onOpenApp, onEnterEdit)
+                            }
+                            if (editing) {
+                                PieceEditLayer(c.key, s.section, tile, edit, editActions)
+                            }
                         }
-                    } else {
-                        AppTile(tile!!, Modifier.fillMaxSize(), !editing, onOpenApp, onEnterEdit)
-                    }
-                    if (editing) {
-                        PieceEditLayer(
-                            key = c.key, section = s.section, tile = tile, size = size, stepX = stepX, stepY = stepY,
-                            edit = edit, actions = editActions,
-                            onTap = { tile?.let { editActions.onDetail(c.key) } },
-                            onResized = { sz ->
-                                if (isInfo) s.info?.let { editActions.onResizeInfo(it.kind, sz) }
-                                else editActions.onResize(c.key, sz)
-                            },
-                        )
+                        // La celda destino / el nuevo tamaño se marca con un contorno de acento.
+                        if (editing && (showSlot || (edit.resizeKey == c.key && eff != null))) {
+                            Box(
+                                Modifier.offset { pos }.then(sizeOf(c.colSpan, c.rowSpan))
+                                    .border(2.dp, accent, RoundedCornerShape(UsosDimens.RadiusPiece)),
+                            )
+                        }
                     }
                 }
             }
-            val f = s.freeze
+            val f = freezeCell
             if (trailing != null && f != null) trailing(place(f.col, f.row, 1, 1))
-            val rk = edit.resizeKey
-            val rs = edit.resizeSize
-            if (editing && rk != null && rs != null) {
-                s.placements.firstOrNull { it.key == rk }?.let { c ->
-                    Box(place(c.col, c.row, rs.colSpan, rs.rowSpan).border(2.dp, accent, RoundedCornerShape(UsosDimens.RadiusPiece)))
-                }
-            }
         }
     }
 }
 
-/** Capa de edición sobre una pieza: borde discontinuo, arrastre (apps), toque (ficha) y tirador de tamaño. */
+/**
+ * Capa de edición sobre una pieza. Sin seleccionar: toque o pulsación larga la selecciona (arrastrar desplaza la
+ * lista). Seleccionada: arrastrarla la mueve (salvo la de información y mientras hay tiradores).
+ */
 @Composable
 private fun PieceEditLayer(
     key: String,
     section: Section,
     tile: TileUi?,
-    size: TileSize,
-    stepX: Float,
-    stepY: Float,
     edit: EditState,
     actions: EditActions,
-    onTap: () -> Unit,
-    onResized: (TileSize) -> Unit,
 ) {
     val accent = LocalAccent.current
+    val haptic = LocalHapticFeedback.current
     var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    val total = remember { floatArrayOf(0f, 0f) }
-    val sizeNow by rememberUpdatedState(size)
-    val tapNow by rememberUpdatedState(onTap)
-    val resizedNow by rememberUpdatedState(onResized)
-    val removeNow by rememberUpdatedState { actions.onRemove(key) }
+    val selected = edit.selectedKey == key
+    val canDrag = selected && !edit.resizing && tile != null
+    val tileNow by rememberUpdatedState(tile)
+    val actionsNow by rememberUpdatedState(actions)
+    LaunchedEffect(selected) { if (selected) edit.selectedRect = coords?.rootRect() }
+    val select = { edit.select(key, section) }
+    val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
     Box(
         Modifier.fillMaxSize()
-            .onGloballyPositioned { coords = it }
-            .dashedBorder(accent, UsosDimens.RadiusPiece)
-            .pointerInput(key) { detectTapGestures(onTap = { tapNow() }) }
+            .onGloballyPositioned {
+                coords = it
+                if (edit.selectedKey == key) edit.selectedRect = it.rootRect()
+            }
+            .then(if (selected) Modifier.border(2.dp, accent, shape) else Modifier.dashedBorder(accent, UsosDimens.RadiusPiece))
             .then(
-                if (tile == null) Modifier else Modifier.pointerInput(key) {
-                    detectDragGestures(
-                        onDragStart = { off ->
-                            coords?.let { edit.start(key, section, tile, it.positionInRoot(), off, it.size) }
-                        },
-                        onDrag = { change, amount -> change.consume(); edit.pointer += amount; edit.updateHover() },
-                        onDragEnd = { edit.drop(actions) },
-                        onDragCancel = { edit.cancel() },
-                    )
-                },
-            ),
-    ) {
-        if (tile != null) {
-            Box(
-                Modifier.align(Alignment.TopEnd).size(32.dp).pointerInput(key) { detectTapGestures(onTap = { removeNow() }) },
-                contentAlignment = Alignment.Center,
-            ) { UsosText("×", UsosType.PieceData, accent) }
-        }
-        Box(
-            Modifier.align(Alignment.BottomEnd).size(44.dp)
-                .pointerInput(key) {
-                    detectDragGestures(
-                        onDragStart = { total[0] = 0f; total[1] = 0f; edit.resizeKey = key; edit.resizeSize = sizeNow },
-                        onDrag = { change, amount ->
+                if (canDrag) Modifier.pointerInput(key, section) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val moved = awaitTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
+                            ?: return@awaitEachGesture
+                        val c = coords ?: return@awaitEachGesture
+                        val t = tileNow ?: return@awaitEachGesture
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        edit.start(key, section, t, c.positionInRoot(), down.position, c.size)
+                        edit.pointer = c.positionInRoot() + moved.position
+                        edit.updateHover()
+                        val finished = drag(moved.id) { change ->
                             change.consume()
-                            total[0] += amount.x; total[1] += amount.y
-                            edit.resizeSize = MosaicEdit.snapSize(sizeNow, total[0], total[1], stepX, stepY)
-                        },
-                        onDragEnd = {
-                            val sz = edit.resizeSize
-                            edit.resizeKey = null; edit.resizeSize = null
-                            if (sz != null && sz != sizeNow) resizedNow(sz)
-                        },
-                        onDragCancel = { edit.resizeKey = null; edit.resizeSize = null },
-                    )
-                },
-            contentAlignment = Alignment.BottomEnd,
-        ) { ResizeGlyph(Modifier.padding(10.dp)) }
+                            coords?.let { edit.pointer = it.positionInRoot() + change.position }
+                            edit.updateHover()
+                        }
+                        if (finished) edit.drop(actionsNow) else edit.cancel()
+                    }
+                } else if (selected) Modifier else Modifier.pressGestures(onLongPress = select) { select() },
+            ),
+    )
+}
+
+/**
+ * Capa superior de la edición de inicio: bolitas alrededor de la pieza seleccionada o, tras REDIMENSIONAR, sus
+ * tiradores; y un toque fuera de la pieza deselecciona. Lee la posición viva de la pieza (scroll incluido).
+ */
+@Composable
+private fun EditOverlay(edit: EditState, actions: EditActions, pageCoords: LayoutCoordinates?) {
+    val key = edit.selectedKey ?: return
+    if (edit.dragging) return
+    val live = if (edit.resizeKey != null) edit.frozenRect else edit.selectedRect
+    val page = pageCoords?.takeIf { it.isAttached } ?: return
+    val rect = live ?: return
+    val origin = page.positionInRoot()
+    val local = rect.translate(-origin)
+    val viewport = edit.viewport?.rootRect()?.translate(-origin)
+    if (edit.resizing) {
+        ResizeHandles(
+            local,
+            onStart = { edit.beginResize() },
+            onDelta = { dx, dy, axes -> edit.updateResize(dx, dy, axes) },
+            onEnd = { edit.endResize(actions, it) },
+        )
+    } else {
+        val resizeText = stringResource(R.string.bubble_resize)
+        val settingsText = stringResource(R.string.bubble_settings)
+        val removeText = stringResource(R.string.bubble_remove)
+        val isInfo = key == com.usos.launcher.data.sections.SectionMosaic.INFO_KEY
+        val bubbles = remember(key, resizeText, settingsText, removeText) {
+            buildList {
+                add(Bubble(BubbleKind.RESIZE, resizeText) { edit.resizing = true })
+                if (!isInfo) {
+                    add(Bubble(BubbleKind.SETTINGS, settingsText) { val k = key; edit.clearSelection(); actions.onDetail(k) })
+                    add(Bubble(BubbleKind.REMOVE, removeText) { val k = key; edit.clearSelection(); actions.onRemove(k) })
+                }
+            }
+        }
+        BubbleRow(local, page.size, viewport, bubbles, appearKey = key)
     }
 }
 

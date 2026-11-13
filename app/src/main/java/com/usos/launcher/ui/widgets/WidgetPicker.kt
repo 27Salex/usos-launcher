@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.usos.launcher.ui.theme.UsosColors
+import com.usos.launcher.ui.theme.ScreenHeader
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosPill
 import com.usos.launcher.ui.theme.UsosText
@@ -79,7 +80,7 @@ fun WidgetPicker(manager: AppWidgetManager, onPick: (AppWidgetProviderInfo) -> U
             .padding(top = top, start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            UsosText("Añadir", UsosType.PanelTitle, UsosColors.Text)
+            ScreenHeader("Añadir", onBack = onClose, modifier = Modifier.weight(1f))
             UsosPill("CERRAR", filled = false, onClick = onClose)
         }
         val list = groups

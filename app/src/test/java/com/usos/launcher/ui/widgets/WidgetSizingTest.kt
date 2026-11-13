@@ -17,7 +17,7 @@ class WidgetSizingTest {
     @Test fun dpToRowsClamps() {
         assertEquals(1, WidgetSizing.dpToRows(30))
         assertEquals(2, WidgetSizing.dpToRows(190))
-        assertEquals(5, WidgetSizing.dpToRows(2000))
+        assertEquals(6, WidgetSizing.dpToRows(2000))
     }
 
     @Test fun migrationUsesAllColumnsAndOldHeight() {
@@ -32,7 +32,7 @@ class WidgetSizingTest {
         assertEquals(WidgetCells(3, 3), WidgetSizing.snapCells(cur, 100f, 100f, 100f, 100f, 3))
         assertEquals(WidgetCells(2, 2), WidgetSizing.snapCells(cur, 40f, -40f, 100f, 100f, 3))
         assertEquals(WidgetCells(1, 1), WidgetSizing.snapCells(cur, -900f, -900f, 100f, 100f, 3))
-        assertEquals(WidgetCells(3, 5), WidgetSizing.snapCells(cur, 900f, 900f, 100f, 100f, 3))
+        assertEquals(WidgetCells(3, 6), WidgetSizing.snapCells(cur, 900f, 900f, 100f, 100f, 3))
     }
 
     @Test fun layoutPacksDenselyInOrder() {
@@ -53,5 +53,25 @@ class WidgetSizingTest {
         assertEquals(listOf(c, a, b), WidgetSizing.reorder(listOf(a, b, c), listOf(3, 1, 2)))
         assertEquals(listOf(b, a, c), WidgetSizing.reorder(listOf(a, b, c), listOf(2)))
         assertEquals(listOf(a, b.copy(cols = 2, rows = 3)), WidgetSizing.withCells(listOf(a, b), 2, 2, 3))
+    }
+
+    @Test fun minCellsRoundsDownAndAllowsAnyWiderWidth() {
+        // Celda de 100 dp con separación 10: un mínimo de 250 dp son 2 celdas (no 3); 90 dp son 1.
+        assertEquals(2, WidgetSizing.minCells(250, 100f, 10f, 3))
+        assertEquals(1, WidgetSizing.minCells(90, 100f, 10f, 3))
+        assertEquals(1, WidgetSizing.minCells(0, 100f, 10f, 3))
+        assertEquals(3, WidgetSizing.minCells(2000, 100f, 10f, 3)) // nunca más que las columnas
+        // Con ese mínimo se puede elegir 2 o 3 de ancho, y no 1.
+        val cur = WidgetCells(3, 1)
+        assertEquals(WidgetCells(2, 1), WidgetSizing.snapCells(cur, -100f, 0f, 100f, 100f, 3, minCols = 2))
+        assertEquals(WidgetCells(2, 1), WidgetSizing.snapCells(cur, -900f, 0f, 100f, 100f, 3, minCols = 2))
+    }
+
+    @Test fun previewMoveGivesOrderAndLayout() {
+        val sizes = listOf(1 to WidgetCells(1, 1), 2 to WidgetCells(1, 1), 3 to WidgetCells(1, 1))
+        val cur = WidgetSizing.layout(3, sizes).placements
+        val (order, layout) = WidgetSizing.previewMove(3, sizes, cur, 1, com.usos.launcher.data.sections.Cell(2, 0))
+        assertEquals(listOf(2, 3, 1), order)
+        assertEquals(2, layout.placements.first { it.key == "1" }.col)
     }
 }

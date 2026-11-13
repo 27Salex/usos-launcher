@@ -79,6 +79,7 @@ fun FeedsPage(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
+    val thumbsGray by vm.thumbsGray.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val accent = LocalAccent.current
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -138,7 +139,7 @@ fun FeedsPage(
                     }
                 }
                 items(state.cards, key = { it.article.id }) { card ->
-                    ArticleCard(card, vm.thumbnails, onOpen = {
+                    ArticleCard(card, vm.thumbnails, thumbsGray, onOpen = {
                         vm.open(card.article) { url ->
                             runCatching {
                                 context.startActivity(
@@ -179,7 +180,7 @@ private fun FilterPill(pill: PillUi, active: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ArticleCard(card: CardUi, loader: ThumbnailLoader, onOpen: () -> Unit, onStar: () -> Unit) {
+private fun ArticleCard(card: CardUi, loader: ThumbnailLoader, gray: Boolean, onOpen: () -> Unit, onStar: () -> Unit) {
     val a = card.article
     val accent = LocalAccent.current
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
@@ -209,13 +210,13 @@ private fun ArticleCard(card: CardUi, loader: ThumbnailLoader, onOpen: () -> Uni
         }
         if (a.imageUrl != null) {
             Spacer(Modifier.width(12.dp))
-            Thumbnail(a.imageUrl, loader)
+            Thumbnail(a.imageUrl, loader, gray)
         }
     }
 }
 
 @Composable
-private fun Thumbnail(url: String, loader: ThumbnailLoader) {
+private fun Thumbnail(url: String, loader: ThumbnailLoader, gray: Boolean) {
     val px = with(LocalDensity.current) { ThumbSize.roundToPx() }
     val bitmap by produceState(loader.cached(url), url) {
         if (value == null) value = loader.load(url, px)
@@ -224,7 +225,7 @@ private fun Thumbnail(url: String, loader: ThumbnailLoader) {
         bitmap?.let {
             Image(
                 it.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop,
-                colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }),
+                colorFilter = if (gray) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
                 modifier = Modifier.fillMaxSize(),
             )
         }
