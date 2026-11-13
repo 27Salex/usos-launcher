@@ -1,5 +1,6 @@
 package com.usos.launcher.ui.home
 
+import androidx.compose.runtime.snapshotFlow
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
@@ -177,8 +178,19 @@ fun HomeScreen(
 
     LaunchedEffect(pager) {
         viewModel.homeEvents.collect {
+            widgetsEditing = false // el botón inicio sale también de la edición de widgets (si no, el pager quedaba bloqueado)
             if (animationsNow) pager.animateScrollToPage(1, animationSpec = usosTween(true))
             else pager.scrollToPage(1)
+        }
+    }
+    // Red de seguridad: la edición de widgets solo existe en su página; al salir de ella se apaga.
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.settledPage }.collect { if (it != 0) widgetsEditing = false }
+    }
+    // Si el pager queda a medio camino sin gesto en curso (p. ej. un arrastre cancelado al abrir el cajón), se asienta.
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.isScrollInProgress to pager.currentPageOffsetFraction }.collect { (moving, frac) ->
+            if (!moving && frac != 0f) pager.scrollToPage(pager.currentPage)
         }
     }
 
