@@ -31,8 +31,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -41,13 +39,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import com.usos.launcher.data.sections.MosaicEdit
+import com.usos.launcher.data.sections.MosaicPacker
+import com.usos.launcher.data.sections.Placement
+import com.usos.launcher.ui.home.ResizeGlyph
 import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.SettingsGlyph
 import com.usos.launcher.ui.theme.UsosColors
@@ -60,15 +64,19 @@ import com.usos.launcher.ui.theme.pressGestures
 
 class WidgetsActions(
     val onAdd: (AppWidgetProviderInfo) -> Unit,
-    val onMove: (id: Int, delta: Int) -> Unit,
-    val onHeight: (id: Int, heightDp: Int) -> Unit,
+    val onReorder: (order: List<Int>) -> Unit,
+    val onResize: (id: Int, cols: Int, rows: Int) -> Unit,
     val onRemove: (id: Int) -> Unit,
 )
 
-/** Pagina izquierda del pager: cabecera, columna de widgets reales y modo edicion (arrastrar, alto por filas, quitar). */
+private val ColGap = 11.dp
+private val RowGap = 10.dp
+
+/** Pagina izquierda del pager: cabecera y rejilla de widgets igual que el mosaico de inicio (columnas, alto de celda y separaciones). */
 @Composable
 fun WidgetsPage(
     widgets: List<HostedWidget>,
+    columns: Int,
     grayscale: Boolean,
     host: AppWidgetHost,
     manager: AppWidgetManager,
@@ -79,18 +87,19 @@ fun WidgetsPage(
     var picking by rememberSaveable { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf(false) }
     var dragId by remember { mutableStateOf<Int?>(null) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
     var resizeId by remember { mutableStateOf<Int?>(null) }
-    var resizeRows by remember { mutableIntStateOf(1) }
-    var resizeStart by remember { mutableIntStateOf(1) }
+    var resizeCells by remember { mutableStateOf<WidgetCells?>(null) }
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val density = LocalContext.current.resources.displayMetrics.density
     val accent = LocalAccent.current
-    val widgetsNow by rememberUpdatedState(widgets)
     BackHandler(enabled = editing) { editing = false }
 
-    fun heightOf(w: HostedWidget): Int =
-        if (w.heightDp > 0) w.heightDp else WidgetDims.of(manager.getAppWidgetInfo(w.id), density).height(0)
+    fun defaultRows(id: Int): Int {
+        val info = manager.getAppWidgetInfo(id) ?: return 1
+        fun dp(px: Int) = (px / density).toInt()
+        return WidgetSizing.dpToRows(WidgetSizing.defaultDp(dp(info.minHeight), info.targetCellHeight))
+    }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(horizontal = UsosDimens.ScreenMargin)) {
@@ -106,52 +115,91 @@ fun WidgetsPage(
             }
             if (editing) {
                 Spacer(Modifier.height(8.dp))
-                UsosText("ARRASTRA · TIRADOR = ALTO · × QUITA", UsosType.Label, accent)
+                UsosText("ARRASTRA · TIRADOR = TAMAÑO · × QUITA", UsosType.Label, accent)
             }
             Spacer(Modifier.height(16.dp))
             if (widgets.isEmpty()) {
                 UsosText("Sin widgets. Añade el primero.", UsosType.Empty, UsosColors.TextSecondary)
             } else {
-                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                    widgets.forEach { w ->
-                        key(w.id) {
-                            val h = if (resizeId == w.id) WidgetSizing.rowsToDp(resizeRows) else heightOf(w)
-                            val dragging = dragId == w.id
-                            Box(
-                                Modifier.fillMaxWidth().height(h.dp)
-                                    .zIndex(if (dragging) 1f else 0f)
-                                    .graphicsLayer { translationY = if (dragging) dragOffset else 0f },
-                            ) {
-                                WidgetBox(w, h, grayscale, host, manager) { editing = true }
-                                if (editing) {
-                                    EditOverlay(
-                                        dragging = dragging,
-                                        onDragStart = { dragId = w.id; dragOffset = 0f },
-                                        onDrag = { dragOffset += it },
-                                        onDragEnd = {
-                                            val list = widgetsNow
-                                            val from = list.indexOfFirst { it.id == w.id }
-                                            val to = WidgetSizing.targetIndex(
-                                                list.map { heightOf(it) * density }, 12 * density, from, dragOffset,
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val cell = (maxWidth - ColGap * (columns - 1)) / columns
+                    val tileH = MosaicPacker.tileHeightDp(columns, maxWidth.value).dp
+                    val stepX = with(LocalDensity.current) { (cell + ColGap).toPx() }
+                    val stepY = with(LocalDensity.current) { (tileH + RowGap).toPx() }
+                    val sizes = widgets.map { it.id to WidgetSizing.cells(it, columns, defaultRows(it.id)) }
+                    val pack = WidgetSizing.layout(columns, sizes)
+                    val rowsUsed = pack.rowsUsed
+                    val sizeById = sizes.toMap()
+                    fun place(p: Placement) = Modifier
+                        .offset(x = (cell + ColGap) * p.col, y = (tileH + RowGap) * p.row)
+                        .size(cell * p.colSpan + ColGap * (p.colSpan - 1), tileH * p.rowSpan + RowGap * (p.rowSpan - 1))
+                    val widgetsNow by rememberUpdatedState(widgets)
+                    val packNow by rememberUpdatedState(pack)
+                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                        Box(Modifier.fillMaxWidth().height(tileH * rowsUsed + RowGap * (rowsUsed - 1).coerceAtLeast(0))) {
+                            pack.placements.forEach { p ->
+                                val id = p.key.toInt()
+                                val w = widgets.firstOrNull { it.id == id } ?: return@forEach
+                                key(id) {
+                                    val dragging = dragId == id
+                                    val width = cell * p.colSpan + ColGap * (p.colSpan - 1)
+                                    val height = tileH * p.rowSpan + RowGap * (p.rowSpan - 1)
+                                    Box(
+                                        place(p)
+                                            .zIndex(if (dragging) 1f else 0f)
+                                            .graphicsLayer {
+                                                translationX = if (dragging) dragOffset.x else 0f
+                                                translationY = if (dragging) dragOffset.y else 0f
+                                            },
+                                    ) {
+                                        WidgetBox(w, width, height, grayscale, host, manager) { editing = true }
+                                        if (editing) {
+                                            EditOverlay(
+                                                dragging = dragging,
+                                                onDragStart = { dragId = id; dragOffset = Offset.Zero },
+                                                onDrag = { dragOffset += it },
+                                                onDragEnd = {
+                                                    val cur = packNow.placements.firstOrNull { it.key == p.key }
+                                                    if (cur != null) {
+                                                        val x = (cur.col * stepX + dragOffset.x + stepX / 2f).coerceAtLeast(0f)
+                                                        val y = (cur.row * stepY + dragOffset.y + stepY / 2f).coerceAtLeast(0f)
+                                                        MosaicEdit.cellAt(x, y, stepX, stepY, columns, 200)?.let { target ->
+                                                            val full = widgetsNow.map { it.id.toString() }
+                                                            val next = MosaicEdit.reorder(full, packNow.placements, p.key, target, columns)
+                                                            if (next != full) actions.onReorder(next.map { it.toInt() })
+                                                        }
+                                                    }
+                                                    dragId = null
+                                                    dragOffset = Offset.Zero
+                                                },
+                                                onResizeStart = { resizeId = id; resizeCells = sizeById[id] },
+                                                onResize = { dx, dy ->
+                                                    resizeCells = WidgetSizing.snapCells(sizeById.getValue(id), dx, dy, stepX, stepY, columns)
+                                                },
+                                                onResizeEnd = {
+                                                    resizeCells?.let { if (it != sizeById[id]) actions.onResize(id, it.cols, it.rows) }
+                                                    resizeId = null
+                                                    resizeCells = null
+                                                },
+                                                onRemove = { actions.onRemove(id) },
                                             )
-                                            if (from >= 0 && to != from) actions.onMove(w.id, to - from)
-                                            dragId = null
-                                            dragOffset = 0f
-                                        },
-                                        onResizeStart = { resizeId = w.id; resizeStart = WidgetSizing.dpToRows(h); resizeRows = resizeStart },
-                                        onResize = { dy -> resizeRows = WidgetSizing.snapRows(resizeStart, dy / density) },
-                                        onResizeEnd = {
-                                            actions.onHeight(w.id, WidgetSizing.rowsToDp(resizeRows))
-                                            resizeId = null
-                                        },
-                                        onRemove = { actions.onRemove(w.id) },
+                                        }
+                                    }
+                                }
+                            }
+                            val rid = resizeId
+                            val rc = resizeCells
+                            if (editing && rid != null && rc != null) {
+                                pack.placements.firstOrNull { it.key == rid.toString() }?.let { p ->
+                                    Box(
+                                        place(p.copy(colSpan = rc.cols, rowSpan = rc.rows))
+                                            .border(2.dp, accent, RoundedCornerShape(UsosDimens.RadiusPiece)),
                                     )
                                 }
                             }
                         }
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(navBar + 12.dp))
                     }
-                    Spacer(Modifier.height(navBar + 12.dp))
                 }
             }
         }
@@ -161,36 +209,20 @@ fun WidgetsPage(
     }
 }
 
-/** Limites de alto de un widget, en dp, sacados de su AppWidgetProviderInfo. */
-private class WidgetDims(val base: Int, val max: Int, val default: Int) {
-    fun height(chosen: Int) = WidgetSizing.heightDp(chosen, base, max, default)
-
-    companion object {
-        fun of(info: AppWidgetProviderInfo?, density: Float): WidgetDims {
-            if (info == null) return WidgetDims(WidgetSizing.MIN_BASE_DP, WidgetSizing.MIN_BASE_DP * 4, WidgetSizing.MIN_BASE_DP)
-            fun dp(px: Int) = (px / density).toInt()
-            val base = WidgetSizing.baseDp(dp(info.minHeight), dp(info.minResizeHeight))
-            val max = WidgetSizing.maxDp(base, dp(info.maxResizeHeight))
-            val def = WidgetSizing.defaultDp(dp(info.minHeight), info.targetCellHeight)
-            return WidgetDims(base, max, def)
-        }
-    }
-}
-
-/** Capa de edicion: borde discontinuo, arrastre para ordenar, tirador inferior de alto y boton ×. */
+/** Capa de edicion: borde discontinuo, arrastre para ordenar, tirador de la esquina inferior derecha (ancho y alto) y boton ×. */
 @Composable
 private fun EditOverlay(
     dragging: Boolean,
     onDragStart: () -> Unit,
-    onDrag: (Float) -> Unit,
+    onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
     onResizeStart: () -> Unit,
-    onResize: (Float) -> Unit,
+    onResize: (dx: Float, dy: Float) -> Unit,
     onResizeEnd: () -> Unit,
     onRemove: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    val resizeTotal = remember { floatArrayOf(0f) }
+    val resizeTotal = remember { floatArrayOf(0f, 0f) }
     Box(
         Modifier.fillMaxSize()
             .background(UsosColors.Background.copy(alpha = 0.35f), RoundedCornerShape(UsosDimens.RadiusPiece))
@@ -198,7 +230,7 @@ private fun EditOverlay(
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { onDragStart() },
-                    onDrag = { c, a -> c.consume(); onDrag(a.y) },
+                    onDrag = { c, a -> c.consume(); onDrag(a) },
                     onDragEnd = onDragEnd,
                     onDragCancel = onDragEnd,
                 )
@@ -211,18 +243,18 @@ private fun EditOverlay(
             UsosText("×", UsosType.SectionName, accent)
         }
         Box(
-            Modifier.align(Alignment.BottomCenter).size(width = 96.dp, height = UsosDimens.MinTouch)
+            Modifier.align(Alignment.BottomEnd).size(44.dp)
                 .pointerInput(Unit) {
                     detectDragGestures(
-                        onDragStart = { resizeTotal[0] = 0f; onResizeStart() },
-                        onDrag = { c, a -> c.consume(); resizeTotal[0] += a.y; onResize(resizeTotal[0]) },
+                        onDragStart = { resizeTotal[0] = 0f; resizeTotal[1] = 0f; onResizeStart() },
+                        onDrag = { c, a -> c.consume(); resizeTotal[0] += a.x; resizeTotal[1] += a.y; onResize(resizeTotal[0], resizeTotal[1]) },
                         onDragEnd = onResizeEnd,
                         onDragCancel = onResizeEnd,
                     )
                 },
-            contentAlignment = Alignment.BottomCenter,
+            contentAlignment = Alignment.BottomEnd,
         ) {
-            Box(Modifier.padding(bottom = 8.dp).size(width = 40.dp, height = 5.dp).background(accent, RoundedCornerShape(50)))
+            ResizeGlyph(Modifier.padding(10.dp))
         }
     }
 }
@@ -230,7 +262,8 @@ private fun EditOverlay(
 @Composable
 private fun WidgetBox(
     widget: HostedWidget,
-    heightDp: Int,
+    width: Dp,
+    height: Dp,
     grayscale: Boolean,
     host: AppWidgetHost,
     manager: AppWidgetManager,
@@ -238,7 +271,7 @@ private fun WidgetBox(
 ) {
     val info = remember(widget.id) { manager.getAppWidgetInfo(widget.id) }
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
-    BoxWithConstraints(Modifier.fillMaxWidth().height(heightDp.dp).clip(shape)) {
+    Box(Modifier.size(width, height).clip(shape)) {
         if (info == null) {
             Box(
                 Modifier.fillMaxSize().background(UsosColors.Surface, shape).border(1.dp, UsosColors.Border, shape)
@@ -248,7 +281,6 @@ private fun WidgetBox(
                 UsosText("WIDGET NO DISPONIBLE", UsosType.Label, UsosColors.TextSecondary)
             }
         } else {
-            val widthDp = maxWidth.value
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx -> host.createView(ctx, widget.id, info) },
@@ -257,8 +289,8 @@ private fun WidgetBox(
                         it.onLongPress = onLongPress
                         it.setGrayscale(grayscale)
                     }
-                    // Tamano real (ancho util x alto elegido) para que el widget elija su disposicion.
-                    view.updateAppWidgetSize(Bundle(), listOf(SizeF(widthDp, heightDp.toFloat())))
+                    // Tamano real de la celda ocupada (ancho x alto en dp) para que el widget elija su disposicion.
+                    view.updateAppWidgetSize(Bundle(), listOf(SizeF(width.value, height.value)))
                 },
             )
         }

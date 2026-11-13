@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import com.usos.launcher.ui.theme.LocalOnAccent
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -122,6 +125,10 @@ fun HomeScreen(
     val blockerActive by viewModel.blockerActive.collectAsStateWithLifecycle()
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val widgets by viewModel.widgets.collectAsStateWithLifecycle()
+    val mosaicCols by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
+    val assistantUi by viewModel.assistantUi.collectAsStateWithLifecycle()
+    val searchKeyboardOn by viewModel.searchKeyboard.collectAsStateWithLifecycle()
+    var aiPicker by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     val grayscale by viewModel.widgetsGrayscale.collectAsStateWithLifecycle()
     val clockPrefs by viewModel.clockPrefs.collectAsStateWithLifecycle()
     val weatherPrefs by viewModel.weatherPrefs.collectAsStateWithLifecycle()
@@ -138,7 +145,7 @@ fun HomeScreen(
     }
 
     // Atrás cierra la búsqueda; en inicio no hace nada más.
-    BackHandler(enabled = true) { if (searchOpen) viewModel.closeSearch() else if (editing) viewModel.exitEdit() }
+    BackHandler(enabled = true) { if (aiPicker) aiPicker = false else if (searchOpen) viewModel.closeSearch() else if (editing) viewModel.exitEdit() }
 
 
     LaunchedEffect(pager) {
@@ -155,13 +162,14 @@ fun HomeScreen(
             when (page) {
                 0 -> com.usos.launcher.ui.widgets.WidgetsPage(
                     widgets = widgets,
+                    columns = mosaicCols.columns,
                     grayscale = grayscale,
                     host = viewModel.widgetHost,
                     manager = viewModel.widgetManager,
                     actions = com.usos.launcher.ui.widgets.WidgetsActions(
                         onAdd = onAddWidget,
-                        onMove = viewModel::moveWidget,
-                        onHeight = viewModel::setWidgetHeight,
+                        onReorder = viewModel::reorderWidgets,
+                        onResize = viewModel::resizeWidget,
                         onRemove = viewModel::removeWidget,
                     ),
                     topSpacing = topSpacing(),
@@ -201,6 +209,10 @@ fun HomeScreen(
                     weatherPrefs = weatherPrefs,
                     weather = weather,
                     onOpenWeather = viewModel::openWeatherApp,
+                    onOpenClock = viewModel::openClock,
+                    assistant = assistantUi,
+                    onAssistant = viewModel::openAssistant,
+                    onAssistantPicker = { aiPicker = true },
                 )
             }
         }
@@ -217,7 +229,14 @@ fun HomeScreen(
             onLongPick = { viewModel.openDetail(it.app) },
             onOpenSettings = viewModel::openSettings,
             onClose = viewModel::closeSearch,
+            autoKeyboard = searchKeyboardOn,
+            assistantName = assistantUi.resolved?.assistant?.label,
+            onAsk = viewModel::askAssistant,
+            restEndInset = if (assistantUi.resolved != null) AiButtonSize + AiGap else 0.dp,
         )
+        if (aiPicker) {
+            AssistantPicker(assistantUi, onPick = { aiPicker = false; viewModel.setAssistantChoice(it) }, onClose = { aiPicker = false })
+        }
 
         // Pantallas superpuestas: cada una registra su propio "atras" y vuelve al inicio.
         when (val r = route) {
@@ -254,10 +273,17 @@ fun HomeScreen(
                 val cities by viewModel.cityResults.collectAsStateWithLifecycle()
                 val mosaicPrefs by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
                 val infoSpecs by viewModel.infoSpecs.collectAsStateWithLifecycle()
+                val searchKeyboard by viewModel.searchKeyboard.collectAsStateWithLifecycle()
+                val feedsKeep by viewModel.feedsKeep.collectAsStateWithLifecycle()
+                val clockTap by viewModel.clockTap.collectAsStateWithLifecycle()
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val versionName = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
+                val allApps = remember(orderLists) { orderLists.flatMap { (_, l) -> l.map { it.app } }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() } }
                 SettingsScreen(
                     com.usos.launcher.ui.settings.SettingsUi(
                         budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
                         clock, weatherPrefs, cities, iconPrefs, mosaicPrefs, infoSpecs, searchEngine, recentColors,
+                        searchKeyboard, assistantUi, feedsKeep, clockTap, allApps, versionName,
                     ),
                     SettingsActions(
                         onBudget = viewModel::setBudget,
@@ -293,6 +319,10 @@ fun HomeScreen(
                         onInfoSize = viewModel::setInfoSize,
                         onInfoHidden = viewModel::setInfoHidden,
                         onEditMosaic = viewModel::startHomeEdit,
+                        onSearchKeyboard = viewModel::setSearchKeyboard,
+                        onAssistant = viewModel::setAssistantChoice,
+                        onFeedsKeep = viewModel::setFeedsKeep,
+                        onClockTap = viewModel::setClockTap,
                         onBack = viewModel::closeOverlay,
                     ),
                 )
@@ -336,6 +366,10 @@ private fun HomePage(
     weatherPrefs: com.usos.launcher.data.sections.WeatherPrefs,
     weather: com.usos.launcher.data.weather.WeatherNow?,
     onOpenWeather: () -> Unit,
+    onOpenClock: () -> Unit,
+    assistant: HomeViewModel.AssistantUi,
+    onAssistant: () -> Unit,
+    onAssistantPicker: () -> Unit,
 ) {
     val now by rememberNow()
     val density = LocalDensity.current
@@ -390,7 +424,7 @@ private fun HomePage(
                 .padding(horizontal = UsosDimens.ScreenMargin),
         ) {
             Spacer(Modifier.height(topSpacing()))
-            ClockBlock(now, clock, weatherPrefs, weather, onWeather = onOpenWeather)
+            ClockBlock(now, clock, weatherPrefs, weather, onWeather = onOpenWeather, onClock = onOpenClock)
             Spacer(Modifier.height(16.dp))
             WeekStrip(now.toLocalDate())
             Spacer(Modifier.height(12.dp))
@@ -410,7 +444,14 @@ private fun HomePage(
             }
 
             Spacer(Modifier.height(8.dp))
-            SearchBar(notice, hidden = searchActive || edit.dragging, onClick = onOpenSearch)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val hide = searchActive || edit.dragging
+                SearchBar(notice, hidden = hide, onClick = onOpenSearch, modifier = Modifier.weight(1f))
+                if (assistant.resolved != null) {
+                    Spacer(Modifier.width(AiGap))
+                    AiButton(assistant, hidden = hide || editing, onClick = onAssistant, onLongClick = onAssistantPicker)
+                }
+            }
             Spacer(Modifier.height(12.dp + navBar))
         }
 
@@ -655,6 +696,7 @@ private fun PieceEditLayer(
     val sizeNow by rememberUpdatedState(size)
     val tapNow by rememberUpdatedState(onTap)
     val resizedNow by rememberUpdatedState(onResized)
+    val removeNow by rememberUpdatedState { actions.onRemove(key) }
     Box(
         Modifier.fillMaxSize()
             .onGloballyPositioned { coords = it }
@@ -673,6 +715,12 @@ private fun PieceEditLayer(
                 },
             ),
     ) {
+        if (tile != null) {
+            Box(
+                Modifier.align(Alignment.TopEnd).size(32.dp).pointerInput(key) { detectTapGestures(onTap = { removeNow() }) },
+                contentAlignment = Alignment.Center,
+            ) { UsosText("×", UsosType.PieceData, accent) }
+        }
         Box(
             Modifier.align(Alignment.BottomEnd).size(44.dp)
                 .pointerInput(key) {
@@ -783,11 +831,10 @@ private fun AppTile(
 
 /** Barra fija de búsqueda. Al tocarla sube y se convierte en campo (SearchOverlay). */
 @Composable
-private fun SearchBar(notice: String?, hidden: Boolean, onClick: () -> Unit) {
+private fun SearchBar(notice: String?, hidden: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(UsosDimens.RadiusSearch)
     Box(
-        Modifier
-            .fillMaxWidth()
+        modifier
             .height(52.dp)
             .alpha(if (hidden) 0f else 1f)
             .background(UsosColors.Surface, shape)
@@ -797,5 +844,81 @@ private fun SearchBar(notice: String?, hidden: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.CenterStart,
     ) {
         UsosText(notice ?: "BUSCAR", UsosType.SearchHint, UsosColors.TextSecondary)
+    }
+}
+
+/** Hueco entre la barra BUSCAR y el botón de IA. */
+internal val AiGap = 8.dp
+internal val AiButtonSize = 52.dp
+
+/** Botón redondo de IA a la derecha de la barra: glifo de puntos propio o, con iconos activados, el icono de la app del asistente. */
+@Composable
+private fun AiButton(assistant: HomeViewModel.AssistantUi, hidden: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(AiButtonSize)
+            .alpha(if (hidden) 0f else 1f)
+            .background(UsosColors.Surface, CircleShape)
+            .border(1.dp, UsosColors.Border, CircleShape)
+            .tap(enabled = !hidden, onLongClick = onLongClick) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        val entry = assistant.entry
+        val mode = com.usos.launcher.ui.theme.LocalIconPrefs.current.mode
+        if (entry != null && mode != com.usos.launcher.data.sections.IconMode.NONE) {
+            com.usos.launcher.ui.theme.AppIconOrNull(entry, 28.dp, UsosColors.Text) { AiGlyph() }
+        } else {
+            AiGlyph()
+        }
+    }
+}
+
+/** Chispa de cuatro puntas hecha con puntos (rejilla 5x5), sin logos de marca. */
+@Composable
+fun AiGlyph() {
+    androidx.compose.foundation.Canvas(Modifier.size(26.dp)) {
+        val step = size.width / 5f
+        val r = step * 0.28f
+        val on = listOf(2 to 0, 2 to 1, 0 to 2, 1 to 2, 2 to 2, 3 to 2, 4 to 2, 2 to 3, 2 to 4)
+        on.forEach { (cx, cy) ->
+            drawCircle(UsosColors.Text, r * if (cx == 2 && cy == 2) 1.25f else 1f, androidx.compose.ui.geometry.Offset(step * (cx + 0.5f), step * (cy + 0.5f)))
+        }
+    }
+}
+
+/** Selector rápido del asistente (pulsación larga en el botón de IA). */
+@Composable
+private fun AssistantPicker(assistant: HomeViewModel.AssistantUi, onPick: (String) -> Unit, onClose: () -> Unit) {
+    val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+    val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    Box(
+        Modifier.fillMaxSize().background(UsosColors.Background.copy(alpha = 0.85f))
+            .pointerInput(Unit) { detectTapGestures { onClose() } },
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = UsosDimens.ScreenMargin).padding(bottom = 12.dp + navBar)
+                .pointerInput(Unit) { detectTapGestures { } },
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            UsosText("ASISTENTE DE IA", UsosType.Label, UsosColors.TextSecondary)
+            val current = assistant.resolved
+            assistant.installed.forEach { a ->
+                val sel = current != null && !current.web && current.assistant == a
+                Box(
+                    Modifier.fillMaxWidth().height(UsosDimens.MinTouch + 4.dp)
+                        .background(if (sel) LocalAccent.current else UsosColors.Surface, shape)
+                        .border(1.dp, UsosColors.Border, shape)
+                        .tap { onPick(com.usos.launcher.data.ai.Assistants.appChoice(a)) }.padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) { UsosText(a.label, UsosType.Button, if (sel) LocalOnAccent.current else UsosColors.Text) }
+            }
+            Box(
+                Modifier.fillMaxWidth().height(UsosDimens.MinTouch + 4.dp)
+                    .background(UsosColors.Surface, shape).border(1.dp, UsosColors.Border, shape)
+                    .tap { onPick(com.usos.launcher.data.ai.Assistants.NONE) }.padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) { UsosText("NINGUNO", UsosType.Button, UsosColors.TextSecondary) }
+        }
     }
 }

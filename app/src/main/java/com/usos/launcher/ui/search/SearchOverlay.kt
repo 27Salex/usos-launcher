@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.runtime.remember
@@ -82,14 +83,21 @@ fun SearchOverlay(
     onLongPick: (SearchItem) -> Unit,
     onOpenSettings: () -> Unit,
     onClose: () -> Unit,
+    autoKeyboard: Boolean = false,
+    assistantName: String? = null,
+    onAsk: (String) -> Unit = {},
+    restEndInset: Dp = 0.dp,
 ) {
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(open) {
         if (open) {
-            focus.requestFocus()
-            keyboard?.show()
+            // Sin teclado al abrir: solo se abre al tocar el campo (salvo el ajuste «Abrir teclado al buscar»).
+            if (autoKeyboard) {
+                focus.requestFocus()
+                keyboard?.show()
+            }
         } else {
             focusManager.clearFocus()
             keyboard?.hide()
@@ -154,6 +162,18 @@ fun SearchOverlay(
                         ) { UsosText(label, UsosType.Button, LocalOnAccent.current) }
                     }
                 }
+                if (query.isNotBlank() && assistantName != null) {
+                    item(key = "ask") {
+                        val askShape = RoundedCornerShape(UsosDimens.RadiusPiece)
+                        Box(
+                            Modifier.fillMaxWidth().padding(top = 8.dp).height(UsosDimens.MinTouch + 8.dp)
+                                .background(UsosColors.Surface, askShape)
+                                .border(1.dp, LocalAccent.current, askShape)
+                                .tap { onAsk(query) }.padding(horizontal = 16.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) { UsosText("PREGUNTA A $assistantName “${query.trim()}”", UsosType.Button, LocalAccent.current, maxLines = 1) }
+                    }
+                }
                 if (showSettings) {
                     item(key = "settings") {
                         Box(
@@ -204,6 +224,7 @@ fun SearchOverlay(
         Box(
             Modifier
                 .padding(horizontal = UsosDimens.ScreenMargin)
+                .padding(end = lerp(restEndInset, 0.dp, p))
                 .offset { IntOffset(0, lerp(restTop, topY, p).roundToPx()) }
                 .fillMaxWidth()
                 .height(barHeight)

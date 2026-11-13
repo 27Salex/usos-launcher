@@ -100,10 +100,40 @@ class AppRepository(context: Context) {
         }.isSuccess
     }
 
-    /** Abre la URL en el navegador por defecto (ACTION_VIEW). */
-    fun openUrl(url: String): Boolean = runCatching {
-        appContext.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }.isSuccess
+    /** Abre la URL (ACTION_VIEW). Con [pkg] la dirige a esa app y, si no resuelve el enlace, la abre sin paquete (navegador). */
+    fun openUrl(url: String, pkg: String? = null): Boolean {
+        fun go(p: String?) = runCatching {
+            appContext.startActivity(
+                Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply { p?.let { setPackage(it) } }
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }.isSuccess
+        return (pkg != null && go(pkg)) || go(null)
+    }
+
+    /** Copia [text] al portapapeles. */
+    fun copyText(text: String) {
+        val cm = appContext.getSystemService(android.content.ClipboardManager::class.java)
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("pregunta", text))
+    }
+
+    /** Abre la app de reloj del sistema (lista de alarmas) o, si no se resuelve, una de las conocidas. */
+    fun openSystemClock(): Boolean {
+        val viaAction = runCatching {
+            appContext.startActivity(Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.isSuccess
+        if (viaAction) return true
+        val pm = appContext.packageManager
+        val intent = CLOCK_PACKAGES.firstNotNullOfOrNull { pm.getLaunchIntentForPackage(it) } ?: return false
+        return runCatching { appContext.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+    }
+
+    private companion object {
+        val CLOCK_PACKAGES = listOf(
+            "com.google.android.deskclock", "com.sec.android.app.clockpackage", "com.android.deskclock",
+            "com.miui.clock", "com.coloros.alarmclock", "com.oneplus.deskclock",
+        )
+    }
 
     /** Busca el texto en el buscador elegido, abierto en el navegador por defecto (no ACTION_WEB_SEARCH). */
     fun webSearch(text: String, engine: com.usos.launcher.data.suggest.SearchEngine): Boolean = openUrl(engine.urlFor(text))

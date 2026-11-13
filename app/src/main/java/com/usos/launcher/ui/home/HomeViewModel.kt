@@ -38,6 +38,11 @@ import com.usos.launcher.ui.appdetail.DetailUi
 import com.usos.launcher.data.sections.DEFAULT_ACCENT
 import com.usos.launcher.data.leisure.LeisureStatus
 import com.usos.launcher.data.sections.SectionLayout
+import com.usos.launcher.data.ai.AskPlan
+import com.usos.launcher.data.ai.Assistant
+import com.usos.launcher.data.ai.Assistants
+import com.usos.launcher.data.ai.Resolved
+import com.usos.launcher.data.feeds.FeedLimits
 import com.usos.launcher.data.sections.IconMode
 import com.usos.launcher.data.sections.IconPrefs
 import com.usos.launcher.data.sections.MosaicEntry
@@ -348,12 +353,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     fun discardWidgetId(id: Int) { container.widgetHost.deleteAppWidgetId(id) }
 
-    fun moveWidget(id: Int, delta: Int) {
-        viewModelScope.launch { container.widgetStore.update { WidgetSizing.move(it, id, delta) } }
+    fun reorderWidgets(order: List<Int>) {
+        viewModelScope.launch { container.widgetStore.update { WidgetSizing.reorder(it, order) } }
     }
 
-    fun setWidgetHeight(id: Int, heightDp: Int) {
-        viewModelScope.launch { container.widgetStore.update { WidgetSizing.withHeight(it, id, heightDp) } }
+    fun resizeWidget(id: Int, cols: Int, rows: Int) {
+        viewModelScope.launch { container.widgetStore.update { WidgetSizing.withCells(it, id, cols, rows) } }
     }
 
     fun removeWidget(id: Int) {
@@ -529,6 +534,83 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         if (!opened) repository.webSearch("tiempo", searchEngine.value)
     }
 
+    // ---- Toque en el reloj ----
+
+    val clockTap: StateFlow<String> = settings.clockTap.stateIn(viewModelScope, SharingStarted.Eagerly, "SYSTEM")
+    fun setClockTap(v: String) { viewModelScope.launch { settings.setClockTap(v) } }
+
+    /** Toque en el reloj: según el ajuste, el reloj del sistema, una app elegida o nada. */
+    fun openClock() {
+        val v = clockTap.value
+        when {
+            v == "NONE" -> Unit
+            v.startsWith("APP:") -> {
+                val pkg = v.removePrefix("APP:")
+                val entry = apps.value.orEmpty().firstOrNull { it.packageName == pkg && it.isMainProfile }
+                if (entry != null) openApp(entry) else if (!repository.openSystemClock()) showNotice("NO SE PUDO ABRIR")
+            }
+            else -> if (!repository.openSystemClock()) showNotice("NO SE PUDO ABRIR")
+        }
+    }
+
+    // ---- Asistente de IA ----
+
+    class AssistantUi(
+        val raw: String?,
+        val resolved: Resolved?,
+        val entry: AppEntry?,
+        val installed: List<Assistant>,
+    )
+
+    val assistantUi: StateFlow<AssistantUi> = combine(settings.assistantChoice, apps) { raw, list ->
+        val main = list.orEmpty().filter { it.isMainProfile }
+        val pkgs = main.map { it.packageName }.toSet()
+        val r = Assistants.resolve(raw, pkgs)
+        AssistantUi(raw, r, r?.takeIf { !it.web }?.let { a -> main.firstOrNull { it.packageName == a.assistant.pkg } }, Assistants.installed(pkgs))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, AssistantUi(null, null, null, emptyList()))
+
+    val searchKeyboard: StateFlow<Boolean> = settings.searchKeyboard.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    fun setSearchKeyboard(on: Boolean) { viewModelScope.launch { settings.setSearchKeyboard(on) } }
+    fun setAssistantChoice(v: String?) { viewModelScope.launch { settings.setAssistantChoice(v) } }
+
+    /** Toque en el botón de IA: abre el asistente (la app, o su web en modo Web). */
+    fun openAssistant() {
+        val ui = assistantUi.value
+        val r = ui.resolved ?: return
+        val ok = if (r.web) repository.openUrl(r.assistant.webHome) else ui.entry?.let { repository.launch(it) } == true
+        if (!ok) showNotice("NO SE PUDO ABRIR")
+    }
+
+    /** Fila «PREGUNTA A …» de la búsqueda: pasa el texto al asistente con el método de su ficha (CLAUDE.md). */
+    fun askAssistant(text: String) {
+        val ui = assistantUi.value
+        val r = ui.resolved ?: return
+        val q = text.trim()
+        if (q.isEmpty()) return
+        closeSearch()
+        when (val plan = Assistants.askPlan(r, q)) {
+            is AskPlan.View -> if (!repository.openUrl(plan.url, plan.pkg)) showNotice("NO SE PUDO ABRIR")
+            AskPlan.CopyAndOpenApp -> {
+                repository.copyText(q)
+                if (ui.entry?.let { repository.launch(it) } == true) showNotice("PREGUNTA COPIADA") else showNotice("NO SE PUDO ABRIR")
+            }
+            is AskPlan.CopyAndView -> {
+                repository.copyText(q)
+                if (repository.openUrl(plan.url)) showNotice("PREGUNTA COPIADA") else showNotice("NO SE PUDO ABRIR")
+            }
+        }
+    }
+
+    // ---- Noticias ----
+
+    val feedsKeep: StateFlow<Int> = settings.feedsKeep.stateIn(viewModelScope, SharingStarted.Eagerly, FeedLimits.DEFAULT_KEEP)
+    fun setFeedsKeep(n: Int) {
+        viewModelScope.launch {
+            settings.setFeedsKeep(n)
+            container.feedRepository.pruneAll()
+        }
+    }
+
     /** Pone un bitmap negro como fondo de inicio y de bloqueo. */
     fun applyBlackWallpaper() {
         viewModelScope.launch {
@@ -694,54 +776,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** Cambia el tamaño de una app solo si no oculta otras piezas. */
-    fun resizeTile(key: String, size: TileSize) {
-        viewModelScope.launch {
-            var rejected = false
-            configStore.update { all ->
-                val cfg = all[key] ?: return@update all
-                if (cfg.size == size) return@update all
-                val info = infoSpecs.value[cfg.section]?.visibleSize
-                val before = layoutOf(cfg.section, mosaicEntries(cfg.section, all.values), info)
-                val next = all + (key to cfg.copy(size = size, manual = true))
-                val after = layoutOf(cfg.section, mosaicEntries(cfg.section, next.values), info)
-                if (!com.usos.launcher.data.sections.MosaicEdit.noNewlySkipped(before, after)) {
-                    rejected = true
-                    all
-                } else next
-            }
-            if (rejected) showNotice("NO CABE")
-        }
-    }
+    /** Cambia el tamaño de una app; si ya no caben todas, se ocultan las de detrás (su inMosaic no cambia). */
+    fun resizeTile(key: String, size: TileSize) = updateConfig(key) { if (it.size == size) it else it.copy(size = size, manual = true) }
 
-    fun resizeInfo(kind: InfoKind, size: TileSize) {
-        val section = InfoPieces.sectionOf(kind)
-        val cfgs = configs.value.values
-        val entries = mosaicEntries(section, cfgs)
-        val cur = infoSpecs.value[section]?.visibleSize
-        val before = layoutOf(section, entries, cur)
-        val after = layoutOf(section, entries, size)
-        if (!com.usos.launcher.data.sections.MosaicEdit.noNewlySkipped(before, after)) {
-            showNotice("NO CABE")
-            return
-        }
-        setInfoSize(kind, size)
-    }
+    fun resizeInfo(kind: InfoKind, size: TileSize) = setInfoSize(kind, size)
 
-    /** Suma o resta una fila al mosaico de [section]; restar no puede ocultar piezas. */
+    /** Suma o resta una fila al mosaico; las piezas que no caben se ocultan por orden sin tocar su inMosaic. */
     fun changeRows(section: Section, delta: Int) {
         val rows = mosaicPrefs.value.rowsFor(section)
         val next = (rows + delta).coerceIn(MosaicPacker.MIN_ROWS, MosaicPacker.MAX_ROWS)
-        if (next == rows) return
-        if (delta < 0) {
-            val entries = mosaicEntries(section, configs.value.values)
-            val info = infoSpecs.value[section]?.visibleSize
-            if (!com.usos.launcher.data.sections.MosaicEdit.noNewlySkipped(layoutOf(section, entries, info, rows), layoutOf(section, entries, info, next))) {
-                showNotice("NO CABEN EN MENOS FILAS")
-                return
-            }
-        }
-        setRows(section, next)
+        if (next != rows) setRows(section, next)
     }
 
     // ---- Ajustes ----

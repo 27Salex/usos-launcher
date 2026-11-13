@@ -8,51 +8,40 @@ class WidgetSizingTest {
     private val b = HostedWidget(2)
     private val c = HostedWidget(3)
 
-    @Test fun baseAndMax() {
-        assertEquals(110, WidgetSizing.baseDp(110, 0))
-        assertEquals(80, WidgetSizing.baseDp(110, 80))
-        assertEquals(48, WidgetSizing.baseDp(10, 0))
-        assertEquals(440, WidgetSizing.maxDp(110, 0))
-        assertEquals(300, WidgetSizing.maxDp(110, 300))
-        assertEquals(110, WidgetSizing.maxDp(110, 50))
-    }
-
     @Test fun defaultUsesCellsWhenBigger() {
         assertEquals(110, WidgetSizing.defaultDp(110, 0))
         assertEquals(180, WidgetSizing.defaultDp(110, 3))
         assertEquals(110, WidgetSizing.defaultDp(110, 1))
     }
 
-    @Test fun heightIsClamped() {
-        assertEquals(110, WidgetSizing.heightDp(0, 110, 440, 110))
-        assertEquals(440, WidgetSizing.heightDp(900, 110, 440, 110))
-        assertEquals(110, WidgetSizing.heightDp(20, 110, 440, 110))
-        assertEquals(200, WidgetSizing.heightDp(200, 110, 440, 110))
-    }
-
-    @Test fun rowsAndDp() {
-        assertEquals(95, WidgetSizing.rowsToDp(1))
-        assertEquals(200, WidgetSizing.rowsToDp(2))
-        assertEquals(95 * 5 + 40, WidgetSizing.rowsToDp(9))
+    @Test fun dpToRowsClamps() {
         assertEquals(1, WidgetSizing.dpToRows(30))
         assertEquals(2, WidgetSizing.dpToRows(190))
         assertEquals(5, WidgetSizing.dpToRows(2000))
     }
 
-    @Test fun snapRowsFollowsDragAndClamps() {
-        assertEquals(3, WidgetSizing.snapRows(2, 100f))
-        assertEquals(2, WidgetSizing.snapRows(2, 40f))
-        assertEquals(1, WidgetSizing.snapRows(2, -500f))
-        assertEquals(5, WidgetSizing.snapRows(4, 500f))
+    @Test fun migrationUsesAllColumnsAndOldHeight() {
+        assertEquals(WidgetCells(3, 2), WidgetSizing.cells(HostedWidget(1, heightDp = 200), 3, 1))
+        assertEquals(WidgetCells(4, 3), WidgetSizing.cells(HostedWidget(1, heightDp = 305), 4, 1))
+        assertEquals(WidgetCells(4, 2), WidgetSizing.cells(HostedWidget(1), 4, 2)) // nuevo: por defecto
+        assertEquals(WidgetCells(3, 1), WidgetSizing.cells(HostedWidget(1, cols = 9, rows = 1), 3, 4)) // se acota a las columnas
     }
 
-    @Test fun targetIndexFromDragOffset() {
-        val h = listOf(100f, 100f, 100f)
-        assertEquals(1, WidgetSizing.targetIndex(h, 0f, 0, 120f))
-        assertEquals(2, WidgetSizing.targetIndex(h, 0f, 0, 260f))
-        assertEquals(0, WidgetSizing.targetIndex(h, 0f, 0, 20f))
-        assertEquals(1, WidgetSizing.targetIndex(h, 0f, 2, -120f))
-        assertEquals(0, WidgetSizing.targetIndex(h, 0f, 2, -400f))
+    @Test fun snapCellsFollowsDragAndClamps() {
+        val cur = WidgetCells(2, 2)
+        assertEquals(WidgetCells(3, 3), WidgetSizing.snapCells(cur, 100f, 100f, 100f, 100f, 3))
+        assertEquals(WidgetCells(2, 2), WidgetSizing.snapCells(cur, 40f, -40f, 100f, 100f, 3))
+        assertEquals(WidgetCells(1, 1), WidgetSizing.snapCells(cur, -900f, -900f, 100f, 100f, 3))
+        assertEquals(WidgetCells(3, 5), WidgetSizing.snapCells(cur, 900f, 900f, 100f, 100f, 3))
+    }
+
+    @Test fun layoutPacksDenselyInOrder() {
+        val r = WidgetSizing.layout(3, listOf(1 to WidgetCells(2, 1), 2 to WidgetCells(2, 1), 3 to WidgetCells(1, 2)))
+        assertEquals(emptyList<String>(), r.skipped)
+        val p = r.placements.associateBy { it.key }
+        assertEquals(0 to 0, p["1"]!!.col to p["1"]!!.row)
+        assertEquals(2 to 0, p["3"]!!.col to p["3"]!!.row) // ocupa el hueco de la derecha
+        assertEquals(0 to 1, p["2"]!!.col to p["2"]!!.row)
     }
 
     @Test fun orphansAreHostIdsNotSaved() {
@@ -60,16 +49,9 @@ class WidgetSizingTest {
         assertEquals(emptyList<Int>(), WidgetSizing.orphans(listOf(1), listOf(a, b)))
     }
 
-    @Test fun moveWithinBounds() {
-        val l = listOf(a, b, c)
-        assertEquals(listOf(b, a, c), WidgetSizing.move(l, 2, -1))
-        assertEquals(listOf(a, c, b), WidgetSizing.move(l, 2, 1))
-        assertEquals(l, WidgetSizing.move(l, 1, -1))
-        assertEquals(l, WidgetSizing.move(l, 3, 1))
-        assertEquals(l, WidgetSizing.move(l, 99, 1))
-    }
-
-    @Test fun setsHeight() {
-        assertEquals(listOf(a, b.copy(heightDp = 200)), WidgetSizing.withHeight(listOf(a, b), 2, 200))
+    @Test fun reorderAndResize() {
+        assertEquals(listOf(c, a, b), WidgetSizing.reorder(listOf(a, b, c), listOf(3, 1, 2)))
+        assertEquals(listOf(b, a, c), WidgetSizing.reorder(listOf(a, b, c), listOf(2)))
+        assertEquals(listOf(a, b.copy(cols = 2, rows = 3)), WidgetSizing.withCells(listOf(a, b), 2, 2, 3))
     }
 }

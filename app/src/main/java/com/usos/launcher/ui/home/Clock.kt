@@ -124,6 +124,7 @@ fun ClockBlock(
     weatherPrefs: WeatherPrefs,
     weather: WeatherNow?,
     onWeather: () -> Unit,
+    onClock: (() -> Unit)? = null,
 ) {
     val animated = clock.animated && LocalAnimationsEnabled.current
     val breathes = animated && (clock.type == ClockType.DOTS || clock.type == ClockType.DIGITAL)
@@ -138,6 +139,10 @@ fun ClockBlock(
     val weatherColor = if (weatherPrefs.accentColor) LocalAccent.current else UsosColors.Text
 
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            if (onClock != null) Modifier.tap { onClock() } else Modifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         when (clock.type) {
             ClockType.DOTS -> {
                 DotText("%02d:%02d".format(time.hour, time.minute), 1f, animated, sep)
@@ -153,6 +158,7 @@ fun ClockBlock(
                 MonoClockStyle, UsosColors.Text,
             )
             ClockType.ANALOG -> AnalogClock(time, clock.seconds)
+        }
         }
         if (shown != null && weatherPrefs.belowClock) {
             Spacer(Modifier.height(8.dp))

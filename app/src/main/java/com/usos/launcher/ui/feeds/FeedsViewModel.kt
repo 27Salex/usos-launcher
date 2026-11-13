@@ -88,17 +88,19 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
         val titles = feeds.associate { it.id to it.title }
         // Un filtro apuntando a un feed borrado vuelve a «Todo».
         val active = f?.takeIf { it == SAVED_FILTER || it in titles }
+        // «Todo» = unión de los feeds actuales; los guardados de feeds borrados solo salen en «Guardados».
+        val live = articles.filter { it.feedId in titles }
         val shown = when (active) {
-            null -> articles
+            null -> live
             SAVED_FILTER -> articles.filter { it.starred }
-            else -> articles.filter { it.feedId == active }
+            else -> live.filter { it.feedId == active }
         }
         FeedsUi(
             pills = listOf(
-                PillUi(null, "Todo", articles.count { !it.read }),
+                PillUi(null, "Todo", live.count { !it.read }),
                 PillUi(SAVED_FILTER, "Guardados", articles.count { it.starred }),
-            ) + feeds.map { fd -> PillUi(fd.id, fd.title, articles.count { !it.read && it.feedId == fd.id }) },
-            cards = shown.map { CardUi(it, titles[it.feedId].orEmpty(), FeedFormat.age(it.publishedAt, t.now)) },
+            ) + feeds.map { fd -> PillUi(fd.id, fd.title, live.count { !it.read && it.feedId == fd.id }) },
+            cards = shown.map { CardUi(it, titles[it.feedId] ?: it.sourceTitle, FeedFormat.age(it.publishedAt, t.now)) },
             tokensLabel = if (t.count == 1) "1 LECTURA" else "${t.count} LECTURAS",
             nextLabel = t.next,
             hasFeeds = feeds.isNotEmpty(),
@@ -153,6 +155,7 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
     fun refreshIfStale() {
         viewModelScope.launch {
             if (repo.feedsNow().isEmpty()) return@launch
+            repo.pruneAll()
             runRefresh { repo.refreshFeeds(null, force = false) }
         }
     }

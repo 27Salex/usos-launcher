@@ -28,7 +28,7 @@ val Context.usosDataStore: DataStore<Preferences> by preferencesDataStore(name =
 /** AppConfig de todas las apps, como un único JSON en DataStore. */
 class AppConfigStore(private val dataStore: DataStore<Preferences>) {
     private val key = stringPreferencesKey("app_configs")
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val json = com.usos.launcher.data.PersistJson
     private val serializer = ListSerializer(AppConfig.serializer())
 
     val configs: Flow<Map<String, AppConfig>> =
@@ -92,6 +92,10 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
 
     private val perHourKey = intPreferencesKey("feeds_per_hour")
     private val feedsHiddenKey = booleanPreferencesKey("feeds_hidden")
+    private val feedsKeepKey = intPreferencesKey("feeds_keep")
+    private val searchKeyboardKey = booleanPreferencesKey("search_keyboard")
+    private val clockTapKey = stringPreferencesKey("clock_tap")
+    private val assistantKey = stringPreferencesKey("ai_assistant")
     private val calendarAskedKey = booleanPreferencesKey("calendar_asked")
 
     /** Lecturas por hora (3..10): tamaño del cubo de lecturas y ritmo de relleno. */
@@ -99,6 +103,23 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         .map { FeedLimits.clamp(it[perHourKey] ?: FeedLimits.DEFAULT_PER_HOUR) }.distinctUntilChanged()
     val feedsHidden: Flow<Boolean> = dataStore.data.map { it[feedsHiddenKey] ?: false }.distinctUntilChanged()
     val calendarAsked: Flow<Boolean> = dataStore.data.map { it[calendarAskedKey] ?: false }.distinctUntilChanged()
+
+    /** Artículos que se conservan por feed (10/20/30/50, defecto 20); los guardados nunca se podan. */
+    val feedsKeep: Flow<Int> = dataStore.data
+        .map { FeedLimits.clampKeep(it[feedsKeepKey] ?: FeedLimits.DEFAULT_KEEP) }.distinctUntilChanged()
+    suspend fun setFeedsKeep(n: Int) { dataStore.edit { it[feedsKeepKey] = FeedLimits.clampKeep(n) } }
+
+    /** Al tocar el reloj: "SYSTEM" (defecto), "NONE" o "APP:<paquete>". */
+    val clockTap: Flow<String> = dataStore.data.map { it[clockTapKey] ?: "SYSTEM" }.distinctUntilChanged()
+    suspend fun setClockTap(v: String) { dataStore.edit { it[clockTapKey] = v } }
+
+    /** Abrir el teclado al abrir la búsqueda. Apagado por defecto. */
+    val searchKeyboard: Flow<Boolean> = dataStore.data.map { it[searchKeyboardKey] ?: false }.distinctUntilChanged()
+    suspend fun setSearchKeyboard(on: Boolean) { dataStore.edit { it[searchKeyboardKey] = on } }
+
+    /** Asistente de IA elegido (ver AssistantChoice); null = automático (el primero instalado). */
+    val assistantChoice: Flow<String?> = dataStore.data.map { it[assistantKey] }.distinctUntilChanged()
+    suspend fun setAssistantChoice(v: String?) { dataStore.edit { if (v == null) it.remove(assistantKey) else it[assistantKey] = v } }
 
     suspend fun setFeedsPerHour(n: Int) { dataStore.edit { it[perHourKey] = FeedLimits.clamp(n) } }
     suspend fun setFeedsHidden(hidden: Boolean) { dataStore.edit { it[feedsHiddenKey] = hidden } }

@@ -31,14 +31,14 @@ class NotAFeedException : IOException("NO ES UN FEED")
 interface FeedFetcher {
     /** Descarga [url] siguiendo redirecciones. HttpException si el código no es 2xx; otra IOException = sin conexión. */
     @Throws(IOException::class)
-    suspend fun probe(url: String): Fetched
+    suspend fun probe(url: String, limit: Int = FeedLimits.DEFAULT_KEEP): Fetched
 
     @Throws(IOException::class)
-    suspend fun fetch(url: String): ParsedFeed = (probe(url) as? Fetched.Parsed)?.feed ?: throw NotAFeedException()
+    suspend fun fetch(url: String, limit: Int = FeedLimits.DEFAULT_KEEP): ParsedFeed = (probe(url, limit) as? Fetched.Parsed)?.feed ?: throw NotAFeedException()
 }
 
 class OkHttpFeedFetcher(private val http: OkHttpClient) : FeedFetcher {
-    override suspend fun probe(url: String): Fetched = withContext(Dispatchers.IO) {
+    override suspend fun probe(url: String, limit: Int): Fetched = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url)
             .header("User-Agent", BROWSER_UA)
             .header("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml, text/html;q=0.8, */*;q=0.5")
@@ -59,7 +59,7 @@ class OkHttpFeedFetcher(private val http: OkHttpClient) : FeedFetcher {
             val parser = Xml.newPullParser()
             parser.setInput(ByteArrayInputStream(bytes), null)
             try {
-                Fetched.Parsed(FeedParser.parse(parser))
+                Fetched.Parsed(FeedParser.parse(parser, limit))
             } catch (e: org.xmlpull.v1.XmlPullParserException) {
                 throw NotAFeedException()
             }
@@ -96,6 +96,8 @@ class FeedRepository(
     private val dao: FeedDao,
     private val fetcher: FeedFetcher,
     private val now: () -> Long = System::currentTimeMillis,
+    /** Artículos que se conservan por feed (Ajustes > NOTICIAS). */
+    private val keep: suspend () -> Int = { FeedLimits.DEFAULT_KEEP },
 ) {
     val feeds = dao.feeds()
     val articles = dao.articles()
@@ -108,7 +110,7 @@ class FeedRepository(
         val url = FeedFormat.normalizeUrl(raw) ?: return DiscoverResult.Failed(FeedErrors.INVALID)
         var firstError: String? = null
         val first = try {
-            fetcher.probe(url)
+            fetcher.probe(url, keep())
         } catch (e: HttpException) {
             firstError = FeedErrors.http(e.code)
             null
@@ -128,11 +130,12 @@ class FeedRepository(
         FeedDiscovery.commonCandidates(base).forEach { candidates += it }
         candidates.remove(url)
 
+        val limit = keep()
         val results = coroutineScope {
             candidates.map { c ->
                 async {
                     try {
-                        (fetcher.probe(c) as? Fetched.Parsed)?.let { found(c, it.feed) }
+                        (fetcher.probe(c, limit) as? Fetched.Parsed)?.let { found(c, it.feed) }
                     } catch (e: IOException) {
                         null
                     }
@@ -163,7 +166,7 @@ class FeedRepository(
     suspend fun addByUrl(url: String, title: String?): AddOutcome {
         if (dao.feedsNow().any { it.url == url }) return AddOutcome.Duplicate
         val f = try {
-            found(url, fetcher.fetch(url))
+            found(url, fetcher.fetch(url, keep()))
         } catch (e: HttpException) {
             return AddOutcome.Failed(FeedErrors.http(e.code))
         } catch (e: NotAFeedException) {
@@ -190,7 +193,7 @@ class FeedRepository(
         list.map { feed ->
             async {
                 try {
-                    store(feed.id, fetcher.fetch(feed.url))
+                    store(feed.id, fetcher.fetch(feed.url, keep()))
                     dao.setFetched(feed.id, now())
                     true
                 } catch (e: IOException) {
@@ -219,7 +222,7 @@ class FeedRepository(
                 )
             },
         )
-        dao.prune(feedId)
+        prune(feedId)
     }
 
     suspend fun rename(id: Long, title: String) {
@@ -227,7 +230,17 @@ class FeedRepository(
         if (t.isNotEmpty()) dao.rename(id, t)
     }
 
-    suspend fun delete(id: Long) = dao.deleteFeed(id)
+    private suspend fun prune(feedId: Long) = dao.prune(feedId, keep())
+
+    /** Poda todos los feeds al límite actual (al cambiar el ajuste y al abrir Noticias). */
+    suspend fun pruneAll() = dao.feedsNow().forEach { prune(it.id) }
+
+    /** Borra el feed y sus artículos, salvo los guardados: pasan a huérfanos con el nombre de la fuente. */
+    suspend fun delete(id: Long) {
+        dao.orphanStarred(id)
+        dao.deleteFeed(id)
+        dao.deleteArticlesOf(id)
+    }
     suspend fun markRead(id: Long) = dao.markRead(id)
     suspend fun setStarred(id: Long, starred: Boolean) = dao.setStarred(id, starred)
 }

@@ -76,4 +76,26 @@ class FeedParserTest {
         assertEquals("a & b < c", FeedParser.stripHtml("<p>a &amp; b &lt; c</p>"))
         assertEquals("ñ", FeedParser.stripHtml("&#241;"))
     }
+
+    private fun rss(vararg dates: String): String = "<rss><channel><title>T</title>" +
+        dates.mapIndexed { i, d -> "<item><title>n$i</title><link>https://e.test/$i</link><pubDate>$d</pubDate></item>" }.joinToString("") + "</channel></rss>"
+
+    private fun parseLimited(xml: String, limit: Int): ParsedFeed {
+        val p = KXmlParser()
+        p.setInput(java.io.StringReader(xml))
+        return FeedParser.parse(p, limit)
+    }
+
+    @Test
+    fun limit_stopsEarlyWhenNewestFirst() {
+        val days = (30 downTo 1).map { "2024-01-%02dT10:00:00Z".format(it) }
+        val feed = parseLimited(rss(*days.toTypedArray()), 5)
+        assertEquals(listOf("n0", "n1", "n2", "n3", "n4"), feed.items.map { it.title })
+    }
+
+    @Test
+    fun limit_unorderedFeedKeepsMostRecent() {
+        val feed = parseLimited(rss("2024-01-01T10:00:00Z", "2024-01-03T10:00:00Z", "2024-01-02T10:00:00Z"), 2)
+        assertEquals(listOf("n1", "n2"), feed.items.map { it.title })
+    }
 }

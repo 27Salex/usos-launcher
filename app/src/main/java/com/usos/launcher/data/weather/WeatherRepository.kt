@@ -28,7 +28,7 @@ class WeatherRepository(
     private val http: OkHttpClient,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = com.usos.launcher.data.PersistJson
     private val mutex = Mutex()
     private var lastAttempt = 0L
 

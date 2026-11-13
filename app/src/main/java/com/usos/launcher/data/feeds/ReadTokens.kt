@@ -14,8 +14,11 @@ object FeedLimits {
     /** Un feed se vuelve a descargar al abrir el panel o filtrarlo si lleva más de 10 min sin actualizar. */
     const val REFRESH_AFTER_MS = 10 * 60 * 1000L
 
-    /** Artículos que se conservan por feed (más los guardados). */
-    const val KEEP_PER_FEED = 200
+    /** Artículos que se conservan por feed (más los guardados): opciones de Ajustes y valor por defecto. */
+    val KEEP_CHOICES = listOf(10, 20, 30, 50)
+    const val DEFAULT_KEEP = 20
+
+    fun clampKeep(n: Int): Int = if (n in KEEP_CHOICES) n else DEFAULT_KEEP
 }
 
 /** Cubo de lecturas: [count] enteras y [refilledAt] = inicio del tramo en curso hacia la siguiente. */

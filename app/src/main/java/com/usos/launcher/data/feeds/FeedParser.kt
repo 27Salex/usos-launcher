@@ -24,7 +24,25 @@ object FeedParser {
     private const val RELAXED = "http://xmlpull.org/v1/doc/features.html#relaxed"
     private const val SUMMARY_MAX = 300
 
-    fun parse(parser: XmlPullParser): ParsedFeed {
+    /** Hasta cuántos artículos se leen buscando los más recientes cuando el feed no viene ordenado por fecha. */
+    fun scanCap(limit: Int): Int = if (limit > Int.MAX_VALUE / 3) Int.MAX_VALUE else maxOf(limit * 3, 30)
+
+    /** true si las fechas conocidas no aumentan de un artículo al siguiente (del más reciente al más antiguo). */
+    fun newestFirst(items: List<ParsedItem>): Boolean {
+        var prev: Long? = null
+        for (item in items) {
+            val d = item.publishedAt ?: continue
+            if (prev != null && d > prev) return false
+            prev = d
+        }
+        return true
+    }
+
+    /**
+     * Lee como mucho [limit] artículos: si el feed viene ordenado por fecha deja de procesar al llegar al límite;
+     * si no, lee hasta [scanCap] y se queda con los [limit] más recientes (sin fecha = recién descargado).
+     */
+    fun parse(parser: XmlPullParser, limit: Int = Int.MAX_VALUE): ParsedFeed {
         runCatching { parser.setFeature(RELAXED, true) } // entidades HTML sueltas (&nbsp;) en feeds reales
         var feedTitle: String? = null
         val items = mutableListOf<ParsedItem>()
@@ -33,7 +51,10 @@ object FeedParser {
             while (event != XmlPullParser.END_DOCUMENT) {
                 if (event == XmlPullParser.START_TAG) {
                     when (parser.name) {
-                        "item", "entry" -> parseItem(parser)?.let { items += it }
+                        "item", "entry" -> {
+                            parseItem(parser)?.let { items += it }
+                            if (items.size >= scanCap(limit) || (items.size >= limit && newestFirst(items))) break
+                        }
                         "image" -> skip(parser) // <image><title> del canal no es el título del feed
                         "title" -> {
                             val t = readText(parser).trim()
@@ -46,7 +67,8 @@ object FeedParser {
         } catch (e: XmlPullParserException) {
             if (items.isEmpty()) throw e
         }
-        return ParsedFeed(feedTitle, items)
+        val newest = if (items.size <= limit) items else items.sortedByDescending { it.publishedAt ?: Long.MAX_VALUE }.take(limit)
+        return ParsedFeed(feedTitle, newest)
     }
 
     private fun parseItem(p: XmlPullParser): ParsedItem? {

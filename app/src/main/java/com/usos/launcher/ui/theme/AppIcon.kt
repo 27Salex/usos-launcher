@@ -34,7 +34,7 @@ val LocalIcons = compositionLocalOf<IconRepository?> { null }
 
 /** Icono de la app (null mientras carga o si el modo es Ninguno). */
 @Composable
-private fun rememberIcon(app: AppEntry, mode: IconMode, invert: Boolean, size: Dp): LoadedIcon? {
+internal fun rememberIcon(app: AppEntry, mode: IconMode, invert: Boolean, size: Dp): LoadedIcon? {
     val repo = LocalIcons.current
     if (repo == null || mode == IconMode.NONE) return null
     val px = with(LocalDensity.current) { size.roundToPx() }
@@ -79,6 +79,19 @@ fun TileHead(app: AppEntry, code: String, codeStyle: TextStyle, color: Color, ic
             }
         }
     }
+}
+
+/** Icono de la app según el ajuste de iconos; [fallback] si no hay (modo Ninguno, cargando o sin icono utilizable). */
+@Composable
+fun AppIconOrNull(app: AppEntry, size: Dp, color: Color, fallback: @Composable () -> Unit) {
+    val prefs = LocalIconPrefs.current
+    val icon = rememberIcon(app, prefs.mode, false, size)
+    val bmp = icon?.bitmap
+    if (bmp == null) { fallback(); return }
+    Image(
+        bitmap = remember(bmp) { bmp.asImageBitmap() }, contentDescription = null, modifier = Modifier.size(size),
+        colorFilter = if (icon.tint) ColorFilter.tint(color) else null,
+    )
 }
 
 /** Icono suelto (ficha de app). */

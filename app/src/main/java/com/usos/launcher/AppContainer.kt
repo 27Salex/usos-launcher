@@ -19,6 +19,7 @@ import com.usos.launcher.data.usage.UsageRepository
 import com.usos.launcher.service.LauncherAlert
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import com.usos.launcher.data.feeds.FeedDatabase
 import com.usos.launcher.data.feeds.FeedRepository
 import com.usos.launcher.data.feeds.OkHttpFeedFetcher
@@ -44,7 +45,10 @@ class AppContainer(context: Context) {
         OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS).build()
     }
     val feedRepository: FeedRepository by lazy {
-        FeedRepository(FeedDatabase.create(appContext).dao(), OkHttpFeedFetcher(httpClient))
+        FeedRepository(
+            FeedDatabase.create(appContext).dao(), OkHttpFeedFetcher(httpClient),
+            keep = { settingsStore.feedsKeep.first() },
+        )
     }
     val thumbnailLoader: ThumbnailLoader by lazy { ThumbnailLoader(httpClient) }
     val weatherRepository: com.usos.launcher.data.weather.WeatherRepository by lazy {
