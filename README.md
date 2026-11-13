@@ -2,8 +2,6 @@
 
 Minimalist, anti-procrastination Android launcher. Español: [más abajo](#usos-en-español).
 
-![Home](docs/screenshots/home.png) ![Search](docs/screenshots/search.png) ![Leisure](docs/screenshots/leisure.png)
-![Widgets](docs/screenshots/widgets.png) ![News](docs/screenshots/news.png) ![Settings](docs/screenshots/settings.png)
 
 ## What it is
 
