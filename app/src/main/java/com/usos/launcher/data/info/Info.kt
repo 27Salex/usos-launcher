@@ -15,8 +15,11 @@ import java.time.ZonedDateTime
 
 enum class InfoKind { AGENDA, MAPS }
 
-/** Pieza de información del mosaico: etiqueta mono arriba y dato abajo. */
-data class InfoPiece(val kind: InfoKind, val label: String, val data: String)
+/** Cuándo empieza el evento de la agenda (el texto lo pone la UI según el idioma). */
+enum class InfoWhen { NONE, NOW, TODAY, TOMORROW }
+
+/** Pieza de información del mosaico; la UI compone etiqueta y dato con recursos (sin texto fijo aquí). */
+data class InfoPiece(val kind: InfoKind, val whenAt: InfoWhen = InfoWhen.NONE, val time: String = "", val title: String = "")
 
 data class CalEvent(val title: String, val beginMs: Long, val endMs: Long, val allDay: Boolean)
 
@@ -48,22 +51,23 @@ object InfoPieces {
             .minByOrNull { it.beginMs }
     }
 
-    /** «AGENDA · 10:30», «AGENDA · MAÑ 10:30»; AHORA si ya ha empezado. */
+    /** Hoy a las 10:30, mañana a las 10:30, o ahora si ya ha empezado. */
     fun agendaPiece(event: CalEvent?, now: Long, zone: ZoneId): InfoPiece? {
         event ?: return null
         val begin = ZonedDateTime.ofInstant(Instant.ofEpochMilli(event.beginMs), zone)
         val today = ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), zone).toLocalDate()
-        val whenText = when {
-            event.beginMs <= now -> "AHORA"
-            begin.toLocalDate() == today -> "%02d:%02d".format(begin.hour, begin.minute)
-            else -> "MAÑ %02d:%02d".format(begin.hour, begin.minute)
+        val time = "%02d:%02d".format(begin.hour, begin.minute)
+        val whenAt = when {
+            event.beginMs <= now -> InfoWhen.NOW
+            begin.toLocalDate() == today -> InfoWhen.TODAY
+            else -> InfoWhen.TOMORROW
         }
-        return InfoPiece(InfoKind.AGENDA, "AGENDA · $whenText", event.title)
+        return InfoPiece(InfoKind.AGENDA, whenAt, time, event.title)
     }
 
     /** «Ir a casa»: siempre visible si Maps está instalado. */
     fun mapsPiece(mapsInstalled: Boolean): InfoPiece? =
-        if (mapsInstalled) InfoPiece(InfoKind.MAPS, "MAPAS", "IR A CASA") else null
+        if (mapsInstalled) InfoPiece(InfoKind.MAPS) else null
 
     fun bySection(pieces: List<InfoPiece?>): Map<Section, InfoPiece> =
         pieces.filterNotNull().associateBy { sectionOf(it.kind) }
@@ -91,7 +95,7 @@ class AgendaRepository(private val context: Context) {
                 context.contentResolver.query(uri, projection, null, null, "${CalendarContract.Instances.BEGIN} ASC")?.use { c ->
                     while (c.moveToNext()) {
                         out += CalEvent(
-                            title = c.getString(0)?.takeIf { it.isNotBlank() } ?: "Sin título",
+                            title = c.getString(0)?.takeIf { it.isNotBlank() } ?: "",
                             beginMs = c.getLong(1), endMs = c.getLong(2), allDay = c.getInt(3) == 1,
                         )
                     }

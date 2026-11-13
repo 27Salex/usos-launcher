@@ -1,5 +1,7 @@
 package com.usos.launcher.ui.search
 
+import androidx.compose.ui.res.stringResource
+import com.usos.launcher.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -150,9 +152,9 @@ fun SearchOverlay(
                     item(key = "action") {
                         val intent = remember(items, query) { SearchClassifier.classify(query, items) { it.app.label } }
                         val label = when (intent) {
-                            is SearchIntent.OpenUrl -> "ABRIR " + intent.url.substringAfter("://").trimEnd('/').uppercase()
-                            is SearchIntent.OpenApp<*> -> "ABRIR " + (intent.app as SearchItem).app.label.uppercase()
-                            is SearchIntent.WebSearch -> "BUSCAR “${intent.text}”"
+                            is SearchIntent.OpenUrl -> stringResource(R.string.search_open, intent.url.substringAfter("://").trimEnd('/').uppercase())
+                            is SearchIntent.OpenApp<*> -> stringResource(R.string.search_open, (intent.app as SearchItem).app.label.uppercase())
+                            is SearchIntent.WebSearch -> stringResource(R.string.search_web, intent.text)
                         }
                         Box(
                             Modifier.fillMaxWidth().padding(top = 8.dp).height(UsosDimens.MinTouch + 8.dp)
@@ -171,7 +173,7 @@ fun SearchOverlay(
                                 .border(1.dp, LocalAccent.current, askShape)
                                 .tap { onAsk(query) }.padding(horizontal = 16.dp),
                             contentAlignment = Alignment.CenterStart,
-                        ) { UsosText("PREGUNTA A $assistantName “${query.trim()}”", UsosType.Button, LocalAccent.current, maxLines = 1) }
+                        ) { UsosText(stringResource(R.string.search_ask, assistantName, query.trim()), UsosType.Button, LocalAccent.current, maxLines = 1) }
                     }
                 }
                 if (showSettings) {
@@ -182,18 +184,18 @@ fun SearchOverlay(
                                 .border(1.dp, LocalAccent.current, RoundedCornerShape(UsosDimens.RadiusPiece))
                                 .tap { onOpenSettings() }.padding(horizontal = 16.dp),
                             contentAlignment = Alignment.CenterStart,
-                        ) { UsosText("AJUSTES", UsosType.Button, LocalAccent.current) }
+                        ) { UsosText(stringResource(R.string.search_settings), UsosType.Button, LocalAccent.current) }
                     }
                 }
                 if (groups.isEmpty() && !showSettings) {
                     item(key = "empty") {
-                        UsosText("Nada con ese nombre.", UsosType.Empty, UsosColors.TextSecondary, Modifier.padding(vertical = 8.dp))
+                        UsosText(stringResource(R.string.search_nothing), UsosType.Empty, UsosColors.TextSecondary, Modifier.padding(vertical = 8.dp))
                     }
                 }
                 groups.forEach { group ->
                     item(key = "h-" + group.section.name) {
                         UsosText(
-                            group.section.title.uppercase(), UsosType.Label, UsosColors.TextSecondary,
+                            stringResource(group.section.titleRes).uppercase(), UsosType.Label, UsosColors.TextSecondary,
                             Modifier.padding(top = 14.dp, bottom = 8.dp),
                         )
                     }
@@ -203,7 +205,7 @@ fun SearchOverlay(
                 }
                 if (suggestions.isNotEmpty()) {
                     item(key = "h-suggest") {
-                        UsosText("SUGERENCIAS", UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 14.dp, bottom = 4.dp))
+                        UsosText(stringResource(R.string.search_suggestions), UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 14.dp, bottom = 4.dp))
                     }
                     items(suggestions, key = { "s-" + it }) { text ->
                         Box(
@@ -233,7 +235,7 @@ fun SearchOverlay(
                 .padding(horizontal = 20.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
-            if (query.isEmpty()) UsosText("BUSCAR", UsosType.SearchHint, UsosColors.TextSecondary)
+            if (query.isEmpty()) UsosText(stringResource(R.string.search_hint), UsosType.SearchHint, UsosColors.TextSecondary)
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
@@ -284,7 +286,7 @@ private fun SmallTile(
         Column {
             UsosText(item.app.label.uppercase(), UsosType.SmallName, nameColor)
             if (item.frozen) {
-                UsosText("OCIO · CONGELADA", UsosType.SmallTag, LocalAccent.current, maxLines = 2)
+                UsosText(stringResource(R.string.search_leisure_frozen), UsosType.SmallTag, LocalAccent.current, maxLines = 2)
             }
         }
     }

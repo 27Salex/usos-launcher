@@ -1,5 +1,8 @@
 package com.usos.launcher.ui.settings
 
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
+import com.usos.launcher.R
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
@@ -85,19 +88,19 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin,
             ),
     ) {
-        ScreenHeader("Primer arranque", onBack = onFinish)
+        ScreenHeader(stringResource(R.string.onboarding_title), onBack = onFinish)
         Spacer(Modifier.height(8.dp))
         UsosText(
-            "CUATRO PASOS. PUEDES SALTARLOS Y VOLVER DESDE AJUSTES (PULSACIÓN LARGA EN EL RELOJ).",
+            stringResource(R.string.onboarding_intro),
             UsosType.Label, UsosColors.TextSecondary, maxLines = 3,
         )
         Spacer(Modifier.height(20.dp))
 
         Step(
-            "1 · APP DE INICIO", ok = homeOk,
-            text = "Para que el botón de inicio abra Usos.",
+            stringResource(R.string.onboarding_step1_title), ok = homeOk,
+            text = stringResource(R.string.onboarding_step1_text),
         ) {
-            UsosPill("ELEGIR USOS COMO INICIO", filled = !homeOk, modifier = Modifier.fillMaxWidth(), onClick = {
+            UsosPill(stringResource(R.string.onboarding_pick_home), filled = !homeOk, modifier = Modifier.fillMaxWidth(), onClick = {
                 val rm = context.getSystemService(RoleManager::class.java)
                 if (rm.isRoleAvailable(RoleManager.ROLE_HOME)) {
                     roleLauncher.launch(rm.createRequestRoleIntent(RoleManager.ROLE_HOME))
@@ -107,36 +110,34 @@ fun OnboardingScreen(onFinish: () -> Unit) {
             })
         }
         Step(
-            "2 · ACCESIBILIDAD", ok = accessOk,
-            text = "Permite congelar las apps de ocio aunque las abras desde una notificación. Solo detecta qué app se abre, no lee la pantalla. " +
-                "Si Android la muestra atenuada (\"ajuste restringido\", por instalar fuera de la tienda): " +
-                "Info de la app > ⋮ (arriba a la derecha) > Permitir ajustes restringidos, y vuelve aquí.",
+            stringResource(R.string.onboarding_step2_title), ok = accessOk,
+            text = stringResource(R.string.onboarding_step2_text),
         ) {
-            UsosPill("ABRIR INFO DE LA APP", filled = false, modifier = Modifier.fillMaxWidth(),
+            UsosPill(stringResource(R.string.onboarding_open_app_info), filled = false, modifier = Modifier.fillMaxWidth(),
                 onClick = { start(context, appDetails(context)) })
             Spacer(Modifier.height(8.dp))
-            UsosPill("ABRIR ACCESIBILIDAD", filled = !accessOk, modifier = Modifier.fillMaxWidth(),
+            UsosPill(stringResource(R.string.onboarding_open_accessibility), filled = !accessOk, modifier = Modifier.fillMaxWidth(),
                 onClick = { start(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) })
         }
         Step(
-            "3 · ACCESO A DATOS DE USO", ok = usageOk,
-            text = "Para mostrar el tiempo de uso y el almacenamiento de cada app.",
+            stringResource(R.string.onboarding_step3_title), ok = usageOk,
+            text = stringResource(R.string.onboarding_step3_text),
         ) {
-            UsosPill("ABRIR ACCESO A DATOS DE USO", filled = !usageOk, modifier = Modifier.fillMaxWidth(), onClick = {
+            UsosPill(stringResource(R.string.onboarding_open_usage), filled = !usageOk, modifier = Modifier.fillMaxWidth(), onClick = {
                 start(context, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:" + context.packageName)))
             })
         }
         Step(
-            "4 · BATERÍA", ok = null,
-            text = batteryHint(android.os.Build.MANUFACTURER),
+            stringResource(R.string.onboarding_step4_title), ok = null,
+            text = stringResource(R.string.onboarding_battery_hint, stringResource(batteryDetailRes(android.os.Build.MANUFACTURER))),
         ) {
-            UsosPill("ABRIR INFO DE LA APP", filled = false, modifier = Modifier.fillMaxWidth(),
+            UsosPill(stringResource(R.string.onboarding_open_app_info), filled = false, modifier = Modifier.fillMaxWidth(),
                 onClick = { start(context, appDetails(context)) })
         }
 
         Spacer(Modifier.height(12.dp))
         val allOk = homeOk && accessOk && usageOk
-        UsosPill(if (allOk) "LISTO" else "SALTAR POR AHORA", filled = allOk, onClick = onFinish, modifier = Modifier.fillMaxWidth())
+        UsosPill(stringResource(if (allOk) R.string.done else R.string.onboarding_skip), filled = allOk, onClick = onFinish, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -155,7 +156,7 @@ private fun Step(title: String, ok: Boolean?, text: String, actions: @Composable
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             UsosText(title, UsosType.PanelState, UsosColors.Text, Modifier.weight(1f, fill = false))
             UsosText(
-                when (ok) { true -> "HECHO"; false -> "PENDIENTE"; null -> "MANUAL" },
+                stringResource(when (ok) { true -> R.string.onboarding_done; false -> R.string.onboarding_pending; null -> R.string.onboarding_manual }),
                 UsosType.Label, if (ok == true) LocalAccent.current else UsosColors.TextSecondary,
             )
         }
@@ -166,16 +167,15 @@ private fun Step(title: String, ok: Boolean?, text: String, actions: @Composable
     }
 }
 
-/** Pasos de batería para que el sistema no detenga el servicio, adaptados al fabricante. */
-fun batteryHint(manufacturer: String): String {
+/** Pasos de batería para que el sistema no detenga el servicio, adaptados al fabricante (recurso por fabricante). */
+@StringRes
+fun batteryDetailRes(manufacturer: String): Int {
     val m = manufacturer.lowercase()
-    val detail = when {
-        "samsung" in m -> "Batería > Límites de uso en segundo plano > Apps que nunca se suspenden > añade Usos."
-        "xiaomi" in m || "redmi" in m || "poco" in m ->
-            "Info de la app > Ahorro de batería > Sin restricciones, y activa el inicio automático."
-        "oppo" in m || "realme" in m || "oneplus" in m -> "Info de la app > Uso de batería > Permitir actividad en segundo plano."
-        "huawei" in m || "honor" in m -> "Batería > Inicio de aplicaciones > Usos > gestionar manualmente (todo activado)."
-        else -> "Ajustes > Apps > Usos > Batería > Sin restricciones."
+    return when {
+        "samsung" in m -> R.string.onboarding_battery_samsung
+        "xiaomi" in m || "redmi" in m || "poco" in m -> R.string.onboarding_battery_xiaomi
+        "oppo" in m || "realme" in m || "oneplus" in m -> R.string.onboarding_battery_oppo
+        "huawei" in m || "honor" in m -> R.string.onboarding_battery_huawei
+        else -> R.string.onboarding_battery_generic
     }
-    return "Para que el sistema no detenga el servicio: $detail O bien Info de la app > Batería > Sin restricciones."
 }

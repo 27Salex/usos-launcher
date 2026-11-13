@@ -25,7 +25,7 @@ sealed interface Fetched {
 }
 
 class HttpException(val code: Int) : IOException("HTTP $code")
-class NotAFeedException : IOException("NO ES UN FEED")
+class NotAFeedException : IOException("NOT_A_FEED")
 
 /** Descarga y analiza un feed. Interfaz para poder sustituirla en tests. */
 interface FeedFetcher {
@@ -86,9 +86,10 @@ sealed interface AddOutcome {
 }
 
 object FeedErrors {
-    const val INVALID = "URL NO VÁLIDA"
-    const val NOT_A_FEED = "NO ES UN FEED"
-    const val OFFLINE = "SIN CONEXIÓN"
+    // Códigos, no texto: la UI los traduce (ver FeedsViewModel.errorText).
+    const val INVALID = "INVALID"
+    const val NOT_A_FEED = "NOT_A_FEED"
+    const val OFFLINE = "OFFLINE"
     fun http(code: Int) = "HTTP $code"
 }
 
@@ -283,8 +284,25 @@ class ThumbnailLoader(private val http: OkHttpClient) {
     }
 }
 
-/** Feeds que se crean en el primer arranque (URLs verificadas con curl: RSS 2.0 valido). */
+/**
+ * Feeds que se crean en el primer arranque (URLs verificadas con curl: RSS/Atom valido). [list] es el conjunto
+ * en español (el de siempre); [english] el de quien instala con la app en inglés. Solo se siembra con la base vacia.
+ */
 object DefaultFeeds {
+    val english: List<Pair<String, String>> = listOf(
+        "BBC News" to "https://feeds.bbci.co.uk/news/rss.xml",
+        "The Guardian" to "https://www.theguardian.com/world/rss",
+        "NPR News" to "https://feeds.npr.org/1001/rss.xml",
+        "The Verge" to "https://www.theverge.com/rss/index.xml",
+        "Ars Technica" to "https://feeds.arstechnica.com/arstechnica/index",
+        "Hacker News" to "https://news.ycombinator.com/rss",
+        "TechCrunch" to "https://techcrunch.com/feed/",
+        "9to5Google" to "https://9to5google.com/feed/",
+    )
+
+    /** Conjunto según el idioma de la app (recurso `feeds_language`: «es» / «en»). */
+    fun forLanguage(language: String): List<Pair<String, String>> = if (language == "en") english else list
+
     val list: List<Pair<String, String>> = listOf(
         "El País" to "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",
         "elDiario.es" to "https://www.eldiario.es/rss/",

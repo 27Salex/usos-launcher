@@ -1,5 +1,8 @@
 package com.usos.launcher.data.weather
 
+import androidx.annotation.StringRes
+import com.usos.launcher.R
+
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -43,9 +46,9 @@ object Weather {
             "&current=temperature_2m,weather_code,is_day" +
             "&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto"
 
-    fun geocodeUrl(name: String): String =
+    fun geocodeUrl(name: String, language: String = "es"): String =
         "https://geocoding-api.open-meteo.com/v1/search?name=" +
-            java.net.URLEncoder.encode(name.trim(), "UTF-8") + "&count=6&language=es&format=json"
+            java.net.URLEncoder.encode(name.trim(), "UTF-8") + "&count=6&language=$language&format=json"
 
     fun isFresh(fetchedAt: Long, now: Long): Boolean = now - fetchedAt in 0 until CACHE_MS
     fun isVisible(fetchedAt: Long, now: Long): Boolean = now - fetchedAt in 0 until VISIBLE_MS
@@ -75,20 +78,21 @@ object Weather {
         }
     }.getOrDefault(emptyList())
 
-    /** Texto de estado (WMO weather_code) en español y mayusculas. */
-    fun text(code: Int): String = when (code) {
-        0 -> "DESPEJADO"
-        1 -> "CASI DESPEJADO"
-        2 -> "NUBES Y CLAROS"
-        3 -> "NUBES"
-        45, 48 -> "NIEBLA"
-        in 51..57 -> "LLOVIZNA"
-        in 61..67 -> "LLUVIA"
-        in 71..77 -> "NIEVE"
-        in 80..82 -> "CHUBASCOS"
-        85, 86 -> "NIEVE"
-        95, 96, 99 -> "TORMENTA"
-        else -> "VARIABLE"
+    /** Recurso del texto de estado (WMO weather_code); cada idioma lo traduce en strings.xml. */
+    @StringRes
+    fun textRes(code: Int): Int = when (code) {
+        0 -> R.string.weather_clear
+        1 -> R.string.weather_mostly_clear
+        2 -> R.string.weather_partly_cloudy
+        3 -> R.string.weather_clouds
+        45, 48 -> R.string.weather_fog
+        in 51..57 -> R.string.weather_drizzle
+        in 61..67 -> R.string.weather_rain
+        in 71..77 -> R.string.weather_snow
+        in 80..82 -> R.string.weather_showers
+        85, 86 -> R.string.weather_snow
+        95, 96, 99 -> R.string.weather_thunderstorm
+        else -> R.string.weather_variable
     }
 
     fun icon(code: Int, isDay: Boolean): WeatherIconKind = when (code) {
@@ -107,10 +111,10 @@ object Weather {
         return Math.round(v).toInt()
     }
 
-    /** «14° · NUBES», o «14°» / «14° · NUBES · 9°/18°» segun las opciones. */
-    fun label(w: WeatherNow, fahrenheit: Boolean, showText: Boolean, showMinMax: Boolean): String {
+    /** «14° · NUBES», o «14°» / «14° · NUBES · 9°/18°» segun las opciones; [statusText] ya traducido (null = sin texto). */
+    fun label(w: WeatherNow, fahrenheit: Boolean, statusText: String?, showMinMax: Boolean): String {
         val parts = mutableListOf("${degrees(w.tempC, fahrenheit)}°")
-        if (showText) parts += text(w.code)
+        if (statusText != null) parts += statusText
         if (showMinMax && w.minC != null && w.maxC != null) {
             parts += "${degrees(w.minC, fahrenheit)}°/${degrees(w.maxC, fahrenheit)}°"
         }

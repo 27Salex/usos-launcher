@@ -55,8 +55,8 @@ class ReadTokensTest {
     @Test
     fun labelAndPerHourRange() {
         val s = TokenState(1, at(18, 5))
-        assertEquals("+1 A LAS 18:17", ReadTokens.nextLabel(s, 5, zone))
-        assertNull(ReadTokens.nextLabel(TokenState(5, at(18)), 5, zone))
+        assertEquals("18:17", ReadTokens.nextTime(s, 5, zone))
+        assertNull(ReadTokens.nextTime(TokenState(5, at(18)), 5, zone))
         assertEquals(3, ReadTokens.max(1))
         assertEquals(10, ReadTokens.max(99))
     }

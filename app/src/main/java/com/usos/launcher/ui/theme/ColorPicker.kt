@@ -1,5 +1,7 @@
 package com.usos.launcher.ui.theme
 
+import androidx.compose.ui.res.stringResource
+import com.usos.launcher.R
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -147,7 +149,7 @@ fun ColorPicker(initial: Int, recent: List<Int>, onCommit: (Int) -> Unit, modifi
         }
 
         if (recent.isNotEmpty()) {
-            UsosText("RECIENTES", UsosType.Label, UsosColors.TextSecondary)
+            UsosText(stringResource(R.string.color_recent), UsosType.Label, UsosColors.TextSecondary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 recent.take(8).forEach { c ->
                     Box(

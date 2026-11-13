@@ -113,7 +113,7 @@ class WeatherRepository(
         if (query.trim().length < 2) return emptyList()
         return withContext(Dispatchers.IO) {
             runCatching {
-                http.newCall(Request.Builder().url(Weather.geocodeUrl(query)).build()).execute().use { r ->
+                http.newCall(Request.Builder().url(Weather.geocodeUrl(query, java.util.Locale.getDefault().language.takeIf { it.length == 2 } ?: "en")).build()).execute().use { r ->
                     if (r.isSuccessful) Weather.parseGeocoding(r.body.string()) else emptyList()
                 }
             }.getOrDefault(emptyList())

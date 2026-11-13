@@ -1,5 +1,7 @@
 package com.usos.launcher.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.usos.launcher.R
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -226,9 +228,9 @@ fun EditTopBar(onDone: () -> Unit, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText("EDITANDO", UsosType.Button, accent)
+        UsosText(stringResource(R.string.edit_editing), UsosType.Button, accent)
         Box(Modifier.height(34.dp).pressGestures { onDone() }.padding(start = 24.dp), contentAlignment = Alignment.CenterEnd) {
-            UsosText("LISTO", UsosType.Button, UsosColors.Text)
+            UsosText(stringResource(R.string.done), UsosType.Button, UsosColors.Text)
         }
     }
 }
@@ -244,7 +246,7 @@ fun RemoveZone(hover: Boolean, modifier: Modifier = Modifier) {
             .dashedBorder(if (hover) accent else UsosColors.Text, UsosDimens.RadiusSearch),
         contentAlignment = Alignment.Center,
     ) {
-        UsosText("QUITAR DE INICIO", UsosType.Button, if (hover) LocalOnAccent.current else UsosColors.Text)
+        UsosText(stringResource(R.string.edit_remove_from_home), UsosType.Button, if (hover) LocalOnAccent.current else UsosColors.Text)
     }
 }
 
@@ -257,7 +259,7 @@ fun RowsControl(rows: Int, onDelta: (Int) -> Unit) {
         horizontalArrangement = Arrangement.Center,
     ) {
         UsosPill("−", filled = false, onClick = { onDelta(-1) }, modifier = Modifier.width(64.dp))
-        UsosText("FILAS $rows", UsosType.Button, UsosColors.Text, Modifier.padding(horizontal = 20.dp))
+        UsosText(stringResource(R.string.edit_rows, rows), UsosType.Button, UsosColors.Text, Modifier.padding(horizontal = 20.dp))
         UsosPill("+", filled = false, onClick = { onDelta(1) }, modifier = Modifier.width(64.dp))
     }
 }
@@ -286,25 +288,25 @@ fun AddPicker(
         ) {
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 BackGlyph(onClose)
-                UsosText("AÑADIR A ${section.title.uppercase()}", UsosType.Button, accent)
+                UsosText(stringResource(R.string.edit_add_to, stringResource(section.titleRes).uppercase()), UsosType.Button, accent)
             }
             Box(Modifier.height(UsosDimens.MinTouch).pressGestures { onClose() }.padding(start = 16.dp), contentAlignment = Alignment.CenterEnd) {
-                UsosText("CERRAR", UsosType.Button, UsosColors.Text)
+                UsosText(stringResource(R.string.close), UsosType.Button, UsosColors.Text)
             }
         }
         LazyColumn(Modifier.fillMaxSize()) {
             if (!showOthers) {
                 if (own.isEmpty()) {
-                    item { UsosText("No quedan apps de esta sección.", UsosType.Empty, UsosColors.TextSecondary, Modifier.padding(vertical = 8.dp)) }
+                    item { UsosText(stringResource(R.string.edit_no_apps_left), UsosType.Empty, UsosColors.TextSecondary, Modifier.padding(vertical = 8.dp)) }
                 }
                 items(own, key = { it.config.key }) { PickerRow(it, null, onPick) }
                 item {
                     Box(Modifier.fillMaxWidth().height(UsosDimens.MinTouch + 8.dp).pressGestures { showOthers = true }, contentAlignment = Alignment.CenterStart) {
-                        UsosText("OTRAS…", UsosType.Button, accent)
+                        UsosText(stringResource(R.string.edit_others), UsosType.Button, accent)
                     }
                 }
             } else {
-                items(others, key = { it.second.config.key }) { (s, app) -> PickerRow(app, s.title.uppercase(), onPick) }
+                items(others, key = { it.second.config.key }) { (s, app) -> PickerRow(app, stringResource(s.titleRes).uppercase(), onPick) }
             }
         }
     }

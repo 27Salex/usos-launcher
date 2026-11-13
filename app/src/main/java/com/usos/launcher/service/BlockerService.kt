@@ -1,5 +1,7 @@
 package com.usos.launcher.service
 
+import androidx.annotation.StringRes
+import com.usos.launcher.R
 import android.accessibilityservice.AccessibilityService
 import android.content.ComponentName
 import android.content.Context
@@ -19,10 +21,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Aviso del servicio al launcher (mismo proceso). El launcher lo consume y lo muestra en la barra. */
-data class LauncherAlert(val text: String, val revealLeisure: Boolean, val atMs: Long = SystemClock.elapsedRealtime()) {
+data class LauncherAlert(@StringRes val textRes: Int, val revealLeisure: Boolean, val atMs: Long = SystemClock.elapsedRealtime()) {
     companion object {
-        const val FROZEN = "CONGELADA"
-        const val FROZEN_AGAIN = "OCIO CONGELADO DE NUEVO"
+        val FROZEN = R.string.alert_frozen
+        val FROZEN_AGAIN = R.string.alert_frozen_again
     }
 }
 

@@ -1,14 +1,18 @@
 package com.usos.launcher.data.feeds
 
 object FeedFormat {
-    /** Antigüedad corta para la tarjeta: AHORA, 12 MIN, 3 H, 2 D. */
-    fun age(publishedAt: Long, now: Long): String {
+    enum class AgeUnit { NOW, MIN, HOUR, DAY }
+
+    /** Antigüedad corta para la tarjeta (la UI la escribe según el idioma): ahora, 12 min, 3 h, 2 d. */
+    data class Age(val unit: AgeUnit, val value: Int)
+
+    fun age(publishedAt: Long, now: Long): Age {
         val min = ((now - publishedAt) / 60_000L).coerceAtLeast(0)
         return when {
-            min < 1 -> "AHORA"
-            min < 60 -> "$min MIN"
-            min < 24 * 60 -> "${min / 60} H"
-            else -> "${min / (24 * 60)} D"
+            min < 1 -> Age(AgeUnit.NOW, 0)
+            min < 60 -> Age(AgeUnit.MIN, min.toInt())
+            min < 24 * 60 -> Age(AgeUnit.HOUR, (min / 60).toInt())
+            else -> Age(AgeUnit.DAY, (min / (24 * 60)).toInt())
         }
     }
 

@@ -217,18 +217,18 @@ fun WidgetsPage(
         Column(Modifier.fillMaxSize().padding(horizontal = UsosDimens.ScreenMargin)) {
             Spacer(Modifier.height(topSpacing))
             Row(Modifier.fillMaxWidth().height(UsosDimens.MinTouch), verticalAlignment = Alignment.CenterVertically) {
-                UsosText("Widgets", UsosType.PanelTitle, UsosColors.Text, Modifier.weight(1f))
-                UsosPill(if (editing) "LISTO" else "EDITAR", filled = editing, onClick = { onEditingChange(!editing) })
+                UsosText(stringResource(R.string.widgets_title), UsosType.PanelTitle, UsosColors.Text, Modifier.weight(1f))
+                UsosPill(stringResource(if (editing) R.string.done else R.string.widgets_edit), filled = editing, onClick = { onEditingChange(!editing) })
                 if (editing) {
                     Spacer(Modifier.size(8.dp))
-                    UsosPill("AÑADIR", filled = true, onClick = { picking = true })
+                    UsosPill(stringResource(R.string.widgets_add), filled = true, onClick = { picking = true })
                 }
                 SettingsGlyph(onOpenSettings, Modifier.offset(x = 12.dp))
             }
             Spacer(Modifier.height(16.dp))
             if (widgets.isEmpty()) {
                 UsosText(
-                    if (editing) "Sin widgets. Pulsa AÑADIR." else "Sin widgets. Pulsa EDITAR para añadir el primero.",
+                    stringResource(if (editing) R.string.widgets_empty_editing else R.string.widgets_empty),
                     UsosType.Empty, UsosColors.TextSecondary, maxLines = 2,
                 )
             } else {
@@ -402,7 +402,7 @@ private fun WidgetBox(
                     .pressGestures(longMs = 600, onLongPress = onLongPress) { }.padding(16.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                UsosText("WIDGET NO DISPONIBLE", UsosType.Label, UsosColors.TextSecondary)
+                UsosText(stringResource(R.string.widgets_unavailable), UsosType.Label, UsosColors.TextSecondary)
             }
         } else {
             AndroidView(

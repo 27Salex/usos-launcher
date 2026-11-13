@@ -74,8 +74,8 @@ class FeedDiscoveryTest {
     @Test
     fun formatHelpers() {
         val now = 1_000_000_000L
-        assertEquals("12 MIN", FeedFormat.age(now - 12 * 60_000, now))
-        assertEquals("2 D", FeedFormat.age(now - 49 * 3_600_000, now))
+        assertEquals(FeedFormat.Age(FeedFormat.AgeUnit.MIN, 12), FeedFormat.age(now - 12 * 60_000, now))
+        assertEquals(FeedFormat.Age(FeedFormat.AgeUnit.DAY, 2), FeedFormat.age(now - 49 * 3_600_000, now))
         assertTrue(FeedFormat.needsRefresh(null, now))
         assertFalse(FeedFormat.needsRefresh(now - 9 * 60_000, now))
         assertTrue(FeedFormat.needsRefresh(now - 11 * 60_000, now))

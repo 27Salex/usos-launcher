@@ -1,5 +1,8 @@
 package com.usos.launcher.ui.settings
 
+import androidx.annotation.StringRes
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.remember
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -141,9 +144,11 @@ class SettingsUi(
 )
 
 /** Categorías de la pantalla principal de Ajustes: clave guardada, título y orden. */
-private enum class Cat(val title: String) {
-    HOME("INICIO"), CLOCK("RELOJ"), WEATHER("TIEMPO"), SEARCH("BÚSQUEDA E IA"), LEISURE("OCIO"),
-    WIDGETS("WIDGETS"), NEWS("NOTICIAS"), LOOK("APARIENCIA"), SYSTEM("SISTEMA"),
+private enum class Cat(@StringRes val titleRes: Int) {
+    HOME(R.string.settings_cat_home), CLOCK(R.string.settings_cat_clock), WEATHER(R.string.settings_cat_weather),
+    SEARCH(R.string.settings_cat_search), LEISURE(R.string.settings_cat_leisure),
+    WIDGETS(R.string.settings_cat_widgets), NEWS(R.string.settings_cat_news), LOOK(R.string.settings_cat_look),
+    SYSTEM(R.string.settings_cat_system),
 }
 
 @Composable
@@ -165,16 +170,16 @@ fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
             ),
     ) {
         if (cat == null) {
-            ScreenHeader("Ajustes", onBack = goBack)
+            ScreenHeader(stringResource(R.string.settings_title), onBack = goBack)
             Spacer(Modifier.height(12.dp))
             Cat.entries.forEach { c ->
                 Column(Modifier.fillMaxWidth().tap { page = c.name }.padding(vertical = 10.dp)) {
-                    UsosText(c.title, UsosType.SectionName, UsosColors.Text)
+                    UsosText(stringResource(c.titleRes), UsosType.SectionName, UsosColors.Text)
                     UsosText(summary(c, ui), UsosType.Label, UsosColors.TextSecondary, maxLines = 1)
                 }
             }
         } else {
-            ScreenHeader(cat.title, onBack = goBack)
+            ScreenHeader(stringResource(cat.titleRes), onBack = goBack)
             Spacer(Modifier.height(4.dp))
             when (cat) {
                 Cat.HOME -> HomeSettings(ui, actions)
@@ -191,30 +196,36 @@ fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
     }
 }
 
-private fun onOff(b: Boolean) = if (b) "SÍ" else "NO"
+@Composable
+private fun onOff(b: Boolean) = stringResource(if (b) R.string.yes else R.string.no)
 
 /** Resumen mono gris bajo el nombre de cada categoría. */
+@Composable
 private fun summary(c: Cat, ui: SettingsUi): String = when (c) {
-    Cat.HOME -> "${ui.mosaic.columns} COLUMNAS · ORDEN · PIEZAS"
-    Cat.CLOCK -> ui.clock.type.label + if (ui.clock.seconds) " · SEGUNDOS" else ""
-    Cat.WEATHER -> if (ui.weather.on) "ACTIVADO" else "APAGADO"
-    Cat.SEARCH -> ui.searchEngine.label + " · IA " + (ui.assistant.resolved?.assistant?.label ?: "NINGUNA")
-    Cat.LEISURE -> "${ui.budget} MIN · ESPERA ${ui.wait} S"
-    Cat.WIDGETS -> "GRISES " + onOff(ui.grayscale)
-    Cat.NEWS -> "${ui.feedsPerHour} LECTURAS/H · ${ui.feedsKeep} POR FEED"
-    Cat.LOOK -> "ACENTO · ICONOS " + ui.icons.mode.label
-    Cat.SYSTEM -> "PERMISOS · FONDO · v" + ui.versionName
+    Cat.HOME -> stringResource(R.string.settings_sum_home, ui.mosaic.columns)
+    Cat.CLOCK -> stringResource(ui.clock.type.labelRes) +
+        if (ui.clock.seconds) stringResource(R.string.settings_sum_seconds_suffix) else ""
+    Cat.WEATHER -> stringResource(if (ui.weather.on) R.string.settings_sum_on else R.string.settings_sum_off)
+    Cat.SEARCH -> stringResource(
+        R.string.settings_sum_search, ui.searchEngine.label,
+        ui.assistant.resolved?.assistant?.label ?: stringResource(R.string.settings_sum_ai_none),
+    )
+    Cat.LEISURE -> stringResource(R.string.settings_sum_leisure, ui.budget, ui.wait)
+    Cat.WIDGETS -> stringResource(R.string.settings_sum_widgets, onOff(ui.grayscale))
+    Cat.NEWS -> stringResource(R.string.settings_sum_news, ui.feedsPerHour, ui.feedsKeep)
+    Cat.LOOK -> stringResource(R.string.settings_sum_look, stringResource(ui.icons.mode.labelRes))
+    Cat.SYSTEM -> stringResource(R.string.settings_sum_system, ui.versionName)
 }
 
 @Composable
 private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
-    SubHeading("COLUMNAS DEL MOSAICO")
+    SubHeading(stringResource(R.string.settings_home_columns))
     Choice(listOf("3", "4"), if (ui.mosaic.columns == 4) 1 else 0, 2) { actions.onColumns(if (it == 1) 4 else 3) }
-    SubHeading("MOSAICO POR SECCIÓN (FILAS)", top = 4.dp)
+    SubHeading(stringResource(R.string.settings_home_rows), top = 4.dp)
     Section.home.forEach { s ->
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            UsosText(s.title.uppercase(), UsosType.Label, UsosColors.Text, Modifier.width(88.dp))
+            UsosText(stringResource(s.titleRes).uppercase(), UsosType.Label, UsosColors.Text, Modifier.width(88.dp))
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 (1..4).forEach { n ->
                     UsosPill(n.toString(), filled = n == ui.mosaic.rowsFor(s), onClick = { actions.onRows(s, n) }, modifier = Modifier.weight(1f))
@@ -222,19 +233,19 @@ private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
             }
         }
     }
-    SubHeading("PIEZAS DE INFORMACIÓN", top = 4.dp)
+    SubHeading(stringResource(R.string.settings_home_info), top = 4.dp)
     InfoKind.entries.forEach { k ->
         val spec = ui.infoSpecs.values.firstOrNull { it.kind == k } ?: return@forEach
         if (!spec.available && k == InfoKind.MAPS) return@forEach
-        UsosRow(if (k == InfoKind.AGENDA) "AGENDA" else "IR A CASA") {
+        UsosRow(stringResource(if (k == InfoKind.AGENDA) R.string.settings_info_agenda else R.string.settings_info_go_home)) {
             UsosSwitch(!spec.hidden, { actions.onInfoHidden(k, !it) })
         }
         Choice(TileSize.entries.map { it.label }, TileSize.entries.indexOf(spec.size), 4) { actions.onInfoSize(k, TileSize.entries[it]) }
     }
-    UsosPill("EDITAR INICIO", filled = false, onClick = actions.onEditMosaic, modifier = Modifier.fillMaxWidth())
+    UsosPill(stringResource(R.string.settings_edit_home), filled = false, onClick = actions.onEditMosaic, modifier = Modifier.fillMaxWidth())
     Spacer(Modifier.height(12.dp))
-    SubHeading("ORDEN DE APPS")
-    UsosText("Las primeras entran al mosaico (●).", UsosType.Label, UsosColors.TextSecondary)
+    SubHeading(stringResource(R.string.settings_app_order))
+    UsosText(stringResource(R.string.settings_app_order_hint), UsosType.Label, UsosColors.TextSecondary)
     Spacer(Modifier.height(8.dp))
     ui.orderLists.forEach { (section, placed) ->
         val open = expanded == section.name
@@ -243,7 +254,7 @@ private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            UsosText(section.title, UsosType.SectionName.copy(fontSize = 22.sp), UsosColors.Text)
+            UsosText(stringResource(section.titleRes), UsosType.SectionName.copy(fontSize = 22.sp), UsosColors.Text)
             UsosText(if (open) "—" else placed.size.toString(), UsosType.SectionData, UsosColors.TextSecondary)
         }
         if (open) {
@@ -267,18 +278,18 @@ private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
 @Composable
 private fun ClockSettings(ui: SettingsUi, actions: SettingsActions) {
     var pickingApp by rememberSaveable { mutableStateOf(false) }
-    SubHeading("TIPO")
-    Choice(ClockType.entries.map { it.label }, ClockType.entries.indexOf(ui.clock.type), 2) {
+    SubHeading(stringResource(R.string.settings_clock_type))
+    Choice(ClockType.entries.map { stringResource(it.labelRes) }, ClockType.entries.indexOf(ui.clock.type), 2) {
         actions.onClockType(ClockType.entries[it])
     }
-    UsosRow("SEGUNDOS") { UsosSwitch(ui.clock.seconds, actions.onClockSeconds) }
-    UsosRow("RELOJ ANIMADO") { UsosSwitch(ui.clock.animated, actions.onClockAnimated) }
-    UsosText("Animación muy sutil; se desactiva con las animaciones reducidas del sistema.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+    UsosRow(stringResource(R.string.settings_clock_seconds)) { UsosSwitch(ui.clock.seconds, actions.onClockSeconds) }
+    UsosRow(stringResource(R.string.settings_clock_animated)) { UsosSwitch(ui.clock.animated, actions.onClockAnimated) }
+    UsosText(stringResource(R.string.settings_clock_animated_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
     Spacer(Modifier.height(12.dp))
-    SubHeading("AL TOCAR EL RELOJ")
+    SubHeading(stringResource(R.string.settings_clock_tap))
     val tapApp = ui.clockTap.takeIf { it.startsWith("APP:") }?.removePrefix("APP:")
     val tapIdx = when { ui.clockTap == "NONE" -> 2; tapApp != null -> 1; else -> 0 }
-    Choice(listOf("RELOJ DEL SISTEMA", "ELEGIR APP…", "NADA"), tapIdx, 1) {
+    Choice(listOf(stringResource(R.string.settings_clock_tap_system), stringResource(R.string.settings_clock_tap_pick), stringResource(R.string.settings_clock_tap_nothing)), tapIdx, 1) {
         when (it) {
             0 -> actions.onClockTap("SYSTEM")
             1 -> pickingApp = true
@@ -287,11 +298,11 @@ private fun ClockSettings(ui: SettingsUi, actions: SettingsActions) {
     }
     if (tapApp != null) {
         val label = ui.allApps.firstOrNull { a -> a.packageName == tapApp }?.label ?: tapApp
-        UsosText("APP: ${label.uppercase()}", UsosType.Label, LocalAccent.current)
+        UsosText(stringResource(R.string.settings_clock_tap_app, label.uppercase()), UsosType.Label, LocalAccent.current)
     }
     if (pickingApp) {
         Spacer(Modifier.height(8.dp))
-        UsosText("ELIGE UNA APP", UsosType.Label, UsosColors.TextSecondary)
+        UsosText(stringResource(R.string.settings_pick_app), UsosType.Label, UsosColors.TextSecondary)
         ui.allApps.forEach { a ->
             Box(
                 Modifier.fillMaxWidth().height(UsosDimens.MinTouch).tap { pickingApp = false; actions.onClockTap("APP:" + a.packageName) },
@@ -305,41 +316,41 @@ private fun ClockSettings(ui: SettingsUi, actions: SettingsActions) {
 private fun WeatherSettings(ui: SettingsUi, actions: SettingsActions) {
     val w = ui.weather
     val accent = LocalAccent.current
-    UsosRow("MOSTRAR TIEMPO") { UsosSwitch(w.on, actions.onWeatherOn) }
+    UsosRow(stringResource(R.string.settings_weather_show)) { UsosSwitch(w.on, actions.onWeatherOn) }
     UsosText(
-        "Open-Meteo, sin cuenta. Con ubicación automática se pide el permiso de ubicación aproximada.",
+        stringResource(R.string.settings_weather_hint),
         UsosType.Label, UsosColors.TextSecondary, maxLines = 3,
     )
     if (w.on) {
-        SubHeading("UBICACIÓN", top = 8.dp)
-        Choice(listOf("AUTOMÁTICA", "CIUDAD"), if (w.auto) 0 else 1, 2) { actions.onWeatherAuto(it == 0) }
+        SubHeading(stringResource(R.string.settings_weather_location), top = 8.dp)
+        Choice(listOf(stringResource(R.string.settings_weather_auto), stringResource(R.string.settings_weather_city)), if (w.auto) 0 else 1, 2) { actions.onWeatherAuto(it == 0) }
         if (!w.auto) {
             Spacer(Modifier.height(4.dp))
-            UsosText(if (w.hasCity) "CIUDAD: ${w.cityName.uppercase()}" else "ELIGE UNA CIUDAD", UsosType.Label, accent)
+            UsosText(if (w.hasCity) stringResource(R.string.settings_weather_city_is, w.cityName.uppercase()) else stringResource(R.string.settings_weather_pick_city), UsosType.Label, accent)
             Spacer(Modifier.height(6.dp))
             CityField(ui.cityResults, actions)
         }
-        UsosRow("UNIDADES") {
+        UsosRow(stringResource(R.string.settings_weather_units)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 UsosPill("°C", filled = !w.fahrenheit, onClick = { actions.onWeatherFahrenheit(false) }, modifier = Modifier.width(64.dp))
                 UsosPill("°F", filled = w.fahrenheit, onClick = { actions.onWeatherFahrenheit(true) }, modifier = Modifier.width(64.dp))
             }
         }
-        UsosRow("ICONO") { UsosSwitch(w.icon, actions.onWeatherIcon) }
-        UsosRow("TEXTO DE ESTADO") { UsosSwitch(w.text, actions.onWeatherText) }
-        UsosRow("MÁX / MÍN DEL DÍA") { UsosSwitch(w.minMax, actions.onWeatherMinMax) }
-        SubHeading("POSICIÓN", top = 8.dp)
-        Choice(listOf("JUNTO A LA FECHA", "BAJO EL RELOJ"), if (w.belowClock) 1 else 0, 2) { actions.onWeatherBelow(it == 1) }
-        SubHeading("COLOR")
-        Choice(listOf("BLANCO", "ACENTO"), if (w.accentColor) 1 else 0, 2) { actions.onWeatherAccent(it == 1) }
+        UsosRow(stringResource(R.string.settings_weather_icon)) { UsosSwitch(w.icon, actions.onWeatherIcon) }
+        UsosRow(stringResource(R.string.settings_weather_text)) { UsosSwitch(w.text, actions.onWeatherText) }
+        UsosRow(stringResource(R.string.settings_weather_minmax)) { UsosSwitch(w.minMax, actions.onWeatherMinMax) }
+        SubHeading(stringResource(R.string.settings_weather_position), top = 8.dp)
+        Choice(listOf(stringResource(R.string.settings_weather_pos_date), stringResource(R.string.settings_weather_pos_clock)), if (w.belowClock) 1 else 0, 2) { actions.onWeatherBelow(it == 1) }
+        SubHeading(stringResource(R.string.settings_weather_color))
+        Choice(listOf(stringResource(R.string.settings_color_white), stringResource(R.string.settings_color_accent)), if (w.accentColor) 1 else 0, 2) { actions.onWeatherAccent(it == 1) }
     }
 }
 
 @Composable
 private fun SearchSettings(ui: SettingsUi, actions: SettingsActions) {
-    UsosRow("SUGERENCIAS WEB") { UsosSwitch(ui.suggestionsOn, actions.onSuggestionsOn) }
+    UsosRow(stringResource(R.string.settings_search_suggestions)) { UsosSwitch(ui.suggestionsOn, actions.onSuggestionsOn) }
     UsosText(
-        "Cada pulsación se envía al proveedor elegido (tras 250 ms sin teclear).",
+        stringResource(R.string.settings_search_suggestions_hint),
         UsosType.Label, UsosColors.TextSecondary, maxLines = 2,
     )
     Spacer(Modifier.height(8.dp))
@@ -352,17 +363,17 @@ private fun SearchSettings(ui: SettingsUi, actions: SettingsActions) {
         }
     }
     Spacer(Modifier.height(16.dp))
-    SubHeading("BUSCADOR")
+    SubHeading(stringResource(R.string.settings_search_engine))
     Choice(SearchEngine.entries.map { it.label }, ui.searchEngine.ordinal, 2) { actions.onSearchEngine(SearchEngine.entries[it]) }
-    UsosText("Intro abre URLs, apps con nombre exacto o busca aquí.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+    UsosText(stringResource(R.string.settings_search_engine_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
     Spacer(Modifier.height(12.dp))
-    UsosRow("ABRIR TECLADO AL BUSCAR") { UsosSwitch(ui.searchKeyboard, actions.onSearchKeyboard) }
-    UsosText("Apagado: la búsqueda muestra las apps y el teclado se abre al tocar el campo.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+    UsosRow(stringResource(R.string.settings_search_keyboard)) { UsosSwitch(ui.searchKeyboard, actions.onSearchKeyboard) }
+    UsosText(stringResource(R.string.settings_search_keyboard_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
 
     Spacer(Modifier.height(16.dp))
-    SubHeading("ASISTENTE DE IA")
+    SubHeading(stringResource(R.string.search_assistant))
     val a = ui.assistant
-    val labels = a.installed.map { it.label } + listOf("NINGUNO", "WEB")
+    val labels = a.installed.map { it.label } + listOf(stringResource(R.string.none), stringResource(R.string.settings_ai_web))
     val sel = when {
         a.raw == Assistants.NONE -> a.installed.size
         a.raw?.startsWith("WEB:") == true -> a.installed.size + 1
@@ -377,28 +388,28 @@ private fun SearchSettings(ui: SettingsUi, actions: SettingsActions) {
         }
     }
     if (a.raw?.startsWith("WEB:") == true) {
-        SubHeading("SERVICIO WEB", top = 4.dp)
+        SubHeading(stringResource(R.string.settings_ai_web_service), top = 4.dp)
         Choice(Assistant.entries.map { it.label }, Assistant.entries.indexOf(a.resolved?.assistant), 2) {
             actions.onAssistant(Assistants.webChoice(Assistant.entries[it]))
         }
     }
     UsosText(
-        "Solo se listan los asistentes instalados. Ninguno oculta el botón de IA de inicio y la fila «PREGUNTA A…».",
+        stringResource(R.string.settings_ai_hint),
         UsosType.Label, UsosColors.TextSecondary, maxLines = 3,
     )
 }
 
 @Composable
 private fun LeisureSettings(ui: SettingsUi, actions: SettingsActions) {
-    UsosRow("PRESUPUESTO DIARIO") {
-        Stepper("${ui.budget} MIN",
+    UsosRow(stringResource(R.string.settings_leisure_budget)) {
+        Stepper(stringResource(R.string.home_minutes, ui.budget),
             onMinus = { actions.onBudget(ui.budget - LeisureLimits.BUDGET_STEP_MIN) },
             onPlus = { actions.onBudget(ui.budget + LeisureLimits.BUDGET_STEP_MIN) },
             minusEnabled = ui.budget > LeisureLimits.MIN_BUDGET_MIN,
             plusEnabled = ui.budget < LeisureLimits.MAX_BUDGET_MIN)
     }
-    UsosRow("ESPERA AL DESCONGELAR") {
-        Stepper("${ui.wait} S",
+    UsosRow(stringResource(R.string.settings_leisure_wait)) {
+        Stepper(stringResource(R.string.home_seconds, ui.wait),
             onMinus = { actions.onWait(ui.wait - 5) },
             onPlus = { actions.onWait(ui.wait + 5) },
             minusEnabled = ui.wait > LeisureLimits.MIN_WAIT_SECONDS,
@@ -408,35 +419,35 @@ private fun LeisureSettings(ui: SettingsUi, actions: SettingsActions) {
 
 @Composable
 private fun WidgetsSettings(ui: SettingsUi, actions: SettingsActions) {
-    UsosRow("ESCALA DE GRISES") { UsosSwitch(ui.grayscale, actions.onGrayscale) }
-    UsosText("Apágala para ver los colores originales de los widgets.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+    UsosRow(stringResource(R.string.settings_widgets_gray)) { UsosSwitch(ui.grayscale, actions.onGrayscale) }
+    UsosText(stringResource(R.string.settings_widgets_gray_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
     Spacer(Modifier.height(8.dp))
-    UsosText("Las columnas de la rejilla son las del mosaico de inicio (INICIO).", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+    UsosText(stringResource(R.string.settings_widgets_grid_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
 }
 
 @Composable
 private fun NewsSettings(ui: SettingsUi, actions: SettingsActions) {
-    UsosRow("LECTURAS POR HORA") {
+    UsosRow(stringResource(R.string.settings_news_reads)) {
         Stepper("${ui.feedsPerHour}",
             onMinus = { actions.onFeedsPerHour(ui.feedsPerHour - 1) },
             onPlus = { actions.onFeedsPerHour(ui.feedsPerHour + 1) },
             minusEnabled = ui.feedsPerHour > FeedLimits.MIN_PER_HOUR,
             plusEnabled = ui.feedsPerHour < FeedLimits.MAX_PER_HOUR)
     }
-    UsosText("Abrir un artículo sin leer gasta 1 lectura; el cubo se rellena de forma continua.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+    UsosText(stringResource(R.string.settings_news_reads_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
     Spacer(Modifier.height(12.dp))
-    SubHeading("ARTÍCULOS POR FEED")
+    SubHeading(stringResource(R.string.settings_news_keep))
     Choice(FeedLimits.KEEP_CHOICES.map { it.toString() }, FeedLimits.KEEP_CHOICES.indexOf(ui.feedsKeep).coerceAtLeast(0), 4) {
         actions.onFeedsKeep(FeedLimits.KEEP_CHOICES[it])
     }
-    UsosText("Se conservan los más recientes de cada feed; los guardados (estrella) nunca se borran.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+    UsosText(stringResource(R.string.settings_news_keep_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
     Spacer(Modifier.height(12.dp))
     UsosRow(stringResource(R.string.thumbs_gray).uppercase()) { UsosSwitch(ui.thumbsGray, actions.onThumbsGray) }
 }
 
 @Composable
 private fun LookSettings(ui: SettingsUi, actions: SettingsActions) {
-    SubHeading("ACENTO")
+    SubHeading(stringResource(R.string.settings_look_accent))
     val accent = LocalAccent.current
     val isPreset = UsosColors.AccentChoices.any { it.toArgb() == accent.toArgb() }
     var customOpen by rememberSaveable { mutableStateOf(false) }
@@ -444,19 +455,19 @@ private fun LookSettings(ui: SettingsUi, actions: SettingsActions) {
         UsosColors.AccentChoices.forEach { c ->
             Swatch(c, selected = c.toArgb() == accent.toArgb()) { customOpen = false; actions.onAccent(c.toArgb()) }
         }
-        UsosPill("PERSONALIZADO", filled = !isPreset || customOpen, onClick = { customOpen = !customOpen }, modifier = Modifier.weight(1f))
+        UsosPill(stringResource(R.string.settings_look_custom), filled = !isPreset || customOpen, onClick = { customOpen = !customOpen }, modifier = Modifier.weight(1f))
     }
     if (customOpen) {
         Spacer(Modifier.height(12.dp))
         ColorPicker(accent.toArgb(), ui.recentColors, actions.onCustomAccent)
     }
     Spacer(Modifier.height(12.dp))
-    SubHeading("ICONOS")
-    Choice(IconMode.entries.map { it.label }, IconMode.entries.indexOf(ui.icons.mode), 3) { actions.onIconMode(IconMode.entries[it]) }
+    SubHeading(stringResource(R.string.settings_look_icons))
+    Choice(IconMode.entries.map { stringResource(it.labelRes) }, IconMode.entries.indexOf(ui.icons.mode), 3) { actions.onIconMode(IconMode.entries[it]) }
     if (ui.icons.mode != IconMode.NONE) {
-        UsosRow("MOSTRAR CÓDIGO") { UsosSwitch(ui.icons.showCode, actions.onIconShowCode) }
+        UsosRow(stringResource(R.string.settings_look_show_code)) { UsosSwitch(ui.icons.showCode, actions.onIconShowCode) }
         UsosText(
-            "Con el código apagado el icono lo sustituye. Monocromo usa la capa monocroma de la app.",
+            stringResource(R.string.settings_look_icons_hint),
             UsosType.Label, UsosColors.TextSecondary, maxLines = 2,
         )
     }
@@ -465,32 +476,50 @@ private fun LookSettings(ui: SettingsUi, actions: SettingsActions) {
 @Composable
 private fun SystemSettings(ui: SettingsUi, actions: SettingsActions) {
     var confirmWallpaper by rememberSaveable { mutableStateOf(false) }
-    SubHeading("PERMISOS")
+    LanguageSetting()
+    Spacer(Modifier.height(16.dp))
+    SubHeading(stringResource(R.string.settings_system_permissions))
     if (ui.calendarGranted) {
-        UsosText("Calendario: concedido.", UsosType.Label, UsosColors.TextSecondary)
+        UsosText(stringResource(R.string.settings_system_calendar_granted), UsosType.Label, UsosColors.TextSecondary)
     } else {
-        UsosText("Sin permiso de calendario la pieza de agenda no se dibuja.", UsosType.Label, UsosColors.TextSecondary)
+        UsosText(stringResource(R.string.settings_system_calendar_missing), UsosType.Label, UsosColors.TextSecondary)
         Spacer(Modifier.height(8.dp))
-        UsosPill("CONCEDER CALENDARIO", filled = false, onClick = actions.onCalendarPermission, modifier = Modifier.fillMaxWidth())
+        UsosPill(stringResource(R.string.settings_system_grant_calendar), filled = false, onClick = actions.onCalendarPermission, modifier = Modifier.fillMaxWidth())
     }
     Spacer(Modifier.height(16.dp))
-    SubHeading("FONDO")
+    SubHeading(stringResource(R.string.settings_system_wallpaper))
     if (!confirmWallpaper) {
-        UsosPill("PONER FONDO NEGRO (INICIO Y BLOQUEO)", filled = false, onClick = { confirmWallpaper = true }, modifier = Modifier.fillMaxWidth())
+        UsosPill(stringResource(R.string.settings_system_black_wallpaper), filled = false, onClick = { confirmWallpaper = true }, modifier = Modifier.fillMaxWidth())
     } else {
-        UsosText("Sustituye el fondo de pantalla de inicio y de bloqueo por uno negro.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+        UsosText(stringResource(R.string.settings_system_black_wallpaper_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            UsosPill("CONFIRMAR", filled = true, onClick = { confirmWallpaper = false; actions.onBlackWallpaper() }, modifier = Modifier.weight(1f))
-            UsosPill("CANCELAR", filled = false, onClick = { confirmWallpaper = false }, modifier = Modifier.weight(1f))
+            UsosPill(stringResource(R.string.confirm), filled = true, onClick = { confirmWallpaper = false; actions.onBlackWallpaper() }, modifier = Modifier.weight(1f))
+            UsosPill(stringResource(R.string.cancel), filled = false, onClick = { confirmWallpaper = false }, modifier = Modifier.weight(1f))
         }
     }
     Spacer(Modifier.height(16.dp))
-    SubHeading("PRIMER ARRANQUE")
-    UsosPill("VOLVER A EMPEZAR (PRIMER ARRANQUE)", filled = false, onClick = actions.onRestartOnboarding, modifier = Modifier.fillMaxWidth())
+    SubHeading(stringResource(R.string.settings_system_onboarding))
+    UsosPill(stringResource(R.string.settings_system_restart_onboarding), filled = false, onClick = actions.onRestartOnboarding, modifier = Modifier.fillMaxWidth())
     Spacer(Modifier.height(16.dp))
-    SubHeading("ACERCA DE")
-    UsosText("USOS · VERSIÓN ${ui.versionName}", UsosType.Label, UsosColors.Text)
+    SubHeading(stringResource(R.string.settings_system_about))
+    UsosText(stringResource(R.string.settings_system_about_version, ui.versionName), UsosType.Label, UsosColors.Text)
+}
+
+/** «Idioma: Sistema / Español / English»; la lista sale de res/xml/locales_config.xml (ver AppLocales). */
+@Composable
+private fun LanguageSetting() {
+    val context = LocalContext.current
+    val tags = remember { AppLocales.supportedTags(context) }
+    var current by remember { mutableStateOf(AppLocales.currentTag(context)) }
+    SubHeading(stringResource(R.string.settings_language))
+    val options = listOf(stringResource(R.string.settings_language_system)) + tags.map { AppLocales.displayName(it).uppercase() }
+    val selected = if (current == null) 0 else tags.indexOf(current).let { if (it < 0) 0 else it + 1 }
+    Choice(options, selected, 3) { i ->
+        val tag = if (i == 0) null else tags[i - 1]
+        current = tag
+        AppLocales.set(context, tag)
+    }
 }
 
 /** Cabecera de grupo: texto fuerte y una linea fina debajo. */
@@ -535,7 +564,7 @@ private fun CityField(results: List<GeoPlace>, actions: SettingsActions) {
             .background(UsosColors.Surface, shape).border(1.dp, UsosColors.Border, shape).padding(horizontal = 16.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (text.isEmpty()) UsosText("BUSCAR CIUDAD", UsosType.SearchHint, UsosColors.TextSecondary)
+        if (text.isEmpty()) UsosText(stringResource(R.string.settings_weather_search_city), UsosType.SearchHint, UsosColors.TextSecondary)
         BasicTextField(
             value = text, onValueChange = { text = it }, singleLine = true,
             textStyle = UsosType.Pill.copy(color = UsosColors.Text),

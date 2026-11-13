@@ -1,7 +1,10 @@
 package com.usos.launcher.data.sections
 
-enum class ClockType(val label: String) {
-    DOTS("PUNTOS"), DIGITAL("DIGITAL"), MONO("TEXTO"), ANALOG("ANALÓGICO");
+import androidx.annotation.StringRes
+import com.usos.launcher.R
+
+enum class ClockType(@StringRes val labelRes: Int) {
+    DOTS(R.string.clock_type_dots), DIGITAL(R.string.clock_type_digital), MONO(R.string.clock_type_mono), ANALOG(R.string.clock_type_analog);
 
     companion object {
         fun fromName(name: String?): ClockType = entries.firstOrNull { it.name == name } ?: DOTS
@@ -31,8 +34,8 @@ data class WeatherPrefs(
     val hasCity: Boolean get() = cityName.isNotEmpty()
 }
 
-enum class IconMode(val label: String) {
-    NONE("NINGUNO"), MONO("MONOCROMO"), COLOR("COLOR");
+enum class IconMode(@StringRes val labelRes: Int) {
+    NONE(R.string.icon_mode_none), MONO(R.string.icon_mode_mono), COLOR(R.string.icon_mode_color);
 
     companion object {
         fun fromName(name: String?): IconMode = entries.firstOrNull { it.name == name } ?: NONE

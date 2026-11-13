@@ -1,5 +1,7 @@
 package com.usos.launcher.ui.widgets
 
+import androidx.compose.ui.res.stringResource
+import com.usos.launcher.R
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
@@ -80,14 +82,14 @@ fun WidgetPicker(manager: AppWidgetManager, onPick: (AppWidgetProviderInfo) -> U
             .padding(top = top, start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            ScreenHeader("Añadir", onBack = onClose, modifier = Modifier.weight(1f))
-            UsosPill("CERRAR", filled = false, onClick = onClose)
+            ScreenHeader(stringResource(R.string.widgets_add_title), onBack = onClose, modifier = Modifier.weight(1f))
+            UsosPill(stringResource(R.string.close), filled = false, onClick = onClose)
         }
         val list = groups
         when {
             list == null -> Unit
             list.isEmpty() -> Box(Modifier.padding(top = 16.dp)) {
-                UsosText("No hay widgets instalados.", UsosType.Empty, UsosColors.TextSecondary)
+                UsosText(stringResource(R.string.widgets_none_installed), UsosType.Empty, UsosColors.TextSecondary)
             }
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
                 list.forEach { g ->

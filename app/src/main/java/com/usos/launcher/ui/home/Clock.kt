@@ -1,5 +1,8 @@
 package com.usos.launcher.ui.home
 
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import com.usos.launcher.R
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -276,8 +279,9 @@ private fun DotText(text: String, scale: Float, fade: Boolean, sepAlpha: State<F
 
 @Composable
 fun DateLabel(date: LocalDate) {
+    val locale = LocalConfiguration.current.locales[0]
     UsosText(
-        text = SpanishDate.format(date),
+        text = DateText.format(date, locale, stringResource(R.string.clock_date_format)),
         style = UsosType.Date.copy(textAlign = TextAlign.Center),
         color = UsosColors.TextSecondary,
     )
@@ -297,7 +301,8 @@ private fun WeatherLabel(
             WeatherIcon(Weather.icon(w.code, w.isDay), color)
             Spacer(Modifier.width(6.dp))
         }
-        UsosText(Weather.label(w, prefs.fahrenheit, prefs.text, prefs.minMax), UsosType.Label, color, Modifier.weight(1f, fill = false))
+        val status = if (prefs.text) stringResource(Weather.textRes(w.code)) else null
+        UsosText(Weather.label(w, prefs.fahrenheit, status, prefs.minMax), UsosType.Label, color, Modifier.weight(1f, fill = false))
     }
 }
 
@@ -317,15 +322,16 @@ private fun WeatherIcon(kind: WeatherIconKind, color: Color) {
     }
 }
 
-/** Tira semanal L M X J V S D con hoy resaltado. */
+/** Tira semanal (L M X J V S D en español) con hoy resaltado. */
 @Composable
 fun WeekStrip(today: LocalDate, modifier: Modifier = Modifier) {
-    val week = SpanishDate.week(today)
+    val locale = LocalConfiguration.current.locales[0]
+    val week = DateText.week(today, DateText.firstDayOfWeek(locale))
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         week.forEachIndexed { i, day ->
             val isToday = day == today
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                UsosText(SpanishDate.WEEK_LETTERS[i], UsosType.WeekLetter, UsosColors.TextSecondary)
+                UsosText(DateText.weekLetter(day, locale), UsosType.WeekLetter, UsosColors.TextSecondary)
                 Spacer(Modifier.height(4.dp))
                 Box(
                     Modifier.size(30.dp).then(if (isToday) Modifier.background(UsosColors.Text, CircleShape) else Modifier),

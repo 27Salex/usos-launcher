@@ -1,5 +1,7 @@
 package com.usos.launcher.ui.home
 
+import androidx.annotation.StringRes
+import com.usos.launcher.R
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -342,7 +344,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         if (settings.feedsSeeded()) return
         settings.setFeedsSeeded()
         val repo = container.feedRepository
-        if (repo.seedDefaults(DefaultFeeds.list)) runCatching { repo.refreshAll() }
+        if (repo.seedDefaults(DefaultFeeds.forLanguage(container.appContext.getString(R.string.feeds_language)))) runCatching { repo.refreshAll() }
     }
 
     /** Borra del host los ids que no estan guardados (alta interrumpida, datos perdidos). */
@@ -385,7 +387,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** Tocar una sugerencia lanza la busqueda web. */
     fun pickSuggestion(text: String) {
         closeSearch()
-        if (!repository.webSearch(text, searchEngine.value)) showNotice("NO SE PUDO BUSCAR")
+        if (!repository.webSearch(text, searchEngine.value)) showNotice(R.string.notice_search_failed)
     }
 
     private fun onAlert(alert: LauncherAlert) {
@@ -393,7 +395,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         if (_route.value !is Route.Onboarding) _route.value = Route.Home
         exitEdit()
         if (alert.revealLeisure) revealLeisure() else closeSearch()
-        showNotice(alert.text)
+        showNotice(alert.textRes)
     }
 
     fun refreshBlocker() { _blockerActive.value = isBlockerEnabled(container.appContext) }
@@ -469,7 +471,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             InfoKind.AGENDA -> InfoLauncher.openCalendar(ctx)
             InfoKind.MAPS -> InfoLauncher.navigateHome(ctx)
         }
-        if (!ok) showNotice("NO SE PUDO ABRIR")
+        if (!ok) showNotice(R.string.notice_open_failed)
     }
 
     // ---- Reloj, tiempo, fondo ----
@@ -536,7 +538,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val opened = intent != null && runCatching {
             container.appContext.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
         }.isSuccess
-        if (!opened) repository.webSearch("tiempo", searchEngine.value)
+        if (!opened) repository.webSearch(container.appContext.getString(R.string.weather_web_query), searchEngine.value)
     }
 
     // ---- Toque en el reloj ----
@@ -552,9 +554,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             v.startsWith("APP:") -> {
                 val pkg = v.removePrefix("APP:")
                 val entry = apps.value.orEmpty().firstOrNull { it.packageName == pkg && it.isMainProfile }
-                if (entry != null) openApp(entry) else if (!repository.openSystemClock()) showNotice("NO SE PUDO ABRIR")
+                if (entry != null) openApp(entry) else if (!repository.openSystemClock()) showNotice(R.string.notice_open_failed)
             }
-            else -> if (!repository.openSystemClock()) showNotice("NO SE PUDO ABRIR")
+            else -> if (!repository.openSystemClock()) showNotice(R.string.notice_open_failed)
         }
     }
 
@@ -583,7 +585,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val ui = assistantUi.value
         val r = ui.resolved ?: return
         val ok = if (r.web) repository.openUrl(r.assistant.webHome) else ui.entry?.let { repository.launch(it) } == true
-        if (!ok) showNotice("NO SE PUDO ABRIR")
+        if (!ok) showNotice(R.string.notice_open_failed)
     }
 
     /** Fila «PREGUNTA A …» de la búsqueda: pasa el texto al asistente con el método de su ficha (CLAUDE.md). */
@@ -594,14 +596,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         if (q.isEmpty()) return
         closeSearch()
         when (val plan = Assistants.askPlan(r, q)) {
-            is AskPlan.View -> if (!repository.openUrl(plan.url, plan.pkg)) showNotice("NO SE PUDO ABRIR")
+            is AskPlan.View -> if (!repository.openUrl(plan.url, plan.pkg)) showNotice(R.string.notice_open_failed)
             AskPlan.CopyAndOpenApp -> {
                 repository.copyText(q)
-                if (ui.entry?.let { repository.launch(it) } == true) showNotice("PREGUNTA COPIADA") else showNotice("NO SE PUDO ABRIR")
+                if (ui.entry?.let { repository.launch(it) } == true) showNotice(R.string.notice_question_copied) else showNotice(R.string.notice_open_failed)
             }
             is AskPlan.CopyAndView -> {
                 repository.copyText(q)
-                if (repository.openUrl(plan.url)) showNotice("PREGUNTA COPIADA") else showNotice("NO SE PUDO ABRIR")
+                if (repository.openUrl(plan.url)) showNotice(R.string.notice_question_copied) else showNotice(R.string.notice_open_failed)
             }
         }
     }
@@ -634,7 +636,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     bmp.recycle()
                 }.isSuccess
             }
-            showNotice(if (ok) "FONDO NEGRO APLICADO" else "NO SE PUDO CAMBIAR EL FONDO")
+            showNotice(if (ok) R.string.notice_wallpaper_ok else R.string.notice_wallpaper_failed)
         }
     }
 
@@ -709,7 +711,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 }
                 all + (key to cfg.copy(inMosaic = on, manual = true))
             }
-            if (full) showNotice("MOSAICO LLENO")
+            if (full) showNotice(R.string.notice_mosaic_full)
         }
     }
 
@@ -773,7 +775,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 }
                 updated
             }
-            if (full) showNotice("MOSAICO LLENO")
+            if (full) showNotice(R.string.notice_mosaic_full)
         }
     }
 
@@ -825,9 +827,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             return
         }
         when {
-            app.isQuiet -> showNotice("PERFIL EN PAUSA")
-            repository.launch(app) -> showNotice("ABRIENDO ${app.label.uppercase()}…")
-            else -> showNotice("NO SE PUDO ABRIR")
+            app.isQuiet -> showNotice(R.string.notice_profile_paused)
+            repository.launch(app) -> showNotice(R.string.notice_opening, app.label.uppercase())
+            else -> showNotice(R.string.notice_open_failed)
         }
     }
 
@@ -874,12 +876,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         when (val intent = SearchClassifier.classify(text, searchItems.value) { it.app.label }) {
             is SearchIntent.OpenUrl -> {
                 closeSearch()
-                if (!repository.openUrl(intent.url)) showNotice("NO SE PUDO ABRIR")
+                if (!repository.openUrl(intent.url)) showNotice(R.string.notice_open_failed)
             }
             is SearchIntent.OpenApp<*> -> pickFromSearch(intent.app as SearchItem)
             is SearchIntent.WebSearch -> {
                 closeSearch()
-                if (!repository.webSearch(intent.text, searchEngine.value)) showNotice("NO SE PUDO BUSCAR")
+                if (!repository.webSearch(intent.text, searchEngine.value)) showNotice(R.string.notice_search_failed)
             }
         }
     }
@@ -898,9 +900,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** Salir del launcher cancela una descongelacion en curso. */
     fun onLauncherStopped() { leisureRepo.cancelThaw() }
 
-    private fun showNotice(text: String) {
+    private fun showNotice(@StringRes id: Int, vararg args: Any) {
         noticeJob?.cancel()
-        _notice.value = text
+        _notice.value = container.appContext.getString(id, *args)
         noticeJob = viewModelScope.launch {
             delay(2500)
             _notice.value = null

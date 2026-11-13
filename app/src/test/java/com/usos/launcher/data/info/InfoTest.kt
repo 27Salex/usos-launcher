@@ -39,10 +39,14 @@ class InfoTest {
     @Test
     fun agendaPiece_labels() {
         val now = at(13, 9)
-        assertEquals("AGENDA · 10:30", InfoPieces.agendaPiece(ev("Reunión", at(13, 10, 30)), now, zone)?.label)
-        assertEquals("AGENDA · MAÑ 09:05", InfoPieces.agendaPiece(ev("Dentista", at(14, 9, 5)), now, zone)?.label)
-        assertEquals("AGENDA · AHORA", InfoPieces.agendaPiece(ev("En curso", at(13, 8, 30)), now, zone)?.label)
-        assertEquals("Reunión", InfoPieces.agendaPiece(ev("Reunión", at(13, 10)), now, zone)?.data)
+        val today = InfoPieces.agendaPiece(ev("Reunión", at(13, 10, 30)), now, zone)!!
+        assertEquals(InfoWhen.TODAY, today.whenAt)
+        assertEquals("10:30", today.time)
+        val tomorrow = InfoPieces.agendaPiece(ev("Dentista", at(14, 9, 5)), now, zone)!!
+        assertEquals(InfoWhen.TOMORROW, tomorrow.whenAt)
+        assertEquals("09:05", tomorrow.time)
+        assertEquals(InfoWhen.NOW, InfoPieces.agendaPiece(ev("En curso", at(13, 8, 30)), now, zone)?.whenAt)
+        assertEquals("Reunión", InfoPieces.agendaPiece(ev("Reunión", at(13, 10)), now, zone)?.title)
         assertNull(InfoPieces.agendaPiece(null, now, zone))
     }
 
@@ -57,6 +61,6 @@ class InfoTest {
         val agenda = InfoPieces.agendaPiece(ev("X", at(13, 10)), at(13, 9), zone)
         val pieces = InfoPieces.bySection(listOf(agenda, InfoPieces.mapsPiece(true)))
         assertEquals(InfoKind.AGENDA, pieces[Section.WORK]?.kind)
-        assertEquals("IR A CASA", pieces[Section.MOVE]?.data)
+        assertEquals(InfoKind.MAPS, pieces[Section.MOVE]?.kind)
     }
 }

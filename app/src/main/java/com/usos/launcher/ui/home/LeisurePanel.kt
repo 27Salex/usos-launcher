@@ -1,5 +1,7 @@
 package com.usos.launcher.ui.home
 
+import androidx.compose.ui.res.stringResource
+import com.usos.launcher.R
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -66,7 +68,7 @@ fun LeisurePanel(
         when (status) {
             is LeisureStatus.Thawing -> Thawing(status, accent, onCancel)
             is LeisureStatus.NoBudget ->
-                UsosText("Sin tiempo de ocio por hoy. Mañana se repone.", UsosType.Empty, UsosColors.Text, maxLines = 3)
+                UsosText(stringResource(R.string.leisure_no_budget), UsosType.Empty, UsosColors.Text, maxLines = 3)
             is LeisureStatus.Frozen -> Frozen(status, accent, onThaw)
             else -> Frozen(LeisureStatus.Frozen(0), accent, onThaw) // aun cargando
         }
@@ -83,8 +85,8 @@ private fun Frozen(status: LeisureStatus.Frozen, accent: androidx.compose.ui.gra
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        UsosText("CONGELADO", UsosType.PanelState, accent)
-        UsosText("QUEDAN ${status.remainingMin} MIN HOY", UsosType.Label, UsosColors.TextSecondary)
+        UsosText(stringResource(R.string.leisure_frozen), UsosType.PanelState, accent)
+        UsosText(stringResource(R.string.leisure_remaining, status.remainingMin), UsosType.Label, UsosColors.TextSecondary)
     }
     Spacer(Modifier.height(14.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -113,14 +115,14 @@ private fun Frozen(status: LeisureStatus.Frozen, accent: androidx.compose.ui.gra
             .tap(enabled = options.isNotEmpty()) { onThaw(selected) },
         contentAlignment = Alignment.Center,
     ) {
-        UsosText("DESCONGELAR", UsosType.Button, LocalOnAccent.current)
+        UsosText(stringResource(R.string.leisure_thaw), UsosType.Button, LocalOnAccent.current)
     }
 }
 
 @Composable
 private fun Thawing(status: LeisureStatus.Thawing, accent: androidx.compose.ui.graphics.Color, onCancel: () -> Unit) {
     val animations = LocalAnimationsEnabled.current
-    UsosText("DESCONGELANDO · ${status.secondsLeft} S", UsosType.PanelState, accent)
+    UsosText(stringResource(R.string.leisure_thawing, status.secondsLeft), UsosType.PanelState, accent)
     Spacer(Modifier.height(14.dp))
     val target = 1f - status.secondsLeft.toFloat() / status.totalSeconds.coerceAtLeast(1)
     val progress by animateFloatAsState(
@@ -141,6 +143,6 @@ private fun Thawing(status: LeisureStatus.Thawing, accent: androidx.compose.ui.g
             .tap { onCancel() },
         contentAlignment = Alignment.Center,
     ) {
-        UsosText("CANCELAR", UsosType.Button, UsosColors.Text)
+        UsosText(stringResource(R.string.cancel), UsosType.Button, UsosColors.Text)
     }
 }

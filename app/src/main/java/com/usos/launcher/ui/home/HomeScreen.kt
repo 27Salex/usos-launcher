@@ -560,9 +560,9 @@ private fun SectionBlock(
     val nameColor = if (edit.hoverSection == s.section) accent else if (frozen) UsosColors.LeisureFrozen else UsosColors.Text
     val data: String = when {
         !isLeisure -> if (isOpen) "—" else s.count.toString()
-        leisure is LeisureStatus.Open -> "${leisure.minutesLeft} MIN"
-        leisure is LeisureStatus.Thawing -> "${leisure.secondsLeft} S"
-        else -> "CONGELADO"
+        leisure is LeisureStatus.Open -> stringResource(R.string.home_minutes, leisure.minutesLeft)
+        leisure is LeisureStatus.Thawing -> stringResource(R.string.home_seconds, leisure.secondsLeft)
+        else -> stringResource(R.string.home_frozen)
     }
     Row(
         Modifier.fillMaxWidth().height(SectionRowHeight)
@@ -571,7 +571,7 @@ private fun SectionBlock(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText(s.section.title, UsosType.SectionName, nameColor)
+        UsosText(stringResource(s.section.titleRes), UsosType.SectionName, nameColor)
         UsosText(data, UsosType.SectionData, if (isLeisure) accent else UsosColors.TextSecondary)
     }
     AnimatedVisibility(
@@ -607,7 +607,7 @@ private fun SectionBlock(
                     },
                     contentAlignment = Alignment.CenterStart,
                 ) {
-                    UsosText("BLOQUEO INACTIVO · ACTIVAR", UsosType.Label, accent)
+                    UsosText(stringResource(R.string.home_blocker_inactive), UsosType.Label, accent)
                 }
             }
             if (isLeisure && leisure !is LeisureStatus.Open) {
@@ -838,8 +838,18 @@ private fun InfoTile(
             .padding(12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText(info.label, UsosType.Label, LocalOnAccent.current)
-        UsosText(info.data, UsosType.PieceData, LocalOnAccent.current, maxLines = 3)
+        val label = when (info.kind) {
+            com.usos.launcher.data.info.InfoKind.MAPS -> stringResource(R.string.info_maps)
+            else -> when (info.whenAt) {
+                com.usos.launcher.data.info.InfoWhen.NOW -> stringResource(R.string.info_agenda_now)
+                com.usos.launcher.data.info.InfoWhen.TOMORROW -> stringResource(R.string.info_agenda_tomorrow, info.time)
+                else -> stringResource(R.string.info_agenda_today, info.time)
+            }
+        }
+        val data = if (info.kind == com.usos.launcher.data.info.InfoKind.MAPS) stringResource(R.string.info_go_home)
+        else info.title.ifBlank { stringResource(R.string.info_untitled) }
+        UsosText(label, UsosType.Label, LocalOnAccent.current)
+        UsosText(data, UsosType.PieceData, LocalOnAccent.current, maxLines = 3)
     }
 }
 
@@ -854,8 +864,8 @@ private fun FreezeTile(minutesLeft: Int, modifier: Modifier, onFreeze: () -> Uni
             .padding(12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText("CONGELAR ·", UsosType.Label, LocalOnAccent.current)
-        UsosText("$minutesLeft min", UsosType.PieceData, LocalOnAccent.current)
+        UsosText(stringResource(R.string.home_freeze), UsosType.Label, LocalOnAccent.current)
+        UsosText(stringResource(R.string.home_minutes_short, minutesLeft), UsosType.PieceData, LocalOnAccent.current)
     }
 }
 
@@ -921,7 +931,7 @@ private fun SearchBar(notice: String?, hidden: Boolean, onClick: () -> Unit, mod
             .padding(horizontal = 20.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        UsosText(notice ?: "BUSCAR", UsosType.SearchHint, UsosColors.TextSecondary)
+        UsosText(notice ?: stringResource(R.string.search_hint), UsosType.SearchHint, UsosColors.TextSecondary)
     }
 }
 
@@ -979,7 +989,7 @@ private fun AssistantPicker(assistant: HomeViewModel.AssistantUi, onPick: (Strin
                 .pointerInput(Unit) { detectTapGestures { } },
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            UsosText("ASISTENTE DE IA", UsosType.Label, UsosColors.TextSecondary)
+            UsosText(stringResource(R.string.search_assistant), UsosType.Label, UsosColors.TextSecondary)
             val current = assistant.resolved
             assistant.installed.forEach { a ->
                 val sel = current != null && !current.web && current.assistant == a
@@ -996,7 +1006,7 @@ private fun AssistantPicker(assistant: HomeViewModel.AssistantUi, onPick: (Strin
                     .background(UsosColors.Surface, shape).border(1.dp, UsosColors.Border, shape)
                     .tap { onPick(com.usos.launcher.data.ai.Assistants.NONE) }.padding(horizontal = 16.dp),
                 contentAlignment = Alignment.CenterStart,
-            ) { UsosText("NINGUNO", UsosType.Button, UsosColors.TextSecondary) }
+            ) { UsosText(stringResource(R.string.none), UsosType.Button, UsosColors.TextSecondary) }
         }
     }
 }

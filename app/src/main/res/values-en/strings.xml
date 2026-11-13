@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- General -->
+    <string name="app_name">Usos</string>
+    <string name="accessibility_description">Keeps leisure apps frozen: if you open one without thawing leisure first, it sends you back home, and it ends the leisure session when time runs out. It only detects which app opens; it does not read screen content.</string>
+    <string name="thumbs_gray">Grayscale thumbnails</string>
+    <string name="back">Back</string>
+    <string name="bubble_resize">Resize</string>
+    <string name="bubble_settings">Settings</string>
+    <string name="bubble_remove">Remove</string>
+    <string name="bubble_reconfigure">Reconfigure</string>
+    <string name="done">DONE</string>
+    <string name="close">CLOSE</string>
+    <string name="cancel">CANCEL</string>
+    <string name="confirm">CONFIRM</string>
+    <string name="save">SAVE</string>
+    <string name="none">NONE</string>
+    <string name="yes">YES</string>
+    <string name="no">NO</string>
+
+    <!-- Secciones (los valores persistidos del enum no cambian) -->
+    <string name="section_work">Work</string>
+    <string name="section_talk">Talk</string>
+    <string name="section_move">Move</string>
+    <string name="section_personal">Personal</string>
+    <string name="section_leisure">Leisure</string>
+    <string name="section_other">Other</string>
+
+    <!-- Inicio -->
+    <string name="home_minutes">%1$d MIN</string>
+    <string name="home_seconds">%1$d S</string>
+    <string name="home_minutes_short">%1$d min</string>
+    <string name="home_frozen">FROZEN</string>
+    <string name="home_freeze">FREEZE ·</string>
+    <string name="home_blocker_inactive">BLOCKER OFF · TURN ON</string>
+    <string name="alert_frozen">FROZEN</string>
+    <string name="alert_frozen_again">LEISURE FROZEN AGAIN</string>
+    <string name="notice_search_failed">COULDN\'T SEARCH</string>
+    <string name="notice_open_failed">COULDN\'T OPEN</string>
+    <string name="notice_question_copied">QUESTION COPIED</string>
+    <string name="notice_wallpaper_ok">BLACK WALLPAPER SET</string>
+    <string name="notice_wallpaper_failed">COULDN\'T CHANGE WALLPAPER</string>
+    <string name="notice_mosaic_full">TILE GRID FULL</string>
+    <string name="notice_profile_paused">PROFILE PAUSED</string>
+    <string name="notice_opening">OPENING %1$s…</string>
+    <string name="info_agenda_now">AGENDA · NOW</string>
+    <string name="info_agenda_today">AGENDA · %1$s</string>
+    <string name="info_agenda_tomorrow">AGENDA · TOM %1$s</string>
+    <string name="info_maps">MAPS</string>
+    <string name="info_go_home">GO HOME</string>
+    <string name="info_untitled">Untitled</string>
+    <string name="maps_home_query">home</string>
+    <string name="weather_web_query">weather</string>
+
+    <!-- Edición del inicio -->
+    <string name="edit_editing">EDITING</string>
+    <string name="edit_remove_from_home">REMOVE FROM HOME</string>
+    <string name="edit_rows">ROWS %1$d</string>
+    <string name="edit_add_to">ADD TO %1$s</string>
+    <string name="edit_no_apps_left">No apps left in this section.</string>
+    <string name="edit_others">OTHERS…</string>
+
+    <!-- Reloj y fecha -->
+    <string name="clock_date_format">%1$s %3$s %2$d</string>
+    <string name="clock_type_dots">DOTS</string>
+    <string name="clock_type_digital">DIGITAL</string>
+    <string name="clock_type_mono">TEXT</string>
+    <string name="clock_type_analog">ANALOG</string>
+    <string name="icon_mode_none">NONE</string>
+    <string name="icon_mode_mono">MONOCHROME</string>
+    <string name="icon_mode_color">COLOR</string>
+
+    <!-- Tiempo (weather_code de Open-Meteo) -->
+    <string name="weather_clear">CLEAR</string>
+    <string name="weather_mostly_clear">MOSTLY CLEAR</string>
+    <string name="weather_partly_cloudy">PARTLY CLOUDY</string>
+    <string name="weather_clouds">CLOUDY</string>
+    <string name="weather_fog">FOG</string>
+    <string name="weather_drizzle">DRIZZLE</string>
+    <string name="weather_rain">RAIN</string>
+    <string name="weather_snow">SNOW</string>
+    <string name="weather_showers">SHOWERS</string>
+    <string name="weather_thunderstorm">THUNDERSTORM</string>
+    <string name="weather_variable">VARIABLE</string>
+
+    <!-- Búsqueda -->
+    <string name="search_hint">SEARCH</string>
+    <string name="search_open">OPEN %1$s</string>
+    <string name="search_web">SEARCH “%1$s”</string>
+    <string name="search_ask">ASK %1$s “%2$s”</string>
+    <string name="search_settings">SETTINGS</string>
+    <string name="search_nothing">Nothing with that name.</string>
+    <string name="search_suggestions">SUGGESTIONS</string>
+    <string name="search_leisure_frozen">LEISURE · FROZEN</string>
+    <string name="search_assistant">AI ASSISTANT</string>
+
+    <!-- Ocio -->
+    <string name="leisure_no_budget">No leisure time left today. It resets tomorrow.</string>
+    <string name="leisure_frozen">FROZEN</string>
+    <string name="leisure_remaining">%1$d MIN LEFT TODAY</string>
+    <string name="leisure_thaw">THAW</string>
+    <string name="leisure_thawing">THAWING · %1$d S</string>
+
+    <!-- Noticias -->
+    <string name="feeds_title">News</string>
+    <string name="feeds_manage">FEEDS +</string>
+    <string name="feeds_hidden">CONTENT HIDDEN</string>
+    <string name="feeds_filter_all">All</string>
+    <string name="feeds_filter_saved">Saved</string>
+    <string name="feeds_next_read">+1 AT %1$s</string>
+    <string name="feeds_no_reads">NO READS LEFT</string>
+    <string name="feeds_no_reads_next">NO READS LEFT · %1$s</string>
+    <string name="feeds_saved">SAVED</string>
+    <string name="feeds_unsaved">REMOVED FROM SAVED</string>
+    <string name="feeds_refresh_failed">COULDN\'T REFRESH ALL</string>
+    <string name="feeds_already_have">ALREADY ADDED</string>
+    <string name="feeds_empty_no_feeds">ADD A FEED IN “FEEDS +”</string>
+    <string name="feeds_empty_saved">NOTHING SAVED · TAP AN ARTICLE\'S STAR</string>
+    <string name="feeds_empty_articles">NO ARTICLES · PULL TO REFRESH</string>
+    <string name="feeds_refreshing">REFRESHING…</string>
+    <string name="feeds_release_to_refresh">RELEASE TO REFRESH</string>
+    <string name="feeds_pull_to_refresh">PULL TO REFRESH</string>
+    <string name="feeds_age_now">NOW</string>
+    <string name="feeds_age_min">%1$d MIN</string>
+    <string name="feeds_age_hour">%1$d H</string>
+    <string name="feeds_age_day">%1$d D</string>
+    <string name="feeds_err_invalid">INVALID URL</string>
+    <string name="feeds_err_not_a_feed">NOT A FEED</string>
+    <string name="feeds_err_offline">NO CONNECTION</string>
+    <string name="feeds_manager_title">Feeds</string>
+    <string name="feeds_add_label">ADD · FEED URL, WEBSITE OR DOMAIN</string>
+    <string name="feeds_url_hint">bbc.co.uk</string>
+    <string name="feeds_search">FIND FEEDS</string>
+    <string name="feeds_searching">SEARCHING…</string>
+    <string name="feeds_found">FOUND · PICK ONE</string>
+    <string name="feeds_add">ADD</string>
+    <string name="feeds_suggested">SUGGESTED</string>
+    <string name="feeds_have_all">YOU HAVE THEM ALL</string>
+    <string name="feeds_yours">YOUR FEEDS</string>
+    <string name="feeds_none_yet">NONE YET</string>
+    <string name="feeds_name_hint">Name</string>
+    <string name="feeds_rename">RENAME</string>
+    <string name="feeds_delete">DELETE</string>
+    <string name="feeds_delete_confirm">SURE? DELETE</string>
+    <string name="feeds_language">en</string>
+
+    <!-- Widgets -->
+    <string name="widgets_title">Widgets</string>
+    <string name="widgets_edit">EDIT</string>
+    <string name="widgets_add">ADD</string>
+    <string name="widgets_add_title">Add</string>
+    <string name="widgets_none_installed">No widgets installed.</string>
+    <string name="widgets_empty">No widgets. Tap EDIT to add the first one.</string>
+    <string name="widgets_empty_editing">No widgets. Tap ADD.</string>
+    <string name="widgets_unavailable">WIDGET UNAVAILABLE</string>
+
+    <!-- Ficha de app -->
+    <string name="detail_version">VERSION %1$s</string>
+    <string name="detail_show_usage">SHOW USAGE ON TILE</string>
+    <string name="detail_section">SECTION</string>
+    <string name="detail_show_on_home">SHOW ON HOME</string>
+    <string name="detail_mosaic_full">TILE GRID FULL · REMOVE ANOTHER APP FIRST</string>
+    <string name="detail_tile_size">TILE SIZE</string>
+    <string name="detail_mosaic_rows">%1$s GRID ROWS</string>
+    <string name="detail_highlight">HIGHLIGHT</string>
+    <string name="detail_hl_normal">NORMAL</string>
+    <string name="detail_hl_accent">ACCENT</string>
+    <string name="detail_hl_white">WHITE</string>
+    <string name="detail_hl_outline">OUTLINE</string>
+    <string name="detail_hl_color">COLOR</string>
+    <string name="detail_info">INFO</string>
+    <string name="detail_uninstall">UNINSTALL</string>
+    <string name="detail_usage">USAGE</string>
+    <string name="detail_usage_needs_access">To see how much you use this app, usage access is needed.</string>
+    <string name="detail_grant_usage">GRANT USAGE ACCESS</string>
+    <string name="detail_today">TODAY</string>
+    <string name="detail_week_summary">THIS WEEK %1$s · %2$s IN 7 DAYS</string>
+    <string name="detail_last_7_days">LAST 7 DAYS</string>
+    <string name="detail_storage">STORAGE %1$s</string>
+    <string name="detail_code">CODE (2 LETTERS)</string>
+    <string name="color_recent">RECENT</string>
+
+    <!-- Primer arranque -->
+    <string name="onboarding_title">First run</string>
+    <string name="onboarding_intro">FOUR STEPS. YOU CAN SKIP THEM AND COME BACK FROM SETTINGS (LONG-PRESS THE CLOCK).</string>
+    <string name="onboarding_step1_title">1 · HOME APP</string>
+    <string name="onboarding_step1_text">So the home button opens Usos.</string>
+    <string name="onboarding_pick_home">SET USOS AS HOME</string>
+    <string name="onboarding_step2_title">2 · ACCESSIBILITY</string>
+    <string name="onboarding_step2_text">Lets Usos keep leisure apps frozen even when opened from a notification. It only detects which app opens; it does not read the screen. If Android shows it greyed out (\"restricted setting\", because the app was installed outside the store): App info &gt; ⋮ (top right) &gt; Allow restricted settings, then come back here.</string>
+    <string name="onboarding_open_app_info">OPEN APP INFO</string>
+    <string name="onboarding_open_accessibility">OPEN ACCESSIBILITY</string>
+    <string name="onboarding_step3_title">3 · USAGE ACCESS</string>
+    <string name="onboarding_step3_text">To show each app\'s usage time and storage.</string>
+    <string name="onboarding_open_usage">OPEN USAGE ACCESS</string>
+    <string name="onboarding_step4_title">4 · BATTERY</string>
+    <string name="onboarding_battery_hint">So the system doesn\'t stop the service: %1$s Or App info &gt; Battery &gt; Unrestricted.</string>
+    <string name="onboarding_battery_samsung">Battery &gt; Background usage limits &gt; Never sleeping apps &gt; add Usos.</string>
+    <string name="onboarding_battery_xiaomi">App info &gt; Battery saver &gt; No restrictions, and enable autostart.</string>
+    <string name="onboarding_battery_oppo">App info &gt; Battery usage &gt; Allow background activity.</string>
+    <string name="onboarding_battery_huawei">Battery &gt; App launch &gt; Usos &gt; manage manually (everything on).</string>
+    <string name="onboarding_battery_generic">Settings &gt; Apps &gt; Usos &gt; Battery &gt; Unrestricted.</string>
+    <string name="onboarding_skip">SKIP FOR NOW</string>
+    <string name="onboarding_done">DONE</string>
+    <string name="onboarding_pending">PENDING</string>
+    <string name="onboarding_manual">MANUAL</string>
+
+    <!-- Ajustes -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_cat_home">HOME</string>
+    <string name="settings_cat_clock">CLOCK</string>
+    <string name="settings_cat_weather">WEATHER</string>
+    <string name="settings_cat_search">SEARCH &amp; AI</string>
+    <string name="settings_cat_leisure">LEISURE</string>
+    <string name="settings_cat_widgets">WIDGETS</string>
+    <string name="settings_cat_news">NEWS</string>
+    <string name="settings_cat_look">LOOK</string>
+    <string name="settings_cat_system">SYSTEM</string>
+    <string name="settings_sum_home">%1$d COLUMNS · ORDER · TILES</string>
+    <string name="settings_sum_seconds_suffix"> · SECONDS</string>
+    <string name="settings_sum_on">ON</string>
+    <string name="settings_sum_off">OFF</string>
+    <string name="settings_sum_search">%1$s · AI %2$s</string>
+    <string name="settings_sum_ai_none">NONE</string>
+    <string name="settings_sum_leisure">%1$d MIN · WAIT %2$d S</string>
+    <string name="settings_sum_widgets">GRAYSCALE %1$s</string>
+    <string name="settings_sum_news">%1$d READS/H · %2$d PER FEED</string>
+    <string name="settings_sum_look">ACCENT · ICONS %1$s</string>
+    <string name="settings_sum_system">LANGUAGE · PERMISSIONS · WALLPAPER · v%1$s</string>
+    <string name="settings_home_columns">GRID COLUMNS</string>
+    <string name="settings_home_rows">GRID PER SECTION (ROWS)</string>
+    <string name="settings_home_info">INFO TILES</string>
+    <string name="settings_info_agenda">AGENDA</string>
+    <string name="settings_info_go_home">GO HOME</string>
+    <string name="settings_edit_home">EDIT HOME</string>
+    <string name="settings_app_order">APP ORDER</string>
+    <string name="settings_app_order_hint">The first ones go in the grid (●).</string>
+    <string name="settings_clock_type">TYPE</string>
+    <string name="settings_clock_seconds">SECONDS</string>
+    <string name="settings_clock_animated">ANIMATED CLOCK</string>
+    <string name="settings_clock_animated_hint">Very subtle animation; turned off by the system\'s reduced animations setting.</string>
+    <string name="settings_clock_tap">WHEN TAPPING THE CLOCK</string>
+    <string name="settings_clock_tap_system">SYSTEM CLOCK</string>
+    <string name="settings_clock_tap_pick">PICK APP…</string>
+    <string name="settings_clock_tap_nothing">NOTHING</string>
+    <string name="settings_clock_tap_app">APP: %1$s</string>
+    <string name="settings_pick_app">PICK AN APP</string>
+    <string name="settings_weather_show">SHOW WEATHER</string>
+    <string name="settings_weather_hint">Open-Meteo, no account. Automatic location asks for approximate location permission.</string>
+    <string name="settings_weather_location">LOCATION</string>
+    <string name="settings_weather_auto">AUTOMATIC</string>
+    <string name="settings_weather_city">CITY</string>
+    <string name="settings_weather_city_is">CITY: %1$s</string>
+    <string name="settings_weather_pick_city">PICK A CITY</string>
+    <string name="settings_weather_search_city">SEARCH CITY</string>
+    <string name="settings_weather_units">UNITS</string>
+    <string name="settings_weather_icon">ICON</string>
+    <string name="settings_weather_text">CONDITION TEXT</string>
+    <string name="settings_weather_minmax">DAY HIGH / LOW</string>
+    <string name="settings_weather_position">POSITION</string>
+    <string name="settings_weather_pos_date">NEXT TO DATE</string>
+    <string name="settings_weather_pos_clock">BELOW CLOCK</string>
+    <string name="settings_weather_color">COLOR</string>
+    <string name="settings_color_white">WHITE</string>
+    <string name="settings_color_accent">ACCENT</string>
+    <string name="settings_search_suggestions">WEB SUGGESTIONS</string>
+    <string name="settings_search_suggestions_hint">Each keystroke is sent to the chosen provider (after 250 ms without typing).</string>
+    <string name="settings_search_engine">SEARCH ENGINE</string>
+    <string name="settings_search_engine_hint">Enter opens URLs, apps with an exact name, or searches here.</string>
+    <string name="settings_search_keyboard">OPEN KEYBOARD ON SEARCH</string>
+    <string name="settings_search_keyboard_hint">Off: search shows the apps and the keyboard opens when you tap the field.</string>
+    <string name="settings_ai_web">WEB</string>
+    <string name="settings_ai_web_service">WEB SERVICE</string>
+    <string name="settings_ai_hint">Only installed assistants are listed. None hides the AI button on home and the “ASK …” row.</string>
+    <string name="settings_leisure_budget">DAILY BUDGET</string>
+    <string name="settings_leisure_wait">WAIT TO THAW</string>
+    <string name="settings_widgets_gray">GRAYSCALE</string>
+    <string name="settings_widgets_gray_hint">Turn it off to see the widgets\' original colors.</string>
+    <string name="settings_widgets_grid_hint">The grid columns are the home grid\'s (HOME).</string>
+    <string name="settings_news_reads">READS PER HOUR</string>
+    <string name="settings_news_reads_hint">Opening an unread article costs 1 read; the bucket refills continuously.</string>
+    <string name="settings_news_keep">ARTICLES PER FEED</string>
+    <string name="settings_news_keep_hint">The most recent of each feed are kept; saved ones (star) are never deleted.</string>
+    <string name="settings_look_accent">ACCENT</string>
+    <string name="settings_look_custom">CUSTOM</string>
+    <string name="settings_look_icons">ICONS</string>
+    <string name="settings_look_show_code">SHOW CODE</string>
+    <string name="settings_look_icons_hint">With the code off, the icon replaces it. Monochrome uses the app\'s monochrome layer.</string>
+    <string name="settings_language">LANGUAGE</string>
+    <string name="settings_language_system">SYSTEM</string>
+    <string name="settings_system_permissions">PERMISSIONS</string>
+    <string name="settings_system_calendar_granted">Calendar: granted.</string>
+    <string name="settings_system_calendar_missing">Without calendar permission the agenda tile is not drawn.</string>
+    <string name="settings_system_grant_calendar">GRANT CALENDAR</string>
+    <string name="settings_system_wallpaper">WALLPAPER</string>
+    <string name="settings_system_black_wallpaper">SET BLACK WALLPAPER (HOME &amp; LOCK)</string>
+    <string name="settings_system_black_wallpaper_hint">Replaces the home and lock screen wallpaper with a black one.</string>
+    <string name="settings_system_onboarding">FIRST RUN</string>
+    <string name="settings_system_restart_onboarding">START OVER (FIRST RUN)</string>
+    <string name="settings_system_about">ABOUT</string>
+    <string name="settings_system_about_version">USOS · VERSION %1$s</string>
+
+    <!-- Plurales -->
+    <plurals name="detail_opens">
+        <item quantity="one">%1$d OPEN</item>
+        <item quantity="other">%1$d OPENS</item>
+    </plurals>
+    <plurals name="feeds_item_count">
+        <item quantity="one">%1$d ARTICLE</item>
+        <item quantity="other">%1$d ARTICLES</item>
+    </plurals>
+    <plurals name="feeds_reads">
+        <item quantity="one">%1$d READ</item>
+        <item quantity="other">%1$d READS</item>
+    </plurals>
+</resources>

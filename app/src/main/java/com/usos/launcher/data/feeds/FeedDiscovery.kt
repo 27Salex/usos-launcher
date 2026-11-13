@@ -90,6 +90,18 @@ const val CRUNCHYROLL_RSS = "https://cr-news-api-service.prd.crunchyrollsvc.com/
 
 /** Feeds de un toque. Todos verificados con curl (RSS/Atom válido). */
 object SuggestedFeeds {
+    private val englishExtra: List<Pair<String, String>> = listOf(
+        "BBC Technology" to "https://feeds.bbci.co.uk/news/technology/rss.xml",
+        "Wired" to "https://www.wired.com/feed/rss",
+        "Engadget" to "https://www.engadget.com/rss.xml",
+        "Android Authority" to "https://www.androidauthority.com/feed/",
+        "Anime News Network" to "https://www.animenewsnetwork.com/all/rss.xml",
+    )
+
+    /** Sugeridos según el idioma de la app (recurso `feeds_language`). */
+    fun forLanguage(language: String): List<Pair<String, String>> =
+        if (language == "en") DefaultFeeds.english + englishExtra else list
+
     val list: List<Pair<String, String>> = DefaultFeeds.list + listOf(
         "Crunchyroll News" to CRUNCHYROLL_RSS,
         "Hipertextual" to "https://hipertextual.com/feed",

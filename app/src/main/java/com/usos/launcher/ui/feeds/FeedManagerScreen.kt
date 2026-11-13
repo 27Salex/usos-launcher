@@ -1,5 +1,8 @@
 package com.usos.launcher.ui.feeds
 
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import com.usos.launcher.R
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -69,21 +72,21 @@ fun FeedManagerScreen(vm: FeedsViewModel, onBack: () -> Unit) {
                 start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin,
             ),
     ) {
-        ScreenHeader("Feeds", onBack = onBack)
+        ScreenHeader(stringResource(R.string.feeds_manager_title), onBack = onBack)
         Spacer(Modifier.height(16.dp))
-        UsosText("AÑADIR · URL DE FEED, DE WEB O DOMINIO", UsosType.Label, UsosColors.TextSecondary)
+        UsosText(stringResource(R.string.feeds_add_label), UsosType.Label, UsosColors.TextSecondary)
         Spacer(Modifier.height(8.dp))
-        TextBox(url, { url = it }, "crunchyroll.com", ImeAction.Go, onGo = { if (url.isNotBlank() && !busy) vm.search(url) })
+        TextBox(url, { url = it }, stringResource(R.string.feeds_url_hint), ImeAction.Go, onGo = { if (url.isNotBlank() && !busy) vm.search(url) })
         Spacer(Modifier.height(8.dp))
         UsosPill(
-            if (discover is DiscoverUi.Loading) "BUSCANDO…" else "BUSCAR FEEDS", filled = true, enabled = !busy && url.isNotBlank(),
+            stringResource(if (discover is DiscoverUi.Loading) R.string.feeds_searching else R.string.feeds_search), filled = true, enabled = !busy && url.isNotBlank(),
             onClick = { vm.search(url) }, modifier = Modifier.fillMaxWidth(),
         )
         Box(Modifier.height(28.dp), contentAlignment = Alignment.CenterStart) {
             message?.let { UsosText(it, UsosType.Label, LocalAccent.current) }
         }
         (discover as? DiscoverUi.Results)?.let { r ->
-            UsosText("ENCONTRADOS · ELIGE UNO", UsosType.Label, UsosColors.TextSecondary)
+            UsosText(stringResource(R.string.feeds_found), UsosType.Label, UsosColors.TextSecondary)
             r.feeds.forEach { f ->
                 val added = f.url in have
                 Row(
@@ -92,10 +95,10 @@ fun FeedManagerScreen(vm: FeedsViewModel, onBack: () -> Unit) {
                 ) {
                     Column(Modifier.weight(1f)) {
                         UsosText(f.title, UsosType.PieceData, UsosColors.Text)
-                        UsosText("${f.itemCount} ARTÍCULOS · ${f.url.substringAfter("://")}", UsosType.Label, UsosColors.TextSecondary)
+                        UsosText("${pluralStringResource(R.plurals.feeds_item_count, f.itemCount, f.itemCount)} · ${f.url.substringAfter("://")}", UsosType.Label, UsosColors.TextSecondary)
                     }
                     UsosPill(
-                        if (added) "YA LO TIENES" else "AÑADIR", filled = !added, enabled = !added,
+                        stringResource(if (added) R.string.feeds_already_have else R.string.feeds_add), filled = !added, enabled = !added,
                         onClick = { vm.addFound(f, onBack); url = "" },
                     )
                 }
@@ -103,9 +106,9 @@ fun FeedManagerScreen(vm: FeedsViewModel, onBack: () -> Unit) {
             Spacer(Modifier.height(8.dp))
         }
 
-        UsosText("SUGERIDOS", UsosType.Label, UsosColors.TextSecondary)
-        val pending = SuggestedFeeds.list.filter { it.second !in have }
-        if (pending.isEmpty()) UsosText("YA TIENES TODOS", UsosType.Label, UsosColors.TextSecondary, Modifier.padding(vertical = 12.dp))
+        UsosText(stringResource(R.string.feeds_suggested), UsosType.Label, UsosColors.TextSecondary)
+        val pending = SuggestedFeeds.forLanguage(stringResource(R.string.feeds_language)).filter { it.second !in have }
+        if (pending.isEmpty()) UsosText(stringResource(R.string.feeds_have_all), UsosType.Label, UsosColors.TextSecondary, Modifier.padding(vertical = 12.dp))
         pending.forEach { (name, feedUrl) ->
             Row(
                 Modifier.fillMaxWidth().height(UsosDimens.MinTouch + 4.dp).tap(enabled = !busy) { vm.addSuggested(name, feedUrl, onBack) },
@@ -117,10 +120,10 @@ fun FeedManagerScreen(vm: FeedsViewModel, onBack: () -> Unit) {
         }
 
         Spacer(Modifier.height(20.dp))
-        UsosText("TUS FEEDS", UsosType.Label, UsosColors.TextSecondary)
+        UsosText(stringResource(R.string.feeds_yours), UsosType.Label, UsosColors.TextSecondary)
         Spacer(Modifier.height(4.dp))
         if (feeds.isEmpty()) {
-            UsosText("TODAVÍA NO HAY NINGUNO", UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 12.dp))
+            UsosText(stringResource(R.string.feeds_none_yet), UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 12.dp))
         }
         feeds.forEach { FeedRow(it, vm) }
     }
@@ -133,7 +136,7 @@ private fun FeedRow(feed: Feed, vm: FeedsViewModel) {
     var confirmDelete by rememberSaveable(feed.id) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
         if (editing) {
-            TextBox(name, { name = it }, "Nombre", ImeAction.Done, onGo = { vm.rename(feed.id, name); editing = false })
+            TextBox(name, { name = it }, stringResource(R.string.feeds_name_hint), ImeAction.Done, onGo = { vm.rename(feed.id, name); editing = false })
         } else {
             UsosText(feed.title, UsosType.PieceData, UsosColors.Text)
         }
@@ -141,12 +144,12 @@ private fun FeedRow(feed: Feed, vm: FeedsViewModel) {
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (editing) {
-                UsosPill("GUARDAR", filled = true, onClick = { vm.rename(feed.id, name); editing = false })
-                UsosPill("CANCELAR", filled = false, onClick = { editing = false })
+                UsosPill(stringResource(R.string.save), filled = true, onClick = { vm.rename(feed.id, name); editing = false })
+                UsosPill(stringResource(R.string.cancel), filled = false, onClick = { editing = false })
             } else {
-                UsosPill("RENOMBRAR", filled = false, onClick = { editing = true })
+                UsosPill(stringResource(R.string.feeds_rename), filled = false, onClick = { editing = true })
                 UsosPill(
-                    if (confirmDelete) "¿SEGURO? BORRAR" else "BORRAR", filled = confirmDelete,
+                    stringResource(if (confirmDelete) R.string.feeds_delete_confirm else R.string.feeds_delete), filled = confirmDelete,
                     onClick = { if (confirmDelete) vm.delete(feed.id) else confirmDelete = true },
                 )
             }

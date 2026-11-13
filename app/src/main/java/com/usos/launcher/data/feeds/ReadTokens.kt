@@ -57,10 +57,10 @@ object ReadTokens {
     fun nextAt(state: TokenState, perHour: Int): Long? =
         if (state.count >= max(perHour)) null else state.refilledAt + intervalMs(perHour)
 
-    /** «+1 A LAS 19:05»; null con el cubo lleno. */
-    fun nextLabel(state: TokenState, perHour: Int, zone: ZoneId): String? {
+    /** Hora de la próxima lectura («19:05», la UI la integra en su frase); null con el cubo lleno. */
+    fun nextTime(state: TokenState, perHour: Int, zone: ZoneId): String? {
         val at = nextAt(state, perHour) ?: return null
         val t = ZonedDateTime.ofInstant(Instant.ofEpochMilli(at), zone)
-        return "+1 A LAS %02d:%02d".format(t.hour, t.minute)
+        return "%02d:%02d".format(t.hour, t.minute)
     }
 }

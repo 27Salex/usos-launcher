@@ -1,5 +1,7 @@
 package com.usos.launcher.data.weather
 
+import com.usos.launcher.R
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -28,15 +30,15 @@ class WeatherTest {
         assertNull(Weather.parse("no json", 1))
     }
 
-    @Test fun codesToSpanishText() {
-        assertEquals("DESPEJADO", Weather.text(0))
-        assertEquals("NUBES", Weather.text(3))
-        assertEquals("NIEBLA", Weather.text(45))
-        assertEquals("LLUVIA", Weather.text(63))
-        assertEquals("NIEVE", Weather.text(73))
-        assertEquals("CHUBASCOS", Weather.text(81))
-        assertEquals("TORMENTA", Weather.text(95))
-        assertEquals("VARIABLE", Weather.text(42))
+    @Test fun codesToTextResources() {
+        assertEquals(R.string.weather_clear, Weather.textRes(0))
+        assertEquals(R.string.weather_clouds, Weather.textRes(3))
+        assertEquals(R.string.weather_fog, Weather.textRes(45))
+        assertEquals(R.string.weather_rain, Weather.textRes(63))
+        assertEquals(R.string.weather_snow, Weather.textRes(73))
+        assertEquals(R.string.weather_showers, Weather.textRes(81))
+        assertEquals(R.string.weather_thunderstorm, Weather.textRes(95))
+        assertEquals(R.string.weather_variable, Weather.textRes(42))
     }
 
     @Test fun iconsDependOnDayAndCode() {
@@ -54,11 +56,11 @@ class WeatherTest {
 
     @Test fun label() {
         val w = WeatherNow(13.6, 3, true, 18.2, 9.4)
-        assertEquals("14° · NUBES", Weather.label(w, false, true, false))
-        assertEquals("14°", Weather.label(w, false, false, false))
-        assertEquals("14° · NUBES · 9°/18°", Weather.label(w, false, true, true))
-        assertEquals("56° · NUBES", Weather.label(w, true, true, false))
-        assertEquals("-2°", Weather.label(WeatherNow(-1.6, 0, true), false, false, false))
+        assertEquals("14° · NUBES", Weather.label(w, false, "NUBES", false))
+        assertEquals("14°", Weather.label(w, false, null, false))
+        assertEquals("14° · NUBES · 9°/18°", Weather.label(w, false, "NUBES", true))
+        assertEquals("56° · NUBES", Weather.label(w, true, "NUBES", false))
+        assertEquals("-2°", Weather.label(WeatherNow(-1.6, 0, true), false, null, false))
     }
 
     @Test fun cacheWindows() {

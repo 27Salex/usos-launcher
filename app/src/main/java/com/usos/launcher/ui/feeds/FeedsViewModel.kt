@@ -1,5 +1,8 @@
 package com.usos.launcher.ui.feeds
 
+import androidx.annotation.StringRes
+import com.usos.launcher.R
+import com.usos.launcher.data.feeds.FeedErrors
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -28,17 +31,18 @@ import java.time.ZoneId
 /** Filtro especial: solo los artículos guardados con estrella. */
 const val SAVED_FILTER = -2L
 
-data class PillUi(val feedId: Long?, val label: String, val count: Int)
+/** [label] = nombre del feed; null = pastilla fija con título en [labelRes]. */
+data class PillUi(val feedId: Long?, val label: String?, val count: Int, @StringRes val labelRes: Int = 0)
 
-data class CardUi(val article: Article, val source: String, val age: String)
+data class CardUi(val article: Article, val source: String, val age: FeedFormat.Age)
 
 data class FeedsUi(
     val pills: List<PillUi>,
     val cards: List<CardUi>,
-    /** «3 LECTURAS». */
-    val tokensLabel: String,
-    /** «+1 A LAS 19:05»; null con el cubo lleno. */
-    val nextLabel: String?,
+    /** Lecturas disponibles. */
+    val tokens: Int,
+    /** Hora de la próxima lectura («19:05»); null con el cubo lleno. */
+    val nextTime: String?,
     val hasFeeds: Boolean,
     val hidden: Boolean,
     val filter: Long?,
@@ -82,7 +86,7 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
 
     private val tokens = combine(settings.readTokens, settings.feedsPerHour, ticker) { state, perHour, now ->
         val s = ReadTokens.normalize(state, now, perHour)
-        Tokens(s.count, ReadTokens.nextLabel(s, perHour, ZoneId.systemDefault()), now)
+        Tokens(s.count, ReadTokens.nextTime(s, perHour, ZoneId.systemDefault()), now)
     }
 
     val ui: StateFlow<FeedsUi?> = combine(repo.feeds, repo.articles, tokens, settings.feedsHidden, filter) { feeds, articles, t, hidden, f ->
@@ -98,12 +102,12 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
         }
         FeedsUi(
             pills = listOf(
-                PillUi(null, "Todo", live.count { !it.read }),
-                PillUi(SAVED_FILTER, "Guardados", articles.count { it.starred }),
+                PillUi(null, null, live.count { !it.read }, R.string.feeds_filter_all),
+                PillUi(SAVED_FILTER, null, articles.count { it.starred }, R.string.feeds_filter_saved),
             ) + feeds.map { fd -> PillUi(fd.id, fd.title, live.count { !it.read && it.feedId == fd.id }) },
             cards = shown.map { CardUi(it, titles[it.feedId] ?: it.sourceTitle, FeedFormat.age(it.publishedAt, t.now)) },
-            tokensLabel = if (t.count == 1) "1 LECTURA" else "${t.count} LECTURAS",
-            nextLabel = t.next,
+            tokens = t.count,
+            nextTime = t.next,
             hasFeeds = feeds.isNotEmpty(),
             hidden = hidden,
             filter = active,
@@ -139,8 +143,8 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
                 repo.markRead(a.id)
                 open(a.url)
             } else {
-                val next = ui.value?.nextLabel
-                say(if (next != null) "SIN LECTURAS · $next" else "SIN LECTURAS")
+                val next = ui.value?.nextTime
+                say(if (next != null) str(R.string.feeds_no_reads_next, str(R.string.feeds_next_read, next)) else str(R.string.feeds_no_reads))
             }
         }
     }
@@ -148,7 +152,7 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
     fun toggleStar(a: Article) {
         viewModelScope.launch {
             repo.setStarred(a.id, !a.starred)
-            say(if (a.starred) "QUITADO DE GUARDADOS" else "GUARDADO")
+            say(str(if (a.starred) R.string.feeds_unsaved else R.string.feeds_saved))
         }
     }
 
@@ -173,7 +177,7 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
         viewModelScope.launch {
             _refreshing.value = true
             val ok = try { block() } finally { _refreshing.value = false }
-            if (!ok && report) say("NO SE PUDIERON ACTUALIZAR TODOS")
+            if (!ok && report) say(str(R.string.feeds_refresh_failed))
         }
     }
 
@@ -188,7 +192,7 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
                 is DiscoverResult.Found -> _discover.value = DiscoverUi.Results(r.feeds)
                 is DiscoverResult.Failed -> {
                     _discover.value = DiscoverUi.Idle
-                    say(r.message)
+                    say(errorText(r.message))
                 }
             }
         }
@@ -201,7 +205,7 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
         viewModelScope.launch {
             val id = repo.add(f)
             if (id == null) {
-                say("YA LO TIENES")
+                say(str(R.string.feeds_already_have))
             } else {
                 _discover.value = DiscoverUi.Idle
                 filter.value = id
@@ -218,14 +222,24 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
             val r = try { repo.addByUrl(url, name) } finally { _adding.value = false }
             when (r) {
                 is AddOutcome.Added -> { filter.value = r.feedId; onAdded() }
-                AddOutcome.Duplicate -> say("YA LO TIENES")
-                is AddOutcome.Failed -> say(r.message)
+                AddOutcome.Duplicate -> say(str(R.string.feeds_already_have))
+                is AddOutcome.Failed -> say(errorText(r.message))
             }
         }
     }
 
     fun rename(id: Long, title: String) { viewModelScope.launch { repo.rename(id, title) } }
     fun delete(id: Long) { viewModelScope.launch { repo.delete(id) } }
+
+    private fun str(@StringRes id: Int, vararg args: Any): String = app.getString(id, *args)
+
+    /** Traduce los códigos de FeedErrors; «HTTP 404» se deja tal cual. */
+    private fun errorText(code: String): String = when (code) {
+        FeedErrors.INVALID -> str(R.string.feeds_err_invalid)
+        FeedErrors.NOT_A_FEED -> str(R.string.feeds_err_not_a_feed)
+        FeedErrors.OFFLINE -> str(R.string.feeds_err_offline)
+        else -> code
+    }
 
     private fun say(text: String) {
         messageJob?.cancel()

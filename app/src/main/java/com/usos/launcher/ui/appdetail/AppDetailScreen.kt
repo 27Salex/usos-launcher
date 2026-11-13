@@ -1,5 +1,8 @@
 package com.usos.launcher.ui.appdetail
 
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import com.usos.launcher.R
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -122,7 +125,7 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
         }
         Spacer(Modifier.height(4.dp))
         UsosText(
-            (app.versionName?.let { "VERSIÓN $it" } ?: app.packageName).uppercase(),
+            (app.versionName?.let { stringResource(R.string.detail_version, it) } ?: app.packageName).uppercase(),
             UsosType.Label, UsosColors.TextSecondary,
         )
         Spacer(Modifier.height(24.dp))
@@ -130,17 +133,17 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
         UsageBlock(ui, context)
 
         Spacer(Modifier.height(16.dp))
-        UsosRow("MOSTRAR USO EN LA PIEZA") { UsosSwitch(cfg.showUsage, actions.onShowUsage) }
+        UsosRow(stringResource(R.string.detail_show_usage)) { UsosSwitch(cfg.showUsage, actions.onShowUsage) }
 
         Spacer(Modifier.height(12.dp))
-        Label("SECCIÓN")
+        Label(stringResource(R.string.detail_section))
         Spacer(Modifier.height(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             sectionChoices.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { s ->
                         UsosPill(
-                            s.title.uppercase(), filled = s == cfg.section,
+                            stringResource(s.titleRes).uppercase(), filled = s == cfg.section,
                             onClick = { actions.onSection(s) }, modifier = Modifier.weight(1f),
                         )
                     }
@@ -148,15 +151,15 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
             }
         }
         Spacer(Modifier.height(8.dp))
-        UsosRow("MOSTRAR EN INICIO") {
+        UsosRow(stringResource(R.string.detail_show_on_home)) {
             UsosSwitch(cfg.inMosaic, actions.onInMosaic, enabled = cfg.section != Section.NONE)
         }
         if (ui.mosaicFull && !cfg.inMosaic && cfg.section != Section.NONE) {
-            UsosText("MOSAICO LLENO · QUITA OTRA APP ANTES", UsosType.Label, LocalAccent.current, maxLines = 2)
+            UsosText(stringResource(R.string.detail_mosaic_full), UsosType.Label, LocalAccent.current, maxLines = 2)
         }
 
         Spacer(Modifier.height(16.dp))
-        Label("TAMAÑO DE LA PIEZA")
+        Label(stringResource(R.string.detail_tile_size))
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TileSize.entries.forEach { s ->
@@ -165,7 +168,7 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
         }
         if (cfg.section != Section.NONE) {
             Spacer(Modifier.height(16.dp))
-            Label("FILAS DEL MOSAICO DE ${cfg.section.title.uppercase()}")
+            Label(stringResource(R.string.detail_mosaic_rows, stringResource(cfg.section.titleRes).uppercase()))
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 (1..4).forEach { n ->
@@ -178,15 +181,15 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
         CodeField(ui, actions.onCode)
 
         Spacer(Modifier.height(16.dp))
-        Label("DESTACADO")
+        Label(stringResource(R.string.detail_highlight))
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(
-                Highlight.NORMAL to "NORMAL", Highlight.ACCENT to "ACENTO",
-                Highlight.WHITE to "BLANCA", Highlight.OUTLINE to "BORDE",
+                Highlight.NORMAL to R.string.detail_hl_normal, Highlight.ACCENT to R.string.detail_hl_accent,
+                Highlight.WHITE to R.string.detail_hl_white, Highlight.OUTLINE to R.string.detail_hl_outline,
             ).forEach { (h, text) ->
                 UsosPill(
-                    text, filled = h == cfg.highlight, onClick = { actions.onHighlight(h) },
+                    stringResource(text), filled = h == cfg.highlight, onClick = { actions.onHighlight(h) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -194,7 +197,7 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
         Spacer(Modifier.height(8.dp))
         val accentNow = LocalAccent.current
         UsosPill(
-            "COLOR", filled = cfg.highlight == Highlight.COLOR,
+            stringResource(R.string.detail_hl_color), filled = cfg.highlight == Highlight.COLOR,
             onClick = { actions.onHighlightColor(cfg.highlightColor ?: accentNow.toArgb()) },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -205,8 +208,8 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
 
         Spacer(Modifier.height(28.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            UsosPill("INFO", filled = false, onClick = { openInfo(context, app) }, modifier = Modifier.weight(1f))
-            UsosPill("DESINSTALAR", filled = false, onClick = { uninstall(context, app) }, modifier = Modifier.weight(1f))
+            UsosPill(stringResource(R.string.detail_info), filled = false, onClick = { openInfo(context, app) }, modifier = Modifier.weight(1f))
+            UsosPill(stringResource(R.string.detail_uninstall), filled = false, onClick = { uninstall(context, app) }, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -217,14 +220,14 @@ private fun Label(text: String) = UsosText(text, UsosType.Label, UsosColors.Text
 @Composable
 private fun UsageBlock(ui: DetailUi, context: Context) {
     if (!ui.hasPermission) {
-        Label("USO")
+        Label(stringResource(R.string.detail_usage))
         Spacer(Modifier.height(8.dp))
         UsosText(
-            "Para ver cuánto usas esta app hace falta el acceso a datos de uso.",
+            stringResource(R.string.detail_usage_needs_access),
             UsosType.Empty, UsosColors.TextSecondary, maxLines = 3,
         )
         Spacer(Modifier.height(12.dp))
-        UsosPill("CONCEDER ACCESO A DATOS DE USO", filled = true, onClick = {
+        UsosPill(stringResource(R.string.detail_grant_usage), filled = true, onClick = {
             runCatching {
                 context.startActivity(
                     Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:" + context.packageName)),
@@ -234,12 +237,12 @@ private fun UsageBlock(ui: DetailUi, context: Context) {
         return
     }
     val usage = ui.usage
-    Label("HOY")
+    Label(stringResource(R.string.detail_today))
     UsosText(if (usage == null) "…" else UsageSummary.format(usage.todayMin), UsosType.BigNumber, UsosColors.Text)
     Spacer(Modifier.height(4.dp))
     if (usage != null) {
         UsosText(
-            "ESTA SEMANA ${UsageSummary.format(usage.weekMin)} · ${usage.opens7} APERTURAS EN 7 DÍAS",
+            stringResource(R.string.detail_week_summary, UsageSummary.format(usage.weekMin), pluralStringResource(R.plurals.detail_opens, usage.opens7, usage.opens7)),
             UsosType.Label, UsosColors.TextSecondary, maxLines = 2,
         )
         Spacer(Modifier.height(16.dp))
@@ -247,9 +250,9 @@ private fun UsageBlock(ui: DetailUi, context: Context) {
     }
     Spacer(Modifier.height(8.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Label("ÚLTIMOS 7 DÍAS")
+        Label(stringResource(R.string.detail_last_7_days))
         val storage = ui.storageBytes
-        if (storage != null) Label("ALMACENAMIENTO " + Formatter.formatShortFileSize(context, storage).uppercase())
+        if (storage != null) Label(stringResource(R.string.detail_storage, Formatter.formatShortFileSize(context, storage).uppercase()))
     }
 }
 
@@ -277,7 +280,7 @@ private fun CodeField(ui: DetailUi, onCode: (String) -> Unit) {
     var text by remember(ui.app.key) { mutableStateOf(ui.code) }
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Label("CÓDIGO (2 LETRAS)")
+        Label(stringResource(R.string.detail_code))
         Box(
             Modifier.size(64.dp, UsosDimens.MinTouch)
                 .background(UsosColors.Surface, shape).border(1.dp, UsosColors.Border, shape),

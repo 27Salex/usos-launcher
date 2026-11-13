@@ -1,5 +1,6 @@
 package com.usos.launcher.ui.home
 
+import com.usos.launcher.R
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -22,8 +23,8 @@ object InfoLauncher {
 
     /** Navegación a «casa» con Maps; si no resuelve, geo:0,0?q=casa. */
     fun navigateHome(context: Context): Boolean {
-        val nav = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=casa")).setPackage(InfoPieces.MAPS_PACKAGE)
+        val nav = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${context.getString(R.string.maps_home_query)}")).setPackage(InfoPieces.MAPS_PACKAGE)
         if (start(context, nav)) return true
-        return start(context, Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=casa")))
+        return start(context, Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${context.getString(R.string.maps_home_query)}")))
     }
 }

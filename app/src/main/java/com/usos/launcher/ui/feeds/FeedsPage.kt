@@ -1,5 +1,9 @@
 package com.usos.launcher.ui.feeds
 
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import com.usos.launcher.R
+import com.usos.launcher.data.feeds.FeedFormat
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Canvas
@@ -89,8 +93,8 @@ fun FeedsPage(
     Column(Modifier.fillMaxSize().padding(horizontal = UsosDimens.ScreenMargin)) {
         Spacer(Modifier.height(topSpacing))
         Row(Modifier.fillMaxWidth().height(UsosDimens.MinTouch), verticalAlignment = Alignment.CenterVertically) {
-            UsosText("Noticias", UsosType.PanelTitle, UsosColors.Text, Modifier.weight(1f))
-            PillButton("FEEDS +", onManage)
+            UsosText(stringResource(R.string.feeds_title), UsosType.PanelTitle, UsosColors.Text, Modifier.weight(1f))
+            PillButton(stringResource(R.string.feeds_manage), onManage)
             Box(Modifier.size(UsosDimens.MinTouch).tap { vm.toggleHidden() }, contentAlignment = Alignment.Center) {
                 EyeIcon(crossed = ui?.hidden == true, color = if (ui?.hidden == true) accent else UsosColors.Text)
             }
@@ -99,17 +103,17 @@ fun FeedsPage(
         val state = ui
         if (state == null) return@Column
         if (state.hidden) {
-            UsosText("CONTENIDO OCULTO", UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 8.dp))
+            UsosText(stringResource(R.string.feeds_hidden), UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 8.dp))
             return@Column
         }
         Row(Modifier.fillMaxWidth().height(28.dp), verticalAlignment = Alignment.CenterVertically) {
             if (message != null) {
                 UsosText(message!!, UsosType.Label, accent)
             } else {
-                UsosText(state.tokensLabel, UsosType.Label, accent)
-                state.nextLabel?.let {
+                UsosText(pluralStringResource(R.plurals.feeds_reads, state.tokens, state.tokens), UsosType.Label, accent)
+                state.nextTime?.let {
                     Spacer(Modifier.width(10.dp))
-                    UsosText(it, UsosType.Label, UsosColors.TextSecondary)
+                    UsosText(stringResource(R.string.feeds_next_read, it), UsosType.Label, UsosColors.TextSecondary)
                 }
             }
         }
@@ -131,9 +135,9 @@ fun FeedsPage(
                 if (state.cards.isEmpty()) {
                     item {
                         val text = when {
-                            !state.hasFeeds -> "AÑADE UN FEED EN «FEEDS +»"
-                            state.filter == SAVED_FILTER -> "NADA GUARDADO · TOCA LA ESTRELLA DE UN ARTÍCULO"
-                            else -> "SIN ARTÍCULOS · TIRA PARA ACTUALIZAR"
+                            !state.hasFeeds -> stringResource(R.string.feeds_empty_no_feeds)
+                            state.filter == SAVED_FILTER -> stringResource(R.string.feeds_empty_saved)
+                            else -> stringResource(R.string.feeds_empty_articles)
                         }
                         UsosText(text, UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 24.dp), maxLines = 2)
                     }
@@ -175,8 +179,17 @@ private fun PillButton(text: String, onClick: () -> Unit, active: Boolean = fals
 
 @Composable
 private fun FilterPill(pill: PillUi, active: Boolean, onClick: () -> Unit) {
-    val label = if (pill.count > 0) "${pill.label} ${pill.count}" else pill.label
+    val name = pill.label ?: stringResource(pill.labelRes)
+    val label = if (pill.count > 0) "$name ${pill.count}" else name
     PillButton(label, onClick, active)
+}
+
+@Composable
+private fun ageText(age: FeedFormat.Age): String = when (age.unit) {
+    FeedFormat.AgeUnit.NOW -> stringResource(R.string.feeds_age_now)
+    FeedFormat.AgeUnit.MIN -> stringResource(R.string.feeds_age_min, age.value)
+    FeedFormat.AgeUnit.HOUR -> stringResource(R.string.feeds_age_hour, age.value)
+    FeedFormat.AgeUnit.DAY -> stringResource(R.string.feeds_age_day, age.value)
 }
 
 @Composable
@@ -200,7 +213,7 @@ private fun ArticleCard(card: CardUi, loader: ThumbnailLoader, gray: Boolean, on
                     Spacer(Modifier.width(8.dp))
                 }
                 UsosText(
-                    "${card.source.uppercase()} · ${card.age}", UsosType.Label, UsosColors.TextSecondary,
+                    "${card.source.uppercase()} · ${ageText(card.age)}", UsosType.Label, UsosColors.TextSecondary,
                     Modifier.weight(1f),
                 )
                 Box(Modifier.size(UsosDimens.MinTouch).tap { onStar() }, contentAlignment = Alignment.Center) {
@@ -273,9 +286,9 @@ fun PullToRefresh(refreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier
             if (header > 16.dp) {
                 UsosText(
                     when {
-                        refreshing -> "ACTUALIZANDO…"
-                        pull >= threshold -> "SUELTA PARA ACTUALIZAR"
-                        else -> "TIRA PARA ACTUALIZAR"
+                        refreshing -> stringResource(R.string.feeds_refreshing)
+                        pull >= threshold -> stringResource(R.string.feeds_release_to_refresh)
+                        else -> stringResource(R.string.feeds_pull_to_refresh)
                     },
                     UsosType.Label, UsosColors.TextSecondary,
                 )
