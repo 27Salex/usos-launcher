@@ -153,6 +153,7 @@ fun HomeScreen(
     val blockerActive by viewModel.blockerActive.collectAsStateWithLifecycle()
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val widgets by viewModel.widgets.collectAsStateWithLifecycle()
+    val calendarGrantedW by viewModel.calendarGranted.collectAsStateWithLifecycle()
     val mosaicCols by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
     val assistantUi by viewModel.assistantUi.collectAsStateWithLifecycle()
     val searchKeyboardOn by viewModel.searchKeyboard.collectAsStateWithLifecycle()
@@ -233,7 +234,9 @@ fun HomeScreen(
         LocalIconPrefs provides iconPrefs, LocalIcons provides viewModel.iconRepository,
         com.usos.launcher.ui.theme.LocalNotifBadges provides notifBadges,
     ) {
-    Box(Modifier.fillMaxSize().background(UsosColors.Background)) {
+    val bgPrefs by viewModel.background.collectAsStateWithLifecycle()
+    Box(Modifier.fillMaxSize()) {
+        com.usos.launcher.ui.theme.AppBackground(bgPrefs)
         HorizontalPager(
             state = pager, modifier = Modifier.fillMaxSize(),
             userScrollEnabled = PagerLock.scrollEnabled(editing, widgetsEditing, searchOpen, pager.currentPage),
@@ -250,10 +253,14 @@ fun HomeScreen(
                         onLayout = viewModel::applyWidgetLayout,
                         onRemove = viewModel::removeWidget,
                         onReconfigure = onReconfigureWidget,
+                        onAddOwn = viewModel::addOwnWidget,
+                        onConfigOwn = viewModel::setWidgetConfig,
+                        onRequestCalendar = viewModel::requestCalendar,
                     ),
                     topSpacing = topSpacing(),
                     onOpenSettings = { viewModel.openSettings(SettingsCat.WIDGETS) },
                     apps = installedApps.orEmpty(),
+                    calendarGranted = calendarGrantedW,
                     editing = widgetsEditing,
                     onEditingChange = { widgetsEditing = it },
                 )
@@ -360,6 +367,7 @@ fun HomeScreen(
                 val thumbsGray by viewModel.thumbsGray.collectAsStateWithLifecycle()
                 val feedsKeep by viewModel.feedsKeep.collectAsStateWithLifecycle()
                 val clockTap by viewModel.clockTap.collectAsStateWithLifecycle()
+                val fontChoices by viewModel.fontChoices.collectAsStateWithLifecycle()
                 val ctx = androidx.compose.ui.platform.LocalContext.current
                 val versionName = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
                 val allApps = remember(orderLists) { orderLists.flatMap { (_, l) -> l.map { it.app } }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() } }
@@ -369,6 +377,7 @@ fun HomeScreen(
                         budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
                         clock, weatherPrefs, cities, iconPrefs, mosaicPrefs, infoSpecs, searchEngine, recentColors,
                         searchKeyboard, assistantUi, feedsKeep, clockTap, allApps, versionName, thumbsGray,
+                        fontChoices.first, fontChoices.second, bgPrefs,
                     ),
                     SettingsActions(
                         onBudget = viewModel::setBudget,
@@ -409,6 +418,13 @@ fun HomeScreen(
                         onFeedsKeep = viewModel::setFeedsKeep,
                         onClockTap = viewModel::setClockTap,
                         onThumbsGray = viewModel::setThumbsGray,
+                        onFontTitle = viewModel::setFontTitle,
+                        onFontText = viewModel::setFontText,
+                        onBackgroundMode = viewModel::setBackgroundMode,
+                        onBackgroundColor = viewModel::setBackgroundColor,
+                        onBackgroundDim = viewModel::setBackgroundDim,
+                        onBackgroundBlur = viewModel::setBackgroundBlur,
+                        onPickBackground = viewModel::pickBackgroundImage,
                         onBack = viewModel::closeOverlay,
                     ),
                 )

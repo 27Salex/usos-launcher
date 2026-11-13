@@ -138,7 +138,7 @@ fun ColorPicker(initial: Int, recent: List<Int>, onCommit: (Int) -> Unit, modifi
                             }
                         },
                         singleLine = true,
-                        textStyle = UsosType.Pill.copy(color = UsosColors.Text),
+                        textStyle = UsosType.Pill.themed().copy(color = UsosColors.Text),
                         cursorBrush = SolidColor(UsosColors.Text),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { ColorMath.parseHex(hex)?.let { setFrom(it); commit(it) } }),

@@ -1,5 +1,6 @@
 package com.usos.launcher.ui.appdetail
 
+import com.usos.launcher.ui.theme.themed
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import com.usos.launcher.R
@@ -294,7 +295,7 @@ private fun CodeField(ui: DetailUi, onCode: (String) -> Unit) {
                     onCode(v)
                 },
                 singleLine = true,
-                textStyle = UsosType.TileCode.copy(color = UsosColors.Text, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+                textStyle = UsosType.TileCode.themed().copy(color = UsosColors.Text, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
                 cursorBrush = SolidColor(LocalAccent.current),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),

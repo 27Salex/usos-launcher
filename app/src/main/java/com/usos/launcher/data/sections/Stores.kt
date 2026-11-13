@@ -253,6 +253,37 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    // ---- Fuentes y fondo (1.0.6) ----
+    private val fontTitleKey = stringPreferencesKey("font_title")
+    private val fontTextKey = stringPreferencesKey("font_text")
+    private val bgModeKey = stringPreferencesKey("bg_mode")
+    private val bgColorKey = intPreferencesKey("bg_color")
+    private val bgDimKey = intPreferencesKey("bg_dim")
+    private val bgBlurKey = booleanPreferencesKey("bg_blur")
+    private val bgVersionKey = intPreferencesKey("bg_image_version")
+
+    /** Nombres de [com.usos.launcher.ui.theme.FontChoice]; DEFAULT = Space Grotesk / JetBrains Mono. */
+    val fontTitle: Flow<String> = dataStore.data.map { it[fontTitleKey] ?: "DEFAULT" }.distinctUntilChanged()
+    val fontText: Flow<String> = dataStore.data.map { it[fontTextKey] ?: "DEFAULT" }.distinctUntilChanged()
+    suspend fun setFontTitle(name: String) { dataStore.edit { it[fontTitleKey] = name } }
+    suspend fun setFontText(name: String) { dataStore.edit { it[fontTextKey] = name } }
+
+    val background: Flow<BackgroundPrefs> = dataStore.data.map {
+        BackgroundPrefs(
+            BackgroundMode.fromName(it[bgModeKey]), it[bgColorKey] ?: 0xFF1A1A1A.toInt(),
+            (it[bgDimKey] ?: BackgroundPrefs.DEFAULT_DIM).coerceIn(0, BackgroundPrefs.MAX_DIM),
+            it[bgBlurKey] ?: false, it[bgVersionKey] ?: 0,
+        )
+    }.distinctUntilChanged()
+    suspend fun setBackgroundMode(m: BackgroundMode) { dataStore.edit { it[bgModeKey] = m.name } }
+    suspend fun setBackgroundColor(argb: Int) { dataStore.edit { it[bgColorKey] = argb; it[bgModeKey] = BackgroundMode.COLOR.name } }
+    suspend fun setBackgroundDim(pct: Int) { dataStore.edit { it[bgDimKey] = pct.coerceIn(0, BackgroundPrefs.MAX_DIM) } }
+    suspend fun setBackgroundBlur(on: Boolean) { dataStore.edit { it[bgBlurKey] = on } }
+    /** Nueva imagen guardada: sube la versión (recarga) y activa el modo imagen. */
+    suspend fun bumpBackgroundImage() {
+        dataStore.edit { it[bgVersionKey] = (it[bgVersionKey] ?: 0) + 1; it[bgModeKey] = BackgroundMode.IMAGE.name }
+    }
+
     suspend fun setLastOpenSection(section: Section?) {
         dataStore.edit { if (section == null) it.remove(lastOpenKey) else it[lastOpenKey] = section.name }
     }
@@ -293,4 +324,26 @@ class DisplayStore(private val dataStore: DataStore<Preferences>) {
     }
     suspend fun setInfoSize(k: com.usos.launcher.data.info.InfoKind, s: TileSize) { dataStore.edit { it[infoSizeKey(k)] = s.name } }
     suspend fun setInfoHidden(k: com.usos.launcher.data.info.InfoKind, hidden: Boolean) { dataStore.edit { it[infoHiddenKey(k)] = hidden } }
+}
+
+/** Fondo de inicio, Widgets y Noticias. BLACK (defecto) = negro puro. */
+enum class BackgroundMode {
+    BLACK, COLOR, IMAGE, SYSTEM;
+
+    companion object {
+        fun fromName(name: String?) = entries.firstOrNull { it.name == name } ?: BLACK
+    }
+}
+
+data class BackgroundPrefs(
+    val mode: BackgroundMode = BackgroundMode.BLACK,
+    val color: Int = 0xFF1A1A1A.toInt(),
+    val dim: Int = DEFAULT_DIM,
+    val blur: Boolean = false,
+    val imageVersion: Int = 0,
+) {
+    companion object {
+        const val DEFAULT_DIM = 50
+        const val MAX_DIM = 80
+    }
 }

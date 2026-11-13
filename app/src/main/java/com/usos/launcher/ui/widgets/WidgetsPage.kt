@@ -89,6 +89,9 @@ class WidgetsActions(
     val onLayout: (boxes: List<GBox>) -> Unit,
     val onRemove: (id: Int) -> Unit,
     val onReconfigure: (id: Int) -> Unit,
+    val onAddOwn: (kind: WidgetKind, cols: Int, rows: Int) -> Unit,
+    val onConfigOwn: (id: Int, config: String) -> Unit,
+    val onRequestCalendar: () -> Unit,
 )
 
 private val ColGap = 11.dp
@@ -111,10 +114,12 @@ fun WidgetsPage(
     topSpacing: Dp,
     onOpenSettings: () -> Unit,
     apps: List<com.usos.launcher.domain.AppEntry>,
+    calendarGranted: Boolean,
     editing: Boolean,
     onEditingChange: (Boolean) -> Unit,
 ) {
     var picking by rememberSaveable { mutableStateOf(false) }
+    var configId by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedId by remember { mutableStateOf<Int?>(null) }
     var resizing by remember { mutableStateOf(false) }
     var selectedRect by remember { mutableStateOf<Rect?>(null) }
@@ -150,6 +155,7 @@ fun WidgetsPage(
     LaunchedEffect(held) { if (held != null) { delay(900); held = null } }
 
     fun defaultRows(id: Int): Int {
+        if (id < 0) return 1
         val info = manager.getAppWidgetInfo(id) ?: return 1
         fun dp(px: Int) = (px / density).toInt()
         return WidgetSizing.dpToRows(WidgetSizing.defaultDp(dp(info.minHeight), info.targetCellHeight))
@@ -183,6 +189,7 @@ fun WidgetsPage(
         fun spanH(rs: Int) = tileH * rs + RowGap * (rs - 1)
 
         fun minCellsOf(id: Int): Pair<Int, Int> {
+            if (id < 0) return OwnWidgets.minCells(widgets.firstOrNull { it.id == id }?.widgetKind ?: WidgetKind.USOS_MUSIC)
             val info = manager.getAppWidgetInfo(id) ?: return 1 to 1
             fun dp(px: Int) = (px / density).toInt()
             val minW = if (info.minResizeWidth > 0) info.minResizeWidth else info.minWidth
@@ -256,7 +263,7 @@ fun WidgetsPage(
                                         Modifier.offset { pos }.zIndex(if (dragging) 1f else 0f),
                                     ) {
                                         // Fuera de edicion la pulsacion larga no hace nada: solo se edita con EDITAR.
-                                        WidgetBox(w, spanW(shown.w), spanH(shown.h), grayscale, host, manager) {}
+                                        WidgetBox(w, spanW(shown.w), spanH(shown.h), grayscale, host, manager, calendarGranted, actions.onRequestCalendar) {}
                                         if (editing) {
                                             var layer by remember { mutableStateOf<LayoutCoordinates?>(null) }
                                             val canDrag = selected && !resizing
@@ -362,11 +369,13 @@ fun WidgetsPage(
                     val resizeText = stringResource(R.string.bubble_resize)
                     val reconfText = stringResource(R.string.bubble_reconfigure)
                     val removeText = stringResource(R.string.bubble_remove)
-                    val configurable = manager.getAppWidgetInfo(sel)?.configure != null
-                    val bubbles = remember(sel, configurable, resizeText, reconfText, removeText) {
+                    val selWidget = widgets.firstOrNull { it.id == sel }
+                    val own = selWidget?.widgetKind?.isOwn == true
+                    val configurable = if (own) OwnWidgets.configurable(selWidget!!.widgetKind) else sel >= 0 && manager.getAppWidgetInfo(sel)?.configure != null
+                    val bubbles = remember(sel, configurable, own, resizeText, reconfText, removeText) {
                         buildList {
                             add(Bubble(BubbleKind.RESIZE, resizeText) { resizing = true })
-                            if (configurable) add(Bubble(BubbleKind.SETTINGS, reconfText) { clearSelection(); actions.onReconfigure(sel) })
+                            if (configurable) add(Bubble(BubbleKind.SETTINGS, reconfText) { clearSelection(); if (own) configId = sel else actions.onReconfigure(sel) })
                             add(Bubble(BubbleKind.REMOVE, removeText) { clearSelection(); actions.onRemove(sel) })
                         }
                     }
@@ -377,7 +386,17 @@ fun WidgetsPage(
             }
 
         if (picking) {
-            WidgetPicker(manager, grayscale, apps, onPick = { picking = false; actions.onAdd(it) }, onClose = { picking = false })
+            WidgetPicker(
+                manager, grayscale, apps, columns,
+                onPick = { picking = false; actions.onAdd(it) },
+                onPickOwn = { kind, c, r -> picking = false; actions.onAddOwn(kind, c, r) },
+                onClose = { picking = false },
+            )
+        }
+        configId?.let { id ->
+            val w = widgets.firstOrNull { it.id == id }
+            if (w == null) configId = null
+            else OwnConfigPanel(w, onChange = { actions.onConfigOwn(id, it) }, onClose = { configId = null })
         }
     }
 }
@@ -390,8 +409,14 @@ private fun WidgetBox(
     grayscale: Boolean,
     host: AppWidgetHost,
     manager: AppWidgetManager,
+    calendarGranted: Boolean,
+    onRequestCalendar: () -> Unit,
     onLongPress: () -> Unit,
 ) {
+    if (widget.widgetKind.isOwn) {
+        OwnWidgetBox(widget, width, height, calendarGranted, onRequestCalendar)
+        return
+    }
     val info = remember(widget.id) { manager.getAppWidgetInfo(widget.id) }
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
     Box(Modifier.size(width, height).clip(shape)) {

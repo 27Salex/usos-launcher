@@ -245,7 +245,7 @@ private fun AnalogClock(time: LocalDateTime, seconds: Boolean) {
  * hacen un fundido de 250 ms; el separador usa [sepAlpha] si se da. Todo se lee en la fase de dibujo.
  */
 @Composable
-private fun DotText(text: String, scale: Float, fade: Boolean, sepAlpha: State<Float>?) {
+internal fun DotText(text: String, scale: Float, fade: Boolean, sepAlpha: State<Float>?) {
     val chars = remember(text) { DotMatrix.layoutByChar(text) }
     val color = UsosColors.Text
     val prev = remember { arrayOf(text) }

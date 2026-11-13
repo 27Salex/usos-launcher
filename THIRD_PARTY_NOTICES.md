@@ -1,7 +1,7 @@
 # Third-party notices
 
-Usos bundles the following fonts, both licensed under the SIL Open Font License, Version 1.1.
-The fonts are included unmodified (Space Grotesk is a variable font used with its weight axis fixed at 600).
+Usos bundles the following fonts, all licensed under the SIL Open Font License, Version 1.1.
+Space Grotesk and JetBrains Mono are included unmodified (Space Grotesk is a variable font used with its weight axis fixed at 600). The fonts added in 1.0.6 (Inter, IBM Plex Mono, Space Mono, DM Mono, Archivo, Syne, VT323, Doto; downloaded from github.com/google/fonts) (except IBM Plex Mono, included unmodified because of its Reserved Font Name) are subsetted to Latin characters (and, for variable fonts, limited to the weight range 400-700 with other axes fixed) to reduce the APK size; they are used under the same license, which is the one below.
 The OFL does not apply to the rest of Usos, which is under the PolyForm Noncommercial License 1.0.0 (see `LICENSE`).
 
 ## Space Grotesk
@@ -196,3 +196,15 @@ INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
 DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
+
+## Fonts added in 1.0.6 (SIL Open Font License 1.1, text above)
+
+- Inter: Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter)
+- IBM Plex Mono: Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"
+- Space Mono: Copyright 2016 The Space Mono Project Authors (https://github.com/googlefonts/spacemono)
+- DM Mono: Copyright 2020 The DM Mono Project Authors (https://www.github.com/googlefonts/dm-mono)
+- Archivo: Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
+- Syne: Copyright 2017 The Syne Project Authors (https://gitlab.com/bonjour-monde/fonderie/syne-typeface)
+- VT323: Copyright 2011, The VT323 Project Authors (peter.hull@oikoi.com)
+- Doto: Copyright 2024 The Doto Project Authors (https://github.com/oliverlalan/Doto)
+

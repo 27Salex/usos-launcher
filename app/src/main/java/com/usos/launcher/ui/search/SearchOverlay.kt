@@ -1,5 +1,6 @@
 package com.usos.launcher.ui.search
 
+import com.usos.launcher.ui.theme.themed
 import androidx.compose.ui.res.stringResource
 import com.usos.launcher.R
 import androidx.compose.foundation.background
@@ -241,7 +242,7 @@ fun SearchOverlay(
                 value = query,
                 onValueChange = onQueryChange,
                 singleLine = true,
-                textStyle = UsosType.SearchInput.copy(color = UsosColors.Text),
+                textStyle = UsosType.SearchInput.themed().copy(color = UsosColors.Text),
                 cursorBrush = SolidColor(LocalAccent.current),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSubmit() }),

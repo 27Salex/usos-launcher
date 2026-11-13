@@ -1,5 +1,6 @@
 package com.usos.launcher.ui.settings
 
+import com.usos.launcher.ui.theme.themed
 import androidx.annotation.StringRes
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.remember
@@ -116,6 +117,13 @@ class SettingsActions(
     val onFeedsKeep: (Int) -> Unit,
     val onClockTap: (String) -> Unit,
     val onThumbsGray: (Boolean) -> Unit,
+    val onFontTitle: (com.usos.launcher.ui.theme.FontChoice) -> Unit,
+    val onFontText: (com.usos.launcher.ui.theme.FontChoice) -> Unit,
+    val onBackgroundMode: (com.usos.launcher.data.sections.BackgroundMode) -> Unit,
+    val onBackgroundColor: (Int) -> Unit,
+    val onBackgroundDim: (Int) -> Unit,
+    val onBackgroundBlur: (Boolean) -> Unit,
+    val onPickBackground: () -> Unit,
     val onBack: () -> Unit,
 )
 
@@ -143,6 +151,9 @@ class SettingsUi(
     val allApps: List<com.usos.launcher.domain.AppEntry>,
     val versionName: String,
     val thumbsGray: Boolean,
+    val fontTitle: com.usos.launcher.ui.theme.FontChoice,
+    val fontText: com.usos.launcher.ui.theme.FontChoice,
+    val background: com.usos.launcher.data.sections.BackgroundPrefs,
 )
 
 /** Categorías de la pantalla principal de Ajustes: clave guardada, título y orden. */
@@ -474,6 +485,79 @@ private fun LookSettings(ui: SettingsUi, actions: SettingsActions) {
             UsosType.Label, UsosColors.TextSecondary, maxLines = 2,
         )
     }
+    Spacer(Modifier.height(16.dp))
+    SubHeading(stringResource(R.string.settings_look_font_title))
+    FontOptions(ui.fontTitle, title = true, onSelect = actions.onFontTitle)
+    Spacer(Modifier.height(12.dp))
+    SubHeading(stringResource(R.string.settings_look_font_text))
+    FontOptions(ui.fontText, title = false, onSelect = actions.onFontText)
+    Spacer(Modifier.height(16.dp))
+    BackgroundSettings(ui, actions)
+}
+
+/** Lista de fuentes; cada opción se ve en su propia fuente. */
+@Composable
+private fun FontOptions(current: com.usos.launcher.ui.theme.FontChoice, title: Boolean, onSelect: (com.usos.launcher.ui.theme.FontChoice) -> Unit) {
+    val accent = LocalAccent.current
+    com.usos.launcher.ui.theme.FontChoice.entries.forEach { f ->
+        val selected = f == current
+        val name = f.labelRes?.let { stringResource(it) } ?: f.label
+        Row(
+            Modifier.fillMaxWidth().height(UsosDimens.MinTouch).tap { onSelect(f) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            androidx.compose.foundation.text.BasicText(
+                if (title) name else name.uppercase(),
+                style = androidx.compose.ui.text.TextStyle(
+                    fontFamily = f.family(title), fontSize = if (title) 20.sp else 13.sp,
+                    fontWeight = if (title) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal,
+                    color = if (selected) accent else UsosColors.Text,
+                ),
+                maxLines = 1, modifier = Modifier.weight(1f),
+            )
+            androidx.compose.foundation.text.BasicText(
+                "Aa 0123",
+                style = androidx.compose.ui.text.TextStyle(fontFamily = f.family(title), fontSize = 14.sp, color = UsosColors.TextSecondary),
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BackgroundSettings(ui: SettingsUi, actions: SettingsActions) {
+    val bg = ui.background
+    val modes = com.usos.launcher.data.sections.BackgroundMode.entries
+    val context = LocalContext.current
+    SubHeading(stringResource(R.string.settings_look_background))
+    Choice(
+        listOf(R.string.bg_black, R.string.bg_color, R.string.bg_image, R.string.bg_system).map { stringResource(it) },
+        modes.indexOf(bg.mode), 2,
+    ) {
+        val m = modes[it]
+        if (m == com.usos.launcher.data.sections.BackgroundMode.IMAGE &&
+            !com.usos.launcher.data.background.BackgroundImage.file(context).exists()
+        ) actions.onPickBackground() else actions.onBackgroundMode(m)
+    }
+    when (bg.mode) {
+        com.usos.launcher.data.sections.BackgroundMode.COLOR ->
+            ColorPicker(bg.color, ui.recentColors, actions.onBackgroundColor)
+        com.usos.launcher.data.sections.BackgroundMode.IMAGE -> {
+            UsosPill(stringResource(R.string.bg_pick), filled = false, onClick = actions.onPickBackground, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            UsosRow(stringResource(R.string.bg_dim, bg.dim)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    UsosPill("-", filled = false, onClick = { actions.onBackgroundDim((bg.dim - 10).coerceAtLeast(0)) })
+                    UsosPill("+", filled = false, onClick = { actions.onBackgroundDim((bg.dim + 10).coerceAtMost(com.usos.launcher.data.sections.BackgroundPrefs.MAX_DIM)) })
+                }
+            }
+            UsosRow(stringResource(R.string.bg_blur)) { UsosSwitch(bg.blur, actions.onBackgroundBlur) }
+        }
+        com.usos.launcher.data.sections.BackgroundMode.SYSTEM ->
+            UsosText(stringResource(R.string.bg_system_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 3)
+        else -> Unit
+    }
 }
 
 @Composable
@@ -572,7 +656,7 @@ private fun CityField(results: List<GeoPlace>, actions: SettingsActions) {
         if (text.isEmpty()) UsosText(stringResource(R.string.settings_weather_search_city), UsosType.SearchHint, UsosColors.TextSecondary)
         BasicTextField(
             value = text, onValueChange = { text = it }, singleLine = true,
-            textStyle = UsosType.Pill.copy(color = UsosColors.Text),
+            textStyle = UsosType.Pill.themed().copy(color = UsosColors.Text),
             cursorBrush = SolidColor(LocalAccent.current),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             modifier = Modifier.fillMaxWidth(),

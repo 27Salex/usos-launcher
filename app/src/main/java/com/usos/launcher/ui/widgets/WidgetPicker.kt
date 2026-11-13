@@ -1,5 +1,6 @@
 package com.usos.launcher.ui.widgets
 
+import com.usos.launcher.ui.theme.themed
 import androidx.compose.ui.res.stringResource
 import com.usos.launcher.R
 import android.appwidget.AppWidgetManager
@@ -136,6 +137,8 @@ private fun WidgetPreview(e: PickerEntry, grayscale: Boolean) {
         }
     }
 }
+private data class OwnEntry(val kind: WidgetKind, val tall: Boolean, val nameRes: Int)
+
 class PickerGroup(val appName: String, val packageName: String, val entries: List<PickerEntry>)
 
 private fun loadGroups(context: Context, manager: AppWidgetManager): List<PickerGroup> {
@@ -167,7 +170,9 @@ fun WidgetPicker(
     manager: AppWidgetManager,
     grayscale: Boolean,
     apps: List<com.usos.launcher.domain.AppEntry>,
+    columns: Int,
     onPick: (AppWidgetProviderInfo) -> Unit,
+    onPickOwn: (WidgetKind, Int, Int) -> Unit,
     onClose: () -> Unit,
 ) {
     BackHandler { onClose() }
@@ -196,7 +201,7 @@ fun WidgetPicker(
             if (query.isEmpty()) UsosText(stringResource(R.string.widgets_search_hint), UsosType.SearchHint, UsosColors.TextSecondary)
             BasicTextField(
                 value = query, onValueChange = { query = it }, singleLine = true,
-                textStyle = UsosType.SearchInput.copy(color = UsosColors.Text),
+                textStyle = UsosType.SearchInput.themed().copy(color = UsosColors.Text),
                 cursorBrush = SolidColor(LocalAccent.current),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -214,16 +219,50 @@ fun WidgetPicker(
         }
         val iconsOn = LocalIconPrefs.current.mode != IconMode.NONE
         val appByPkg = remember(apps) { apps.filter { it.isMainProfile }.associateBy { it.packageName } }
+        // Grupo propio «USOS»: siempre el primero.
+        val ownAll = listOf(
+            OwnEntry(WidgetKind.USOS_MUSIC, false, R.string.widget_music_name),
+            OwnEntry(WidgetKind.USOS_CALENDAR, false, R.string.widget_cal_agenda_name),
+            OwnEntry(WidgetKind.USOS_CALENDAR, true, R.string.widget_cal_month_name),
+            OwnEntry(WidgetKind.USOS_CLOCK, false, R.string.widget_clock_name),
+        )
+        val ownNames = ownAll.map { stringResource(it.nameRes) }
+        val usosMatch = !searching || "usos".contains(q)
+        val ownShown = ownAll.filterIndexed { i, _ -> usosMatch || SearchFilter.normalize(ownNames[i]).contains(q) }
+        val ownNameOf = ownAll.zip(ownNames).toMap()
         when {
-            shown == null -> Unit
-            list.isNullOrEmpty() -> Box(Modifier.padding(top = 16.dp)) {
+            shown != null && list.isNullOrEmpty() && ownShown.isEmpty() -> Box(Modifier.padding(top = 16.dp)) {
                 UsosText(stringResource(R.string.widgets_none_installed), UsosType.Empty, UsosColors.TextSecondary)
             }
-            shown.isEmpty() -> Box(Modifier.padding(top = 16.dp)) {
+            shown != null && shown.isEmpty() && ownShown.isEmpty() -> Box(Modifier.padding(top = 16.dp)) {
                 UsosText(stringResource(R.string.search_nothing), UsosType.Empty, UsosColors.TextSecondary)
             }
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom)) {
-                shown.forEach { g ->
+                if (ownShown.isNotEmpty()) {
+                    item(key = "g-usos") {
+                        Row(Modifier.fillMaxWidth().heightIn(min = UsosDimens.MinTouch + 8.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            UsosText(stringResource(R.string.widgets_usos_group), UsosType.Pill, LocalAccent.current)
+                        }
+                    }
+                    items(ownShown, key = { "own-" + it.kind.name + it.tall }) { e ->
+                        val (c, r) = OwnWidgets.defaultCells(e.kind, columns, e.tall)
+                        Column(
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                                .clip(RoundedCornerShape(UsosDimens.RadiusPiece))
+                                .background(UsosColors.Surface)
+                                .border(BorderStroke(1.dp, UsosColors.Border), RoundedCornerShape(UsosDimens.RadiusPiece))
+                                .tap { onPickOwn(e.kind, c, r) }
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OwnWidgetPreview(e.kind, e.tall)
+                            UsosText(ownNameOf.getValue(e), UsosType.Pill, UsosColors.Text)
+                            val min = OwnWidgets.minCells(e.kind)
+                            UsosText("${c}x$r  (min ${min.first}x${min.second})", UsosType.Label, UsosColors.TextSecondary)
+                        }
+                    }
+                }
+                shown.orEmpty().forEach { g ->
                     val open = searching || g.packageName in expanded
                     item(key = "g-" + g.packageName) {
                         Row(

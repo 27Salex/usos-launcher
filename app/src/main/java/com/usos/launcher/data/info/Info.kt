@@ -21,7 +21,7 @@ enum class InfoWhen { NONE, NOW, TODAY, TOMORROW }
 /** Pieza de información del mosaico; la UI compone etiqueta y dato con recursos (sin texto fijo aquí). */
 data class InfoPiece(val kind: InfoKind, val whenAt: InfoWhen = InfoWhen.NONE, val time: String = "", val title: String = "")
 
-data class CalEvent(val title: String, val beginMs: Long, val endMs: Long, val allDay: Boolean)
+data class CalEvent(val title: String, val beginMs: Long, val endMs: Long, val allDay: Boolean, val eventId: Long = 0)
 
 /** Lógica pura de las piezas de información. */
 object InfoPieces {
@@ -80,16 +80,22 @@ class AgendaRepository(private val context: Context) {
 
     /** Instancias entre ahora y el final de mañana (zona local). */
     suspend fun upcoming(now: Long, zone: ZoneId): List<CalEvent> {
-        if (!hasPermission()) return emptyList()
         val end = ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
             .toLocalDate().plusDays(2).atStartOfDay(zone).toInstant().toEpochMilli()
+        return range(now, end)
+    }
+
+    /** Instancias que solapan [startMs, endMs) (CalendarContract.Instances); vacío sin permiso. */
+    suspend fun range(startMs: Long, endMs: Long): List<CalEvent> {
+        if (!hasPermission()) return emptyList()
         return withContext(Dispatchers.IO) {
             runCatching {
                 val uri = CalendarContract.Instances.CONTENT_URI.buildUpon()
-                    .appendPath(now.toString()).appendPath(end.toString()).build()
+                    .appendPath(startMs.toString()).appendPath(endMs.toString()).build()
                 val projection = arrayOf(
                     CalendarContract.Instances.TITLE, CalendarContract.Instances.BEGIN,
                     CalendarContract.Instances.END, CalendarContract.Instances.ALL_DAY,
+                    CalendarContract.Instances.EVENT_ID,
                 )
                 val out = mutableListOf<CalEvent>()
                 context.contentResolver.query(uri, projection, null, null, "${CalendarContract.Instances.BEGIN} ASC")?.use { c ->
@@ -97,6 +103,7 @@ class AgendaRepository(private val context: Context) {
                         out += CalEvent(
                             title = c.getString(0)?.takeIf { it.isNotBlank() } ?: "",
                             beginMs = c.getLong(1), endMs = c.getLong(2), allDay = c.getInt(3) == 1,
+                            eventId = c.getLong(4),
                         )
                     }
                 }

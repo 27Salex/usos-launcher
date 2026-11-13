@@ -1,5 +1,6 @@
 package com.usos.launcher.ui.feeds
 
+import com.usos.launcher.ui.theme.themed
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import com.usos.launcher.R
@@ -169,7 +170,7 @@ private fun TextBox(value: String, onChange: (String) -> Unit, hint: String, ime
         if (value.isEmpty()) UsosText(hint, UsosType.Empty, UsosColors.TextSecondary)
         BasicTextField(
             value = value, onValueChange = onChange, singleLine = true,
-            textStyle = UsosType.Empty.copy(color = UsosColors.Text),
+            textStyle = UsosType.Empty.themed().copy(color = UsosColors.Text),
             cursorBrush = SolidColor(UsosColors.Text),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ime),
             keyboardActions = KeyboardActions(onAny = { onGo() }),

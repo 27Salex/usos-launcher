@@ -45,6 +45,10 @@ class HomeActivity : ComponentActivity() {
         manualCalendarRequest = false
     }
 
+    private val photoPicker = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        viewModel.importBackground(uri)
+    }
+
     private val locationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         viewModel.onLocationResult(granted)
     }
@@ -62,6 +66,13 @@ class HomeActivity : ComponentActivity() {
                 viewModel.calendarRequestEvents.collect { manual ->
                     manualCalendarRequest = manual
                     calendarPermission.launch(Manifest.permission.READ_CALENDAR)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.backgroundPickEvents.collect {
+                    photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 }
             }
         }
@@ -88,10 +99,24 @@ class HomeActivity : ComponentActivity() {
         container.updateManager.autoCheck()
         setContent {
             val accent by viewModel.accent.collectAsStateWithLifecycle()
-            UsosTheme(accent) {
+            val fontChoices by viewModel.fontChoices.collectAsStateWithLifecycle()
+            val bg by viewModel.background.collectAsStateWithLifecycle()
+            androidx.compose.runtime.LaunchedEffect(bg.mode) { applyWindowBackground(bg.mode) }
+            val fonts = androidx.compose.runtime.remember(fontChoices) {
+                com.usos.launcher.ui.theme.UsosFonts(fontChoices.first.family(true), fontChoices.second.family(false))
+            }
+            UsosTheme(accent, fonts) {
                 HomeScreen(viewModel, onAddWidget = widgetAdder::start, onReconfigureWidget = widgetAdder::reconfigure)
             }
         }
+    }
+
+    /** Fondo del sistema: ventana transparente con FLAG_SHOW_WALLPAPER; si no, negro opaco como siempre. */
+    private fun applyWindowBackground(mode: com.usos.launcher.data.sections.BackgroundMode) {
+        val system = mode == com.usos.launcher.data.sections.BackgroundMode.SYSTEM
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(if (system) Color.TRANSPARENT else Color.BLACK))
+        if (system) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
     }
 
     /** Lanzado desde el icono «Usos» del cajón (activity-alias): abre directamente los ajustes. */

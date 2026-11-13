@@ -147,6 +147,30 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val widgetsGrayscale: StateFlow<Boolean> = settings.widgetsGrayscale
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    val fontChoices: StateFlow<Pair<com.usos.launcher.ui.theme.FontChoice, com.usos.launcher.ui.theme.FontChoice>> =
+        kotlinx.coroutines.flow.combine(settings.fontTitle, settings.fontText) { t, x ->
+            com.usos.launcher.ui.theme.FontChoice.fromName(t) to com.usos.launcher.ui.theme.FontChoice.fromName(x)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, com.usos.launcher.ui.theme.FontChoice.DEFAULT to com.usos.launcher.ui.theme.FontChoice.DEFAULT)
+    val background: StateFlow<com.usos.launcher.data.sections.BackgroundPrefs> = settings.background
+        .stateIn(viewModelScope, SharingStarted.Eagerly, com.usos.launcher.data.sections.BackgroundPrefs())
+    private val backgroundPicks = Channel<Unit>(Channel.BUFFERED)
+    val backgroundPickEvents = backgroundPicks.receiveAsFlow()
+
+    fun setFontTitle(c: com.usos.launcher.ui.theme.FontChoice) { viewModelScope.launch { settings.setFontTitle(c.name) } }
+    fun setFontText(c: com.usos.launcher.ui.theme.FontChoice) { viewModelScope.launch { settings.setFontText(c.name) } }
+    fun setBackgroundMode(m: com.usos.launcher.data.sections.BackgroundMode) { viewModelScope.launch { settings.setBackgroundMode(m) } }
+    fun setBackgroundColor(argb: Int) { viewModelScope.launch { settings.setBackgroundColor(argb); settings.addRecentColor(argb) } }
+    fun setBackgroundDim(pct: Int) { viewModelScope.launch { settings.setBackgroundDim(pct) } }
+    fun setBackgroundBlur(on: Boolean) { viewModelScope.launch { settings.setBackgroundBlur(on) } }
+    fun pickBackgroundImage() { viewModelScope.launch { backgroundPicks.send(Unit) } }
+    fun importBackground(uri: android.net.Uri?) {
+        uri ?: return
+        viewModelScope.launch {
+            if (com.usos.launcher.data.background.BackgroundImage.import(container.appContext, uri)) settings.bumpBackgroundImage()
+            else showNotice(R.string.notice_background_failed)
+        }
+    }
+
     val clockPrefs: StateFlow<ClockPrefs> = settings.clockPrefs.stateIn(viewModelScope, SharingStarted.Eagerly, ClockPrefs())
     val weatherPrefs: StateFlow<WeatherPrefs> = settings.weatherPrefs.stateIn(viewModelScope, SharingStarted.Eagerly, WeatherPrefs())
     private val weatherRepo = container.weatherRepository
@@ -371,8 +395,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.widgetStore.update { WidgetSizing.withBoxes(it, boxes) } }
     }
 
+    /** Alta de una pieza propia de Usos (id negativo propio, sin AppWidgetHost); la página le busca sitio. */
+    fun addOwnWidget(kind: com.usos.launcher.ui.widgets.WidgetKind, cols: Int, rows: Int) {
+        viewModelScope.launch {
+            container.widgetStore.update { l ->
+                l + HostedWidget(com.usos.launcher.ui.widgets.OwnWidgets.nextId(l.map { it.id }), cols = cols, rows = rows, kind = kind.name)
+            }
+        }
+    }
+
+    fun setWidgetConfig(id: Int, config: String) {
+        viewModelScope.launch { container.widgetStore.update { l -> l.map { if (it.id == id) it.copy(config = config) else it } } }
+    }
+
     fun removeWidget(id: Int) {
-        container.widgetHost.deleteAppWidgetId(id)
+        if (id >= 0) container.widgetHost.deleteAppWidgetId(id)
         viewModelScope.launch { container.widgetStore.update { l -> l.filter { it.id != id } } }
     }
 

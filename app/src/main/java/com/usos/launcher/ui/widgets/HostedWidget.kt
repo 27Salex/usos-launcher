@@ -22,7 +22,15 @@ import kotlin.math.roundToInt
  * rejilla; -1 = sin posición (migración o alta nueva: la página la calcula una vez y la persiste).
  */
 @Serializable
-data class HostedWidget(val id: Int, val heightDp: Int = 0, val cols: Int = 0, val rows: Int = 0, val col: Int = -1, val row: Int = -1)
+data class HostedWidget(
+    val id: Int, val heightDp: Int = 0, val cols: Int = 0, val rows: Int = 0, val col: Int = -1, val row: Int = -1,
+    /** [WidgetKind] por nombre; los guardados sin `kind` (anteriores a 1.0.6) son ANDROID. */
+    val kind: String = WidgetKind.ANDROID.name,
+    /** Ajustes de una pieza propia de Usos como `clave=valor;clave=valor` (vacío en las de Android). */
+    val config: String = "",
+) {
+    val widgetKind: WidgetKind get() = WidgetKind.fromName(kind)
+}
 
 /** Caja de un widget en la rejilla: esquina [col],[row] y tamaño [w]x[h] en celdas. */
 data class GBox(val id: Int, val col: Int, val row: Int, val w: Int, val h: Int) {

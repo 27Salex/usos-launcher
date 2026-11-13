@@ -31,7 +31,7 @@ val LocalOnAccent = compositionLocalOf { UsosColors.OnAccent }
 val LocalAnimationsEnabled = compositionLocalOf { true }
 
 @Composable
-fun UsosTheme(accent: Color, content: @Composable () -> Unit) {
+fun UsosTheme(accent: Color, fonts: UsosFonts = UsosFonts(SpaceGrotesk, JetBrainsMono), content: @Composable () -> Unit) {
     val context = LocalContext.current
     var enabled by remember { mutableStateOf(animationsEnabled(context.contentResolver)) }
     DisposableEffect(context) {
@@ -51,6 +51,7 @@ fun UsosTheme(accent: Color, content: @Composable () -> Unit) {
         LocalAccent provides accent,
         LocalOnAccent provides accent.onColor(),
         LocalAnimationsEnabled provides enabled,
+        LocalFonts provides fonts,
         content = content,
     )
 }
@@ -69,7 +70,7 @@ fun UsosText(
 ) {
     BasicText(
         text = text,
-        style = style.copy(color = color),
+        style = style.themed().copy(color = color),
         modifier = modifier,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
