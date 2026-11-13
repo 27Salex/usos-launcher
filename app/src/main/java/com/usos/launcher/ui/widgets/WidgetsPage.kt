@@ -259,9 +259,8 @@ fun WidgetsPage(
                                     Box(
                                         Modifier.offset { pos }.zIndex(if (dragging) 1f else 0f),
                                     ) {
-                                        WidgetBox(w, spanW(shown.colSpan), spanH(shown.rowSpan), grayscale, host, manager) {
-                                            onEditingChange(true)
-                                        }
+                                        // Fuera de edicion la pulsacion larga no hace nada: solo se edita con EDITAR.
+                                        WidgetBox(w, spanW(shown.colSpan), spanH(shown.rowSpan), grayscale, host, manager) {}
                                         if (editing) {
                                             var layer by remember { mutableStateOf<LayoutCoordinates?>(null) }
                                             val canDrag = selected && !resizing
