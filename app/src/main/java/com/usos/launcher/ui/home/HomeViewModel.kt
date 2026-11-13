@@ -190,6 +190,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private val _notice = MutableStateFlow<String?>(null)
     val notice: StateFlow<String?> = _notice
 
+    init {
+        viewModelScope.launch {
+            container.updateManager.announce.collect { v -> showNotice(R.string.notice_update_available, v) }
+        }
+    }
+
     private val _homeEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val homeEvents: SharedFlow<Unit> = _homeEvents.asSharedFlow()
 
@@ -576,6 +582,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         AssistantUi(raw, r, r?.takeIf { !it.web }?.let { a -> main.firstOrNull { it.packageName == a.assistant.pkg } }, Assistants.installed(pkgs))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, AssistantUi(null, null, null, emptyList()))
 
+    val notifMode: StateFlow<com.usos.launcher.data.notify.NotifMode> =
+        settings.notifMode.stateIn(viewModelScope, SharingStarted.Eagerly, com.usos.launcher.data.notify.NotifMode.NONE)
     val searchKeyboard: StateFlow<Boolean> = settings.searchKeyboard.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     fun setSearchKeyboard(on: Boolean) { viewModelScope.launch { settings.setSearchKeyboard(on) } }
     fun setAssistantChoice(v: String?) { viewModelScope.launch { settings.setAssistantChoice(v) } }

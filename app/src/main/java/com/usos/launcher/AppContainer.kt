@@ -55,6 +55,9 @@ class AppContainer(context: Context) {
         com.usos.launcher.data.weather.WeatherRepository(appContext, settingsStore, httpClient)
     }
     val agendaRepository = AgendaRepository(appContext)
+    val updateManager: com.usos.launcher.data.update.UpdateManager by lazy {
+        com.usos.launcher.data.update.UpdateManager(appContext, com.usos.launcher.data.update.UpdateStore(dataStore), httpClient)
+    }
 
     /** Host de widgets con id fijo: los ids asignados sobreviven a reinicios. */
     val widgetHost: AppWidgetHost = UsosWidgetHost(appContext, WIDGET_HOST_ID)

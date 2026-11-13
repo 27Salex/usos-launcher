@@ -30,6 +30,17 @@ import com.usos.launcher.data.sections.IconPrefs
 import com.usos.launcher.domain.AppEntry
 
 val LocalIconPrefs = compositionLocalOf { IconPrefs() }
+
+/** Aviso de notificaciones: modo elegido y claves (`paquete/serial`) con notificaciones activas. */
+class NotifBadges(
+    val mode: com.usos.launcher.data.notify.NotifMode = com.usos.launcher.data.notify.NotifMode.NONE,
+    val active: Set<String> = emptySet(),
+) {
+    fun show(appKey: String, frozen: Boolean = false) =
+        com.usos.launcher.data.notify.NotifBadge.show(mode, active, appKey, frozen)
+}
+
+val LocalNotifBadges = compositionLocalOf { NotifBadges() }
 val LocalIcons = compositionLocalOf<IconRepository?> { null }
 
 /** Icono de la app (null mientras carga o si el modo es Ninguno). */

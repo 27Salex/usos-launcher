@@ -127,6 +127,14 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 start(context, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:" + context.packageName)))
             })
         }
+        val notifOk = remember(tick) { com.usos.launcher.service.NotificationState.isGranted(context) }
+        Step(
+            stringResource(R.string.onboarding_notif_title), ok = notifOk,
+            text = stringResource(R.string.onboarding_notif_text),
+        ) {
+            UsosPill(stringResource(R.string.settings_notif_grant), filled = false, modifier = Modifier.fillMaxWidth(),
+                onClick = { start(context, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) })
+        }
         Step(
             stringResource(R.string.onboarding_step4_title), ok = null,
             text = stringResource(R.string.onboarding_battery_hint, stringResource(batteryDetailRes(android.os.Build.MANUFACTURER))),

@@ -24,6 +24,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -233,6 +235,7 @@ private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
             }
         }
     }
+    NotifSettings()
     SubHeading(stringResource(R.string.settings_home_info), top = 4.dp)
     InfoKind.entries.forEach { k ->
         val spec = ui.infoSpecs.values.firstOrNull { it.kind == k } ?: return@forEach
@@ -499,6 +502,8 @@ private fun SystemSettings(ui: SettingsUi, actions: SettingsActions) {
         }
     }
     Spacer(Modifier.height(16.dp))
+    UpdateSettings()
+    Spacer(Modifier.height(16.dp))
     SubHeading(stringResource(R.string.settings_system_onboarding))
     UsosPill(stringResource(R.string.settings_system_restart_onboarding), filled = false, onClick = actions.onRestartOnboarding, modifier = Modifier.fillMaxWidth())
     Spacer(Modifier.height(16.dp))
@@ -619,4 +624,103 @@ private fun Swatch(color: Color, selected: Boolean, onClick: () -> Unit) {
             .padding(6.dp)
             .background(color, CircleShape),
     )
+}
+
+/** Actualizaciones desde GitHub: ajuste automático, comprobación manual y tarjeta de la nueva versión. */
+@Composable
+private fun UpdateSettings() {
+    val manager = (LocalContext.current.applicationContext as com.usos.launcher.UsosApp).container.updateManager
+    val st by manager.state.collectAsStateWithLifecycle()
+    val auto by manager.store.auto.collectAsStateWithLifecycle(true)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    androidx.compose.runtime.LaunchedEffect(Unit) { manager.load() }
+    val accent = LocalAccent.current
+    val r = st.release
+    val phase = st.phase
+    SubHeading(stringResource(R.string.settings_update_title))
+    UsosRow(stringResource(R.string.settings_update_auto)) {
+        UsosSwitch(auto, { v -> scope.launch { manager.store.setAuto(v) } })
+    }
+    val checking = phase == com.usos.launcher.data.update.UpdatePhase.CHECKING
+    UsosPill(
+        stringResource(if (checking) R.string.settings_update_checking else R.string.settings_update_check),
+        filled = false, onClick = manager::checkNow, enabled = !checking, modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(8.dp))
+    when (phase) {
+        com.usos.launcher.data.update.UpdatePhase.UP_TO_DATE ->
+            UsosText(stringResource(R.string.settings_update_up_to_date), UsosType.Label, UsosColors.TextSecondary)
+        else -> {}
+    }
+    st.error?.let { UsosText(stringResource(it), UsosType.Label, UsosColors.TextSecondary, maxLines = 3) }
+    if (r != null && phase != com.usos.launcher.data.update.UpdatePhase.UP_TO_DATE) {
+        Spacer(Modifier.height(8.dp))
+        val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+        Column(Modifier.fillMaxWidth().background(UsosColors.Surface, shape).border(1.dp, UsosColors.Border, shape).padding(16.dp)) {
+            UsosText(stringResource(R.string.settings_update_version, r.version), UsosType.PanelState, accent)
+            val notes = remember(r.notes) { com.usos.launcher.data.update.ReleaseNotes.plain(r.notes) }
+            if (notes.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                UsosText(notes, UsosType.Label, UsosColors.TextSecondary, maxLines = 14)
+            }
+            Spacer(Modifier.height(12.dp))
+            when (phase) {
+                com.usos.launcher.data.update.UpdatePhase.DOWNLOADING -> {
+                    val pct = if (st.total > 0) (st.done * 100 / st.total).toInt().coerceIn(0, 100) else 0
+                    UsosText(stringResource(R.string.settings_update_downloading, pct), UsosType.Label, UsosColors.Text)
+                    Spacer(Modifier.height(8.dp))
+                    Box(Modifier.fillMaxWidth().height(3.dp).background(UsosColors.Border)) {
+                        Box(Modifier.fillMaxWidth(pct / 100f).height(3.dp).background(accent))
+                    }
+                }
+                com.usos.launcher.data.update.UpdatePhase.INSTALLING ->
+                    UsosText(stringResource(R.string.settings_update_installing), UsosType.Label, UsosColors.Text)
+                else -> {
+                    if (phase == com.usos.launcher.data.update.UpdatePhase.NEEDS_PERMISSION) {
+                        UsosText(stringResource(R.string.settings_update_permission), UsosType.Label, UsosColors.TextSecondary, maxLines = 3)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    UsosPill(stringResource(R.string.settings_update_install), filled = true, onClick = manager::downloadAndInstall, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
+    }
+}
+
+/** Avisos de notificación (Ninguno / Punto / Borde); lleva a conceder el acceso si falta. */
+@Composable
+private fun NotifSettings() {
+    val context = LocalContext.current
+    val store = (context.applicationContext as com.usos.launcher.UsosApp).container.settingsStore
+    val mode by store.notifMode.collectAsStateWithLifecycle(com.usos.launcher.data.notify.NotifMode.NONE)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var tick by remember { mutableStateOf(0) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { tick++; onPauseOrDispose { } }
+    val granted = remember(tick) { com.usos.launcher.service.NotificationState.isGranted(context) }
+    val grant = {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+        Unit
+    }
+    SubHeading(stringResource(R.string.settings_notif_title), top = 4.dp)
+    val modes = com.usos.launcher.data.notify.NotifMode.entries
+    Choice(
+        listOf(R.string.settings_notif_none, R.string.settings_notif_dot, R.string.settings_notif_border).map { stringResource(it) },
+        modes.indexOf(mode), 3,
+    ) { i ->
+        scope.launch { store.setNotifMode(modes[i]) }
+        if (i != 0 && !granted) grant()
+    }
+    if (!granted) {
+        UsosText(stringResource(R.string.settings_notif_missing), UsosType.Label, UsosColors.TextSecondary, maxLines = 3)
+        Spacer(Modifier.height(8.dp))
+        UsosPill(stringResource(R.string.settings_notif_grant), filled = false, onClick = grant, modifier = Modifier.fillMaxWidth())
+    } else {
+        UsosText(stringResource(R.string.settings_notif_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
+    }
+    Spacer(Modifier.height(16.dp))
 }

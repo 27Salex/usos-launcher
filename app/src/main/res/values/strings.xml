@@ -317,4 +317,32 @@
         <item quantity="many">%1$d LECTURAS</item>
         <item quantity="other">%1$d LECTURAS</item>
     </plurals>
+    <string name="notice_update_available">ACTUALIZACIÓN %1$s DISPONIBLE</string>
+    <string name="settings_update_title">ACTUALIZACIONES</string>
+    <string name="settings_update_auto">Buscar actualizaciones automáticamente</string>
+    <string name="settings_update_check">BUSCAR ACTUALIZACIONES</string>
+    <string name="settings_update_checking">BUSCANDO…</string>
+    <string name="settings_update_up_to_date">Tienes la última versión.</string>
+    <string name="settings_update_version">VERSIÓN %1$s DISPONIBLE</string>
+    <string name="settings_update_install">DESCARGAR E INSTALAR</string>
+    <string name="settings_update_downloading">Descargando… %1$d %%</string>
+    <string name="settings_update_installing">Verificando e instalando…</string>
+    <string name="settings_update_permission">Permite instalar apps de esta fuente y vuelve aquí para continuar.</string>
+    <string name="update_error_network">No se pudo comprobar. Revisa la conexión.</string>
+    <string name="update_error_download">Error al descargar la actualización.</string>
+    <string name="update_error_size">La descarga está incompleta (el tamaño no coincide).</string>
+    <string name="update_error_signature">Abortado: el APK no está firmado con la misma clave que la app instalada.</string>
+    <string name="update_error_package">Abortado: el APK es de otra aplicación.</string>
+    <string name="update_error_not_newer">Abortado: el APK no es una versión más nueva.</string>
+    <string name="update_error_unreadable">Abortado: no se pudo leer el APK descargado.</string>
+    <string name="update_error_install">La instalación ha fallado.</string>
+    <string name="settings_notif_title">AVISOS DE NOTIFICACIÓN</string>
+    <string name="settings_notif_none">NINGUNO</string>
+    <string name="settings_notif_dot">PUNTO</string>
+    <string name="settings_notif_border">BORDE</string>
+    <string name="settings_notif_missing">Falta el acceso a notificaciones. Solo se lee qué app tiene avisos, nunca su contenido.</string>
+    <string name="settings_notif_grant">CONCEDER ACCESO A NOTIFICACIONES</string>
+    <string name="settings_notif_hint">Se marca la pieza de las apps con notificaciones pendientes (no las de las apps de Ocio congeladas).</string>
+    <string name="onboarding_notif_title">OPCIONAL · AVISOS</string>
+    <string name="onboarding_notif_text">Para marcar en inicio las apps con notificaciones pendientes. Solo se lee el nombre de la app, nunca el contenido. Se activa luego en Ajustes &gt; INICIO.</string>
 </resources>

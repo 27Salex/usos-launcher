@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.drawWithContent
 import com.usos.launcher.data.leisure.LeisureStatus
 import com.usos.launcher.data.sections.Highlight
 import com.usos.launcher.data.usage.UsageSummary
@@ -182,7 +183,13 @@ fun HomeScreen(
     }
 
     val iconPrefs by viewModel.iconPrefs.collectAsStateWithLifecycle()
-    CompositionLocalProvider(LocalIconPrefs provides iconPrefs, LocalIcons provides viewModel.iconRepository) {
+    val notifMode by viewModel.notifMode.collectAsStateWithLifecycle()
+    val notifKeys by com.usos.launcher.service.NotificationState.keys.collectAsStateWithLifecycle()
+    val notifBadges = remember(notifMode, notifKeys) { com.usos.launcher.ui.theme.NotifBadges(notifMode, notifKeys) }
+    CompositionLocalProvider(
+        LocalIconPrefs provides iconPrefs, LocalIcons provides viewModel.iconRepository,
+        com.usos.launcher.ui.theme.LocalNotifBadges provides notifBadges,
+    ) {
     Box(Modifier.fillMaxSize().background(UsosColors.Background)) {
         HorizontalPager(
             state = pager, modifier = Modifier.fillMaxSize(),
@@ -898,11 +905,20 @@ private fun AppTile(
     val onFill = if (filled) fill.onColor() else UsosColors.Text
     val codeColor = onFill
     val nameColor = if (filled) onFill else UsosColors.TextSecondary
+    val badge = com.usos.launcher.ui.theme.LocalNotifBadges.current
+    val notify = badge.show(tile.app.key)
+    val dotColor = if (fill == accent) onFill else accent
+    val dotOn = notify && badge.mode == com.usos.launcher.data.notify.NotifMode.DOT
+    val borderOn = notify && badge.mode == com.usos.launcher.data.notify.NotifMode.BORDER
     Column(
         modifier
             .alpha(if (tile.dimmed) 0.35f else 1f)
             .background(fill, shape)
-            .border(1.dp, edge, shape)
+            .border(if (borderOn) 1.5.dp else 1.dp, if (borderOn) dotColor else edge, shape)
+            .drawWithContent {
+                drawContent()
+                if (dotOn) drawCircle(dotColor, 4.dp.toPx(), androidx.compose.ui.geometry.Offset(size.width - 12.dp.toPx(), 12.dp.toPx()))
+            }
             .then(if (interactive) Modifier.pressGestures(onLongPress = onEnterEdit) { onOpenApp(tile.app) } else Modifier)
             .padding(12.dp),
         verticalArrangement = Arrangement.SpaceBetween,

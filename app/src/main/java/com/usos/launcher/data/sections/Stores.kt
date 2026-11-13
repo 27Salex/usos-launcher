@@ -73,6 +73,13 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         prefs[lastOpenKey]?.let { name -> Section.entries.firstOrNull { it.name == name } }
     }.distinctUntilChanged()
 
+    private val notifModeKey = stringPreferencesKey("notif_indicator")
+
+    /** Aviso de notificaciones en las piezas: NONE (defecto) / DOT / BORDER. */
+    val notifMode: Flow<com.usos.launcher.data.notify.NotifMode> =
+        dataStore.data.map { com.usos.launcher.data.notify.NotifMode.fromName(it[notifModeKey]) }.distinctUntilChanged()
+    suspend fun setNotifMode(m: com.usos.launcher.data.notify.NotifMode) { dataStore.edit { it[notifModeKey] = m.name } }
+
     private val onboardingKey = booleanPreferencesKey("onboarding_done")
 
     /** false hasta que el usuario termina o salta el primer arranque. */

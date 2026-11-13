@@ -314,4 +314,32 @@
         <item quantity="one">%1$d READ</item>
         <item quantity="other">%1$d READS</item>
     </plurals>
+    <string name="notice_update_available">UPDATE %1$s AVAILABLE</string>
+    <string name="settings_update_title">UPDATES</string>
+    <string name="settings_update_auto">Check for updates automatically</string>
+    <string name="settings_update_check">CHECK FOR UPDATES</string>
+    <string name="settings_update_checking">CHECKING…</string>
+    <string name="settings_update_up_to_date">You have the latest version.</string>
+    <string name="settings_update_version">VERSION %1$s AVAILABLE</string>
+    <string name="settings_update_install">DOWNLOAD AND INSTALL</string>
+    <string name="settings_update_downloading">Downloading… %1$d %%</string>
+    <string name="settings_update_installing">Verifying and installing…</string>
+    <string name="settings_update_permission">Allow installing apps from this source, then come back to continue.</string>
+    <string name="update_error_network">Could not check. Check your connection.</string>
+    <string name="update_error_download">Error downloading the update.</string>
+    <string name="update_error_size">The download is incomplete (size mismatch).</string>
+    <string name="update_error_signature">Aborted: the APK is not signed with the same key as the installed app.</string>
+    <string name="update_error_package">Aborted: the APK belongs to a different app.</string>
+    <string name="update_error_not_newer">Aborted: the APK is not a newer version.</string>
+    <string name="update_error_unreadable">Aborted: the downloaded APK could not be read.</string>
+    <string name="update_error_install">The installation failed.</string>
+    <string name="settings_notif_title">NOTIFICATION INDICATOR</string>
+    <string name="settings_notif_none">NONE</string>
+    <string name="settings_notif_dot">DOT</string>
+    <string name="settings_notif_border">BORDER</string>
+    <string name="settings_notif_missing">Notification access is missing. Only which app has notifications is read, never their content.</string>
+    <string name="settings_notif_grant">GRANT NOTIFICATION ACCESS</string>
+    <string name="settings_notif_hint">Tiles of apps with pending notifications are marked (not frozen Leisure apps).</string>
+    <string name="onboarding_notif_title">OPTIONAL · NOTIFICATIONS</string>
+    <string name="onboarding_notif_text">To mark apps with pending notifications on the home screen. Only the app name is read, never the content. Turn it on later in Settings &gt; HOME.</string>
 </resources>

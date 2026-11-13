@@ -1,7 +1,5 @@
 # Plan del launcher Android por usos
 
-Nov 12, 2026 · @Alexander
-
 ## Resumen
 
 Launcher de Android para uso personal en un Samsung Galaxy S25 que ordena las apps por uso y mantiene congeladas las de ocio hasta que se pide tiempo. Se construye en Kotlin con Jetpack Compose y se instala por ADB, sin pasar por Play Store.
@@ -11,7 +9,7 @@ Launcher de Android para uso personal en un Samsung Galaxy S25 que ordena las ap
 - **Antiprocrastinación:** la sección Ocio tiene un presupuesto diario de minutos y exige una espera antes de abrirse.
 - **Sin mantenimiento:** las apps se clasifican solas y nada depende de horarios ni del calendario.
 
-Existe un [prototipo visual interactivo](https://claude.ai/artifact/Wrxnpt9G6Y7dWosiz5hTZi), privado del autor. Claude Code no puede abrirlo, así que este documento describe todo lo necesario para implementarlo.
+Este documento describe todo lo necesario para implementarlo.
 
 ## Requisitos
 

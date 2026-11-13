@@ -36,6 +36,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -272,12 +273,21 @@ private fun SmallTile(
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
     val dim = item.app.isQuiet
     val nameColor = if (item.frozen) UsosColors.LeisureFrozen else UsosColors.TextSecondary
+    val badge = com.usos.launcher.ui.theme.LocalNotifBadges.current
+    val notify = badge.show(item.app.key, item.frozen)
+    val dotOn = notify && badge.mode == com.usos.launcher.data.notify.NotifMode.DOT
+    val borderOn = notify && badge.mode == com.usos.launcher.data.notify.NotifMode.BORDER
+    val accentNow = LocalAccent.current
     Column(
         modifier
             .height(SmallTileHeight)
             .alpha(if (dim) 0.35f else 1f)
             .background(UsosColors.Surface, shape)
-            .border(1.dp, UsosColors.Border, shape)
+            .border(if (borderOn) 1.5.dp else 1.dp, if (borderOn) accentNow else UsosColors.Border, shape)
+            .drawWithContent {
+                drawContent()
+                if (dotOn) drawCircle(accentNow, 4.dp.toPx(), androidx.compose.ui.geometry.Offset(size.width - 10.dp.toPx(), 10.dp.toPx()))
+            }
             .tap(onLongClick = { onLongPick(item) }) { onPick(item) }
             .padding(8.dp),
         verticalArrangement = Arrangement.SpaceBetween,

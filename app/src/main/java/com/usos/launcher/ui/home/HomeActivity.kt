@@ -85,6 +85,7 @@ class HomeActivity : ComponentActivity() {
                 }
             }
         }
+        container.updateManager.autoCheck()
         setContent {
             val accent by viewModel.accent.collectAsStateWithLifecycle()
             UsosTheme(accent) {
@@ -98,6 +99,7 @@ class HomeActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        container.updateManager.onResume()
         container.widgetHost.startListening()
     }
 

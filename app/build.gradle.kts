@@ -17,8 +17,8 @@ android {
         applicationId = "com.usos.launcher"
         minSdk = 33
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.0.2"
+        versionCode = 5
+        versionName = "1.0.3"
     }
 
     // Clave de release fuera del repo: ~/.android/usos/keystore.properties
@@ -51,6 +51,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
