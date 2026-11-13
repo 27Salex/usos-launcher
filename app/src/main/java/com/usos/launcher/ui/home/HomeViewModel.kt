@@ -10,6 +10,13 @@ import com.usos.launcher.AppContainer
 import com.usos.launcher.UsosApp
 import android.os.SystemClock
 import com.usos.launcher.data.sections.AppConfig
+import com.usos.launcher.data.info.InfoKind
+import com.usos.launcher.data.info.InfoPiece
+import com.usos.launcher.data.info.InfoPieces
+import com.usos.launcher.data.info.MosaicGrid
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
+import java.time.ZoneId
 import com.usos.launcher.data.sections.Highlight
 import com.usos.launcher.data.sections.PlacedApp
 import com.usos.launcher.data.sections.SectionOrder
@@ -55,7 +62,7 @@ data class TileUi(
     val usageMin: Int? = null,
 )
 
-data class SectionUi(val section: Section, val count: Int, val tiles: List<TileUi>)
+data class SectionUi(val section: Section, val count: Int, val tiles: List<TileUi>, val info: InfoPiece? = null)
 
 data class HomeUiState(val sections: List<SectionUi>, val open: Section?)
 
@@ -100,6 +107,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private class DetailExtras(val key: String, val hasPermission: Boolean, val usage: UsageSummary?, val storage: Long?)
     private val detailExtras = MutableStateFlow<DetailExtras?>(null)
     private val todayUsage = MutableStateFlow<Map<String, Int>>(emptyMap())
+    private val agenda = MutableStateFlow<InfoPiece?>(null)
+    private val _calendarGranted = MutableStateFlow(container.agendaRepository.hasPermission())
+    val calendarGranted: StateFlow<Boolean> = _calendarGranted
+
+    /** Peticiones de permiso de calendario para la actividad (buffer: no se pierden antes de colectar). */
+    private val calendarRequests = Channel<Boolean>(Channel.BUFFERED)
+    val calendarRequestEvents = calendarRequests.receiveAsFlow()
+    val feedsPerHour: StateFlow<Int> = settings.feedsPerHour.stateIn(viewModelScope, SharingStarted.Eagerly, 5)
     private val usageRepo = container.usageRepository
 
     private val _blockerActive = MutableStateFlow(true)
@@ -127,17 +142,37 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         .map { Color(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Color(DEFAULT_ACCENT))
 
+    /** Piezas de información por sección: Agenda (si hay permiso y evento) y Mapas (si está instalado). */
+    private val infoPieces: StateFlow<Map<Section, InfoPiece>> = combine(agenda, apps) { ag, a ->
+        val mapsInstalled = a.orEmpty().any { it.packageName == InfoPieces.MAPS_PACKAGE && it.isMainProfile }
+        InfoPieces.bySection(listOf(ag, InfoPieces.mapsPiece(mapsInstalled)))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    private class Extras(val usage: Map<String, Int>, val info: Map<Section, InfoPiece>)
+
     /** null hasta que apps, configuración y sección abierta están listas. */
-    val state: StateFlow<HomeUiState?> = combine(apps, configStore.configs, open, openLoaded, todayUsage) { a, c, o, loaded, usage ->
+    val state: StateFlow<HomeUiState?> = combine(
+        apps, configStore.configs, open, openLoaded, combine(todayUsage, infoPieces) { u, i -> Extras(u, i) },
+    ) { a, c, o, loaded, extras ->
+        val usage = extras.usage
         if (a == null || !loaded || a.any { it.key !in c }) return@combine null
         val grouped = SectionLayout.build(a, c)
         HomeUiState(
             sections = Section.home.map { section ->
                 val placed = grouped[section].orEmpty()
+                val info = extras.info[section]
+                // La pieza de Mapas sustituye a la app de Mapas en el mosaico de Moverse.
+                val forMosaic = if (info?.kind == InfoKind.MAPS) placed.filter { it.app.packageName != InfoPieces.MAPS_PACKAGE } else placed
+                val slots = when {
+                    info != null -> MosaicGrid.itemCapacity(MosaicGrid.shapeOf(info.kind))
+                    section == Section.LEISURE -> LEISURE_APP_SLOTS
+                    else -> MOSAIC_CAPACITY
+                }
                 SectionUi(
                     section = section,
                     count = placed.size,
-                    tiles = SectionLayout.mosaic(placed, if (section == Section.LEISURE) LEISURE_APP_SLOTS else MOSAIC_CAPACITY)
+                    info = info,
+                    tiles = SectionLayout.mosaic(forMosaic, slots)
                         .map {
                             TileUi(
                                 it.app, it.code, it.app.isQuiet, it.config.highlight,
@@ -203,6 +238,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
         viewModelScope.launch { cleanOrphanWidgets() }
+        viewModelScope.launch {
+            // Primer arranque: el diálogo de calendario se pide una sola vez, cuando ya no hay onboarding.
+            if (settings.onboardingDone.first()) askCalendarOnce()
+        }
+        refreshInfo()
         refreshBlocker()
     }
 
@@ -286,8 +326,44 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     /** Terminar o saltar el primer arranque. */
     fun finishOnboarding() {
         _route.value = Route.Home
-        viewModelScope.launch { settings.setOnboardingDone(true) }
+        viewModelScope.launch {
+            settings.setOnboardingDone(true)
+            askCalendarOnce()
+        }
     }
+
+    private suspend fun askCalendarOnce() {
+        if (container.agendaRepository.hasPermission() || settings.calendarAsked.first()) return
+        settings.setCalendarAsked(true)
+        calendarRequests.send(false)
+    }
+
+    /** Desde Ajustes: vuelve a pedir el permiso de calendario. */
+    fun requestCalendar() { viewModelScope.launch { calendarRequests.send(true) } }
+
+    /** Recalcula la pieza de agenda (cada minuto, al volver y al conceder el permiso). */
+    fun refreshInfo() {
+        viewModelScope.launch {
+            val repo = container.agendaRepository
+            _calendarGranted.value = repo.hasPermission()
+            val now = System.currentTimeMillis()
+            val zone = ZoneId.systemDefault()
+            val next = InfoPieces.nextEvent(repo.upcoming(now, zone), now, zone)
+            agenda.value = InfoPieces.agendaPiece(next, now, zone)
+        }
+    }
+
+    /** Toque en una pieza de información: abre la app relacionada. */
+    fun openInfo(kind: InfoKind) {
+        val ctx = container.appContext
+        val ok = when (kind) {
+            InfoKind.AGENDA -> InfoLauncher.openCalendar(ctx)
+            InfoKind.MAPS -> InfoLauncher.navigateHome(ctx)
+        }
+        if (!ok) showNotice("NO SE PUDO ABRIR")
+    }
+
+    fun setFeedsPerHour(n: Int) { viewModelScope.launch { settings.setFeedsPerHour(n) } }
 
     fun restartOnboarding() {
         viewModelScope.launch { settings.setOnboardingDone(false) }

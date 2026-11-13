@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
-    id("com.google.devtools.ksp") // reservado para Room (fases futuras)
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -60,6 +60,12 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
 
+    implementation("androidx.room:room-runtime:2.8.5")
+    implementation("androidx.room:room-ktx:2.8.5")
+    ksp("androidx.room:room-compiler:2.8.5")
+
     testImplementation("junit:junit:4.13.2")
+    // XmlPullParser real en la JVM (android.jar de los tests solo trae stubs); es la misma KXmlParser que usa Android.
+    testImplementation("net.sf.kxml:kxml2:2.3.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
 }

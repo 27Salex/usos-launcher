@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Diario de Prueba</title>
+    <link>https://ejemplo.test/</link>
+    <description>Feed RSS 2.0 de ejemplo</description>
+    <image>
+      <url>https://ejemplo.test/logo.png</url>
+      <title>Logo del canal</title>
+      <link>https://ejemplo.test/</link>
+    </image>
+    <item>
+      <title>Primera noticia &amp; sus consecuencias</title>
+      <link>https://ejemplo.test/noticias/1</link>
+      <description><![CDATA[<p>Resumen con <b>HTML</b> y&nbsp;entidades &amp; m&aacute;s.</p><img src="https://ejemplo.test/img/inline1.jpg">]]></description>
+      <pubDate>Thu, 12 Nov 2026 18:30:00 +0100</pubDate>
+      <media:thumbnail url="https://ejemplo.test/img/thumb1.jpg" width="144" height="144"/>
+    </item>
+    <item>
+      <title>Segunda noticia con imagen adjunta</title>
+      <link>https://ejemplo.test/noticias/2</link>
+      <description>Texto plano sin etiquetas.</description>
+      <pubDate>Thu, 12 Nov 2026 16:00:00 GMT</pubDate>
+      <enclosure url="https://ejemplo.test/img/enc2.png" type="image/png" length="1234"/>
+    </item>
+    <item>
+      <title>Tercera noticia con imagen en el contenido</title>
+      <link>https://ejemplo.test/noticias/3</link>
+      <description>Corto</description>
+      <content:encoded><![CDATA[<div><img class="x" src='https://ejemplo.test/img/body3.jpg' alt=""/><p>Cuerpo largo</p></div>]]></content:encoded>
+      <dc:date>2026-11-11T09:00:00Z</dc:date>
+    </item>
+    <item>
+      <title>Cuarta sin imagen</title>
+      <link>https://ejemplo.test/noticias/4</link>
+      <description>&lt;p&gt;HTML escapado&lt;/p&gt;</description>
+      <media:content url="https://ejemplo.test/video.mp4" type="video/mp4" medium="video"/>
+    </item>
+    <item>
+      <description>Sin título ni enlace: se descarta</description>
+    </item>
+  </channel>
+</rss>

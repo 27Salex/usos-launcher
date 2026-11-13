@@ -28,6 +28,7 @@ object UsosDimens {
     val RadiusPiece = 18.dp
     val RadiusSearch = 24.dp
     val RadiusPill = 22.dp
+    val RadiusThumb = 12.dp
     val MinTouch = 44.dp
     val ScreenMargin = 24.dp
 }

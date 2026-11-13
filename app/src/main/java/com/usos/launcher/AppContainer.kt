@@ -19,7 +19,14 @@ import com.usos.launcher.data.usage.UsageRepository
 import com.usos.launcher.service.LauncherAlert
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import com.usos.launcher.data.feeds.FeedDatabase
+import com.usos.launcher.data.feeds.FeedRepository
+import com.usos.launcher.data.feeds.OkHttpFeedFetcher
+import com.usos.launcher.data.feeds.ThumbnailLoader
+import com.usos.launcher.data.info.AgendaRepository
+import okhttp3.OkHttpClient
 import java.time.Clock
+import java.util.concurrent.TimeUnit
 
 /** Contenedor de inyección manual. */
 class AppContainer(context: Context) {
@@ -30,6 +37,15 @@ class AppContainer(context: Context) {
     val settingsStore = SettingsStore(dataStore)
     val usageRepository = UsageRepository(context)
     val suggestClient: SuggestClient by lazy { OkHttpSuggestClient() }
+
+    val httpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS).build()
+    }
+    val feedRepository: FeedRepository by lazy {
+        FeedRepository(FeedDatabase.create(appContext).dao(), OkHttpFeedFetcher(httpClient))
+    }
+    val thumbnailLoader: ThumbnailLoader by lazy { ThumbnailLoader(httpClient) }
+    val agendaRepository = AgendaRepository(appContext)
 
     /** Host de widgets con id fijo: los ids asignados sobreviven a reinicios. */
     val widgetHost: AppWidgetHost = UsosWidgetHost(appContext, WIDGET_HOST_ID)

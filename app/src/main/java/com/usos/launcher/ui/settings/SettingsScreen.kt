@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.usos.launcher.data.feeds.FeedLimits
 import com.usos.launcher.data.leisure.LeisureLimits
 import com.usos.launcher.data.sections.PlacedApp
 import com.usos.launcher.data.suggest.SuggestProvider
@@ -52,6 +53,8 @@ class SettingsActions(
     val onSuggestionsOn: (Boolean) -> Unit,
     val onProvider: (SuggestProvider) -> Unit,
     val onGrayscale: (Boolean) -> Unit,
+    val onFeedsPerHour: (Int) -> Unit,
+    val onCalendarPermission: () -> Unit,
     val onMove: (Section, String, Int) -> Unit,
     val onRestartOnboarding: () -> Unit,
     val onBack: () -> Unit,
@@ -65,6 +68,8 @@ fun SettingsScreen(
     suggestionsOn: Boolean,
     provider: SuggestProvider,
     grayscale: Boolean,
+    feedsPerHour: Int,
+    calendarGranted: Boolean,
     actions: SettingsActions,
 ) {
     BackHandler { actions.onBack() }
@@ -119,6 +124,26 @@ fun SettingsScreen(
         Spacer(Modifier.height(20.dp))
         Heading("WIDGETS")
         UsosRow("ESCALA DE GRISES") { UsosSwitch(grayscale, actions.onGrayscale) }
+
+        Spacer(Modifier.height(20.dp))
+        Heading("NOTICIAS")
+        UsosRow("ARTÍCULOS POR HORA") {
+            Stepper("$feedsPerHour",
+                onMinus = { actions.onFeedsPerHour(feedsPerHour - 1) },
+                onPlus = { actions.onFeedsPerHour(feedsPerHour + 1) },
+                minusEnabled = feedsPerHour > FeedLimits.MIN_PER_HOUR,
+                plusEnabled = feedsPerHour < FeedLimits.MAX_PER_HOUR)
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Heading("AGENDA")
+        if (calendarGranted) {
+            UsosText("Permiso de calendario concedido.", UsosType.Label, UsosColors.TextSecondary)
+        } else {
+            UsosText("Sin permiso la pieza de agenda no se dibuja.", UsosType.Label, UsosColors.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            UsosPill("CONCEDER CALENDARIO", filled = false, onClick = actions.onCalendarPermission, modifier = Modifier.fillMaxWidth())
+        }
 
         Spacer(Modifier.height(20.dp))
         Heading("ACENTO")

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,6 +38,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,7 +77,13 @@ private val TileRowGap = 10.dp
 private val ClockTopOffset = 60.dp
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel, onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit) {
+fun HomeScreen(
+    viewModel: HomeViewModel,
+    onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit,
+) {
+    val feedsVm: com.usos.launcher.ui.feeds.FeedsViewModel =
+        androidx.lifecycle.viewmodel.compose.viewModel(factory = com.usos.launcher.ui.feeds.FeedsViewModel.Factory)
+    var feedManager by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     val leisure by viewModel.leisure.collectAsStateWithLifecycle()
@@ -100,6 +108,7 @@ fun HomeScreen(viewModel: HomeViewModel, onAddWidget: (android.appwidget.AppWidg
     // Atrás cierra la búsqueda; en inicio no hace nada más.
     BackHandler(enabled = true) { if (searchOpen) viewModel.closeSearch() }
 
+
     LaunchedEffect(pager) {
         viewModel.homeEvents.collect {
             if (animationsNow) pager.animateScrollToPage(1, animationSpec = usosTween(true))
@@ -123,7 +132,7 @@ fun HomeScreen(viewModel: HomeViewModel, onAddWidget: (android.appwidget.AppWidg
                     ),
                     topSpacing = topSpacing(),
                 )
-                2 -> PanelPage("Noticias")
+                2 -> com.usos.launcher.ui.feeds.FeedsPage(feedsVm, topSpacing(), onManage = { feedManager = true })
                 else -> HomePage(
                     state = state,
                     notice = notice,
@@ -138,6 +147,7 @@ fun HomeScreen(viewModel: HomeViewModel, onAddWidget: (android.appwidget.AppWidg
                     onThaw = viewModel::startThaw,
                     onCancelThaw = viewModel::cancelThaw,
                     onFreeze = viewModel::freezeLeisure,
+                    onOpenInfo = viewModel::openInfo,
                 )
             }
         }
@@ -174,9 +184,11 @@ fun HomeScreen(viewModel: HomeViewModel, onAddWidget: (android.appwidget.AppWidg
                 val wait by viewModel.wait.collectAsStateWithLifecycle()
                 val orderLists by viewModel.orderLists.collectAsStateWithLifecycle()
                 val suggestionsOn by viewModel.suggestionsOn.collectAsStateWithLifecycle()
+                val perHour by viewModel.feedsPerHour.collectAsStateWithLifecycle()
+                val calendarGranted by viewModel.calendarGranted.collectAsStateWithLifecycle()
                 val provider by viewModel.suggestProvider.collectAsStateWithLifecycle()
                 SettingsScreen(
-                    budget, wait, orderLists, suggestionsOn, provider, grayscale,
+                    budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
                     SettingsActions(
                         onBudget = viewModel::setBudget,
                         onWait = viewModel::setWait,
@@ -184,6 +196,8 @@ fun HomeScreen(viewModel: HomeViewModel, onAddWidget: (android.appwidget.AppWidg
                         onSuggestionsOn = viewModel::setSuggestionsOn,
                         onProvider = viewModel::setSuggestProvider,
                         onGrayscale = viewModel::setWidgetsGrayscale,
+                        onFeedsPerHour = viewModel::setFeedsPerHour,
+                        onCalendarPermission = viewModel::requestCalendar,
                         onMove = viewModel::moveInSection,
                         onRestartOnboarding = viewModel::restartOnboarding,
                         onBack = viewModel::closeOverlay,
@@ -193,6 +207,9 @@ fun HomeScreen(viewModel: HomeViewModel, onAddWidget: (android.appwidget.AppWidg
             Route.Onboarding -> OnboardingScreen(onFinish = viewModel::finishOnboarding)
             Route.Home -> Unit
         }
+        if (feedManager) {
+            com.usos.launcher.ui.feeds.FeedManagerScreen(feedsVm, onBack = { feedManager = false })
+        }
     }
 }
 
@@ -200,16 +217,6 @@ fun HomeScreen(viewModel: HomeViewModel, onAddWidget: (android.appwidget.AppWidg
 private fun topSpacing(): Dp {
     val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     return max(ClockTopOffset, statusBar + 16.dp)
-}
-
-@Composable
-private fun PanelPage(title: String) {
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = UsosDimens.ScreenMargin),
-    ) {
-        Spacer(Modifier.height(topSpacing()))
-        UsosText(title, UsosType.PanelTitle, UsosColors.Text)
-    }
 }
 
 @Composable
@@ -227,6 +234,7 @@ private fun HomePage(
     onThaw: (Int) -> Unit,
     onCancelThaw: () -> Unit,
     onFreeze: () -> Unit,
+    onOpenInfo: (com.usos.launcher.data.info.InfoKind) -> Unit,
 ) {
     val now by rememberNow()
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -245,7 +253,7 @@ private fun HomePage(
                     SectionBlock(
                         s, isOpen = state.open == s.section, leisure = leisure, blockerActive = blockerActive,
                         onToggle = onToggle, onOpenApp = onOpenApp, onLongPressApp = onLongPressApp,
-                        onThaw = onThaw, onCancelThaw = onCancelThaw, onFreeze = onFreeze,
+                        onThaw = onThaw, onCancelThaw = onCancelThaw, onFreeze = onFreeze, onOpenInfo = onOpenInfo,
                     )
                 }
             }
@@ -269,6 +277,7 @@ private fun SectionBlock(
     onThaw: (Int) -> Unit,
     onCancelThaw: () -> Unit,
     onFreeze: () -> Unit,
+    onOpenInfo: (com.usos.launcher.data.info.InfoKind) -> Unit,
 ) {
     val animations = LocalAnimationsEnabled.current
     val accent = LocalAccent.current
@@ -330,6 +339,8 @@ private fun SectionBlock(
             } else {
                 Mosaic(
                     tiles = s.tiles,
+                    info = s.info,
+                    onOpenInfo = onOpenInfo,
                     onOpenApp = onOpenApp,
                     onLongPressApp = onLongPressApp,
                     trailing = (leisure as? LeisureStatus.Open)?.let { open ->
@@ -341,10 +352,15 @@ private fun SectionBlock(
     }
 }
 
-/** Rejilla 3 x 2; ancho de celda = (ancho útil - 22 dp) / 3. */
+/**
+ * Rejilla 3 x 2; ancho de celda = (ancho útil - 22 dp) / 3. Una pieza de información (2x1 o 1x2)
+ * ocupa la esquina superior izquierda y las apps rellenan el resto en orden (MosaicGrid, puro).
+ */
 @Composable
 private fun Mosaic(
     tiles: List<TileUi>,
+    info: com.usos.launcher.data.info.InfoPiece?,
+    onOpenInfo: (com.usos.launcher.data.info.InfoKind) -> Unit,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
     onLongPressApp: (com.usos.launcher.domain.AppEntry) -> Unit,
     modifier: Modifier = Modifier,
@@ -352,18 +368,38 @@ private fun Mosaic(
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val cell = (maxWidth - TileColumnGap * 2) / 3
-        val cells: List<@Composable (Modifier) -> Unit> =
-            tiles.map { tile ->
-                val c: @Composable (Modifier) -> Unit = { m -> AppTile(tile, m, onOpenApp, onLongPressApp) }
-                c
-            } + listOfNotNull(trailing)
-        Column(verticalArrangement = Arrangement.spacedBy(TileRowGap)) {
-            cells.chunked(3).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(TileColumnGap)) {
-                    row.forEach { content -> content(Modifier.size(cell, TileHeight)) }
+        val shape = info?.let { com.usos.launcher.data.info.MosaicGrid.shapeOf(it.kind) }
+        val itemCount = tiles.size + if (trailing != null) 1 else 0
+        val placed = com.usos.launcher.data.info.MosaicGrid.place(shape, itemCount)
+        val rows = (placed.maxOfOrNull { it.row + it.rowSpan } ?: 0)
+        Box(Modifier.fillMaxWidth().height(TileHeight * rows + TileRowGap * (rows - 1).coerceAtLeast(0))) {
+            placed.forEach { c ->
+                val m = Modifier
+                    .offset(x = (cell + TileColumnGap) * c.col, y = (TileHeight + TileRowGap) * c.row)
+                    .size(
+                        cell * c.colSpan + TileColumnGap * (c.colSpan - 1),
+                        TileHeight * c.rowSpan + TileRowGap * (c.rowSpan - 1),
+                    )
+                when {
+                    c.isInfo && info != null -> InfoTile(info, m) { onOpenInfo(info.kind) }
+                    c.itemIndex < tiles.size -> AppTile(tiles[c.itemIndex], m, onOpenApp, onLongPressApp)
+                    else -> trailing?.invoke(m)
                 }
             }
         }
+    }
+}
+
+/** Pieza de información: fondo de acento, etiqueta mono arriba y dato 15 sp 700 abajo. */
+@Composable
+private fun InfoTile(info: com.usos.launcher.data.info.InfoPiece, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+    Column(
+        modifier.background(LocalAccent.current, shape).tap { onClick() }.padding(12.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        UsosText(info.label, UsosType.Label, UsosColors.OnAccent)
+        UsosText(info.data, UsosType.PieceData, UsosColors.OnAccent, maxLines = 3)
     }
 }
 

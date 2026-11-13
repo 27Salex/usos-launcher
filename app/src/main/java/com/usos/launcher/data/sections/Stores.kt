@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.usos.launcher.data.feeds.FeedLimits
 import com.usos.launcher.data.suggest.SuggestProvider
 import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
@@ -83,6 +84,20 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
 
     /** Escala de grises global de los widgets. Activada por defecto. */
     val widgetsGrayscale: Flow<Boolean> = dataStore.data.map { it[grayscaleKey] ?: true }.distinctUntilChanged()
+
+    private val perHourKey = intPreferencesKey("feeds_per_hour")
+    private val feedsHiddenKey = booleanPreferencesKey("feeds_hidden")
+    private val calendarAskedKey = booleanPreferencesKey("calendar_asked")
+
+    /** Artículos que el panel de noticias desvela por hora de reloj (3..10). */
+    val feedsPerHour: Flow<Int> = dataStore.data
+        .map { FeedLimits.clamp(it[perHourKey] ?: FeedLimits.DEFAULT_PER_HOUR) }.distinctUntilChanged()
+    val feedsHidden: Flow<Boolean> = dataStore.data.map { it[feedsHiddenKey] ?: false }.distinctUntilChanged()
+    val calendarAsked: Flow<Boolean> = dataStore.data.map { it[calendarAskedKey] ?: false }.distinctUntilChanged()
+
+    suspend fun setFeedsPerHour(n: Int) { dataStore.edit { it[perHourKey] = FeedLimits.clamp(n) } }
+    suspend fun setFeedsHidden(hidden: Boolean) { dataStore.edit { it[feedsHiddenKey] = hidden } }
+    suspend fun setCalendarAsked(asked: Boolean) { dataStore.edit { it[calendarAskedKey] = asked } }
 
     suspend fun setSuggestionsOn(on: Boolean) { dataStore.edit { it[suggestionsKey] = on } }
     suspend fun setSuggestProvider(p: SuggestProvider) { dataStore.edit { it[providerKey] = p.name } }

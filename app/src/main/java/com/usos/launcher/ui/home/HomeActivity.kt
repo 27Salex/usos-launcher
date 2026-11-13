@@ -1,6 +1,10 @@
 package com.usos.launcher.ui.home
 
+import android.Manifest
 import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.result.contract.ActivityResultContracts
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -24,6 +28,22 @@ class HomeActivity : ComponentActivity() {
 
     private val container get() = (application as UsosApp).container
     private lateinit var widgetAdder: WidgetAdder
+    private var manualCalendarRequest = false
+
+    private val calendarPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        viewModel.refreshInfo()
+        // Si el sistema ya no muestra el diálogo (denegado dos veces), la petición manual lleva a los ajustes de la app.
+        if (!granted && manualCalendarRequest &&
+            !shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR)
+        ) {
+            runCatching {
+                startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")),
+                )
+            }
+        }
+        manualCalendarRequest = false
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,11 +54,20 @@ class HomeActivity : ComponentActivity() {
         )
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.calendarRequestEvents.collect { manual ->
+                    manualCalendarRequest = manual
+                    calendarPermission.launch(Manifest.permission.READ_CALENDAR)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.refreshUsage()
+                viewModel.refreshInfo()
                 var ticks = 0
                 while (true) {
                     viewModel.tickLeisure()
-                    if (++ticks % 120 == 0) viewModel.refreshUsage() // cada minuto
+                    if (++ticks % 120 == 0) { viewModel.refreshUsage(); viewModel.refreshInfo() } // cada minuto
                     delay(500)
                 }
             }

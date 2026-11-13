@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <title>Blog Atom de Prueba</title>
+  <link href="https://atom.test/" rel="alternate"/>
+  <link href="https://atom.test/feed.xml" rel="self"/>
+  <updated>2026-11-12T20:00:00Z</updated>
+  <id>https://atom.test/</id>
+  <entry>
+    <title type="html">Entrada &lt;b&gt;uno&lt;/b&gt;</title>
+    <link rel="self" href="https://atom.test/api/1"/>
+    <link rel="alternate" type="text/html" href="https://atom.test/posts/1"/>
+    <id>tag:atom.test,2026:1</id>
+    <published>2026-11-12T19:15:00+01:00</published>
+    <updated>2026-11-12T20:00:00Z</updated>
+    <summary type="html">&lt;p&gt;Resumen &lt;em&gt;escapado&lt;/em&gt; de la entrada.&lt;/p&gt;</summary>
+    <media:thumbnail url="https://atom.test/img/a1.jpg"/>
+  </entry>
+  <entry>
+    <title>Entrada dos con imagen en el contenido</title>
+    <link href="https://atom.test/posts/2"/>
+    <id>https://atom.test/posts/2</id>
+    <updated>2026-11-10T08:30:00Z</updated>
+    <content type="html">&lt;p&gt;Contenido largo&lt;/p&gt;&lt;img src="https://atom.test/img/a2.png" /&gt;</content>
+  </entry>
+  <entry>
+    <title>Entrada tres con enclosure</title>
+    <link href="https://atom.test/posts/3"/>
+    <link rel="enclosure" type="image/jpeg" href="https://atom.test/img/a3.jpg"/>
+    <updated>2026-11-09T08:30:00Z</updated>
+    <summary>Sin HTML</summary>
+  </entry>
+</feed>
