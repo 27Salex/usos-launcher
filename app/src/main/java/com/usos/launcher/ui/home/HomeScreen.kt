@@ -204,8 +204,7 @@ fun HomeScreen(
                     manager = viewModel.widgetManager,
                     actions = com.usos.launcher.ui.widgets.WidgetsActions(
                         onAdd = onAddWidget,
-                        onReorder = viewModel::reorderWidgets,
-                        onResize = viewModel::resizeWidget,
+                        onLayout = viewModel::applyWidgetLayout,
                         onRemove = viewModel::removeWidget,
                         onReconfigure = onReconfigureWidget,
                     ),

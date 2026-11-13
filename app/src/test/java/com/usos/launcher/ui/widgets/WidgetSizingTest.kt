@@ -49,12 +49,6 @@ class WidgetSizingTest {
         assertEquals(emptyList<Int>(), WidgetSizing.orphans(listOf(1), listOf(a, b)))
     }
 
-    @Test fun reorderAndResize() {
-        assertEquals(listOf(c, a, b), WidgetSizing.reorder(listOf(a, b, c), listOf(3, 1, 2)))
-        assertEquals(listOf(b, a, c), WidgetSizing.reorder(listOf(a, b, c), listOf(2)))
-        assertEquals(listOf(a, b.copy(cols = 2, rows = 3)), WidgetSizing.withCells(listOf(a, b), 2, 2, 3))
-    }
-
     @Test fun minCellsRoundsDownAndAllowsAnyWiderWidth() {
         // Celda de 100 dp con separación 10: un mínimo de 250 dp son 2 celdas (no 3); 90 dp son 1.
         assertEquals(2, WidgetSizing.minCells(250, 100f, 10f, 3))
@@ -67,11 +61,18 @@ class WidgetSizingTest {
         assertEquals(WidgetCells(2, 1), WidgetSizing.snapCells(cur, -900f, 0f, 100f, 100f, 3, minCols = 2))
     }
 
-    @Test fun previewMoveGivesOrderAndLayout() {
-        val sizes = listOf(1 to WidgetCells(1, 1), 2 to WidgetCells(1, 1), 3 to WidgetCells(1, 1))
-        val cur = WidgetSizing.layout(3, sizes).placements
-        val (order, layout) = WidgetSizing.previewMove(3, sizes, cur, 1, com.usos.launcher.data.sections.Cell(2, 0))
-        assertEquals(listOf(2, 3, 1), order)
-        assertEquals(2, layout.placements.first { it.key == "1" }.col)
+    @Test fun legacyWidgetsAreMigratedWithTheDensePacking() {
+        val old = listOf(HostedWidget(1, cols = 2, rows = 1), HostedWidget(2, cols = 2, rows = 1), HostedWidget(3, cols = 1, rows = 2))
+        val r = WidgetSizing.resolve(old, 3) { 1 }.associateBy { it.id }
+        assertEquals(GBox(1, 0, 0, 2, 1), r[1])
+        assertEquals(GBox(3, 2, 0, 1, 2), r[3])
+        assertEquals(GBox(2, 0, 1, 2, 1), r[2])
+    }
+
+    @Test fun newWidgetGoesToFirstFreeAndPositionedOnesStay() {
+        val ws = listOf(HostedWidget(1, cols = 2, rows = 4, col = 0, row = 0), HostedWidget(2, cols = 2, rows = 2, col = 2, row = 0), HostedWidget(3, cols = 2, rows = 2))
+        val r = WidgetSizing.resolve(ws, 4) { 2 }.associateBy { it.id }
+        assertEquals(GBox(3, 2, 2, 2, 2), r[3])
+        assertEquals(GBox(1, 0, 0, 2, 4), r[1])
     }
 }

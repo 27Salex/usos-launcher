@@ -16,9 +16,72 @@ import com.usos.launcher.data.sections.PackItem
 import com.usos.launcher.data.sections.PackResult
 import kotlin.math.roundToInt
 
-/** Widget colocado: el id lo asigna AppWidgetHost. Tamaño en celdas del mosaico; cols/rows 0 = sin migrar (ancho completo, alto del `heightDp` antiguo). El orden es el de la lista. */
+/**
+ * Widget colocado: el id lo asigna AppWidgetHost. `cols`/`rows` = tamaño en celdas (colSpan/rowSpan; 0 = sin migrar:
+ * ancho completo, alto del `heightDp` antiguo). `col`/`row` = posición de la esquina superior izquierda en la
+ * rejilla; -1 = sin posición (migración o alta nueva: la página la calcula una vez y la persiste).
+ */
 @Serializable
-data class HostedWidget(val id: Int, val heightDp: Int = 0, val cols: Int = 0, val rows: Int = 0)
+data class HostedWidget(val id: Int, val heightDp: Int = 0, val cols: Int = 0, val rows: Int = 0, val col: Int = -1, val row: Int = -1)
+
+/** Caja de un widget en la rejilla: esquina [col],[row] y tamaño [w]x[h] en celdas. */
+data class GBox(val id: Int, val col: Int, val row: Int, val w: Int, val h: Int) {
+    val bottom get() = row + h
+    fun overlaps(o: GBox) = col < o.col + o.w && o.col < col + w && row < o.bottom && o.row < bottom
+}
+
+/**
+ * Rejilla libre de widgets (pura): columnas fijas y filas ilimitadas hacia abajo. Regla única de colocación:
+ * el widget movido o redimensionado se queda donde se pide (acotado a la rejilla) y los que se solapan con él se
+ * EMPUJAN HACIA ABAJO justo por debajo del que los empuja, en cascada (en orden de fila y columna). Nunca se mueven
+ * hacia arriba ni de lado. No se compacta nada: los huecos vacíos se quedan (más predecible).
+ */
+object WidgetGrid {
+    /** Acota tamaños y columna a [columns], fila >= 0; luego resuelve solapes empujando hacia abajo; [anchor] no se mueve. */
+    fun normalize(boxes: List<GBox>, columns: Int, anchor: Int? = null): List<GBox> {
+        val cols = columns.coerceAtLeast(1)
+        val clamped = boxes.map {
+            val w = it.w.coerceIn(1, cols)
+            it.copy(w = w, h = it.h.coerceAtLeast(1), col = it.col.coerceIn(0, cols - w), row = it.row.coerceAtLeast(0))
+        }
+        val settled = ArrayList<GBox>()
+        clamped.firstOrNull { it.id == anchor }?.let { settled += it }
+        clamped.filter { it.id != anchor }.sortedWith(compareBy({ it.row }, { it.col }))
+            .forEach { b0 ->
+                var b = b0
+                while (true) {
+                    val hit = settled.filter { it.overlaps(b) }
+                    if (hit.isEmpty()) break
+                    b = b.copy(row = hit.maxOf { it.bottom })
+                }
+                settled += b
+            }
+        val byId = settled.associateBy { it.id }
+        return clamped.map { byId.getValue(it.id) }
+    }
+
+    /** Pone [id] con esquina en ([col],[row]) (acotada a la rejilla) y empuja hacia abajo a los solapados. */
+    fun place(boxes: List<GBox>, id: Int, col: Int, row: Int, columns: Int): List<GBox> =
+        normalize(boxes.map { if (it.id == id) it.copy(col = col, row = row) else it }, columns, id)
+
+    /** Cambia [id] a [w]x[h] (acotado al ancho de la rejilla) sin mover su esquina y empuja hacia abajo a los afectados. Nunca se rechaza. */
+    fun resize(boxes: List<GBox>, id: Int, w: Int, h: Int, columns: Int): List<GBox> =
+        normalize(boxes.map { if (it.id == id) it.copy(w = w, h = h) else it }, columns, id)
+
+    /** Primera posición libre en orden de lectura donde cabe [w]x[h]; las filas son ilimitadas, así que siempre hay. */
+    fun firstFree(boxes: List<GBox>, w: Int, h: Int, columns: Int): Pair<Int, Int> {
+        val ww = w.coerceIn(1, columns.coerceAtLeast(1))
+        var row = 0
+        while (true) {
+            for (col in 0..(columns - ww).coerceAtLeast(0)) {
+                val t = GBox(-1, col, row, ww, h)
+                if (boxes.none { it.overlaps(t) }) return col to row
+            }
+            row++
+        }
+    }
+}
+
 
 /** Tamaño de un widget en celdas. */
 data class WidgetCells(val cols: Int, val rows: Int)
@@ -70,15 +133,31 @@ object WidgetSizing {
             (cur.rows + (dyPx / stepY).roundToInt()).coerceIn(minRows.coerceIn(MIN_ROWS, MAX_ROWS), MAX_ROWS),
         )
 
-    /** Orden tentativo y colocación si [dragged] (id) se soltara sobre [target]; sirve para la vista previa. */
-    fun previewMove(
-        columns: Int, sizes: List<Pair<Int, WidgetCells>>, placements: List<com.usos.launcher.data.sections.Placement>,
-        dragged: Int, target: com.usos.launcher.data.sections.Cell,
-    ): Pair<List<Int>, PackResult> {
-        val order = com.usos.launcher.data.sections.MosaicEdit
-            .reorder(sizes.map { it.first.toString() }, placements, dragged.toString(), target, columns).map { it.toInt() }
-        val byId = sizes.toMap()
-        return order to layout(columns, order.mapNotNull { id -> byId[id]?.let { id to it } })
+    /**
+     * Cajas actuales: las guardadas con posición se respetan (acotadas y sin solapes); las que no la tienen
+     * ([HostedWidget.col] < 0) se colocan: si ninguna tiene posición, con el empaquetado denso antiguo (el mismo
+     * resultado que se veía, migración única); si no, en la primera posición libre en orden de lectura.
+     */
+    fun resolve(widgets: List<HostedWidget>, columns: Int, defaultRows: (Int) -> Int): List<GBox> {
+        val sizes = widgets.map { it.id to cells(it, columns, defaultRows(it.id)) }
+        if (widgets.none { it.col >= 0 && it.row >= 0 }) {
+            val byId = layout(columns, sizes).placements.associateBy { it.key.toInt() }
+            return sizes.map { (id, c) -> byId[id]?.let { GBox(id, it.col, it.row, c.cols, c.rows) } ?: GBox(id, 0, 0, c.cols, c.rows) }
+                .let { WidgetGrid.normalize(it, columns) }
+        }
+        val placed = ArrayList<GBox>()
+        val pending = ArrayList<Pair<HostedWidget, WidgetCells>>()
+        widgets.forEachIndexed { i, w ->
+            if (w.col >= 0 && w.row >= 0) placed += GBox(w.id, w.col, w.row, sizes[i].second.cols, sizes[i].second.rows)
+            else pending += w to sizes[i].second
+        }
+        var cur = WidgetGrid.normalize(placed, columns)
+        pending.forEach { (w, c) ->
+            val (col, row) = WidgetGrid.firstFree(cur, c.cols, c.rows, columns)
+            cur = cur + GBox(w.id, col, row, c.cols.coerceAtMost(columns), c.rows)
+        }
+        val byId = cur.associateBy { it.id }
+        return widgets.map { byId.getValue(it.id) }
     }
 
     /** Colocación densa por orden (MosaicPacker); las filas disponibles son la suma de alturas, así que todo cabe. */
@@ -91,15 +170,11 @@ object WidgetSizing {
         return hostIds.filter { it !in keep }
     }
 
-    /** Reordena según [order] (ids); los que falten conservan su posición relativa al final. */
-    fun reorder(list: List<HostedWidget>, order: List<Int>): List<HostedWidget> {
-        val byId = list.associateBy { it.id }
-        val ordered = order.mapNotNull { byId[it] }
-        return ordered + list.filter { it.id !in order }
+    /** Aplica posición y tamaño de [boxes] a los widgets guardados (los demás quedan igual). */
+    fun withBoxes(list: List<HostedWidget>, boxes: List<GBox>): List<HostedWidget> {
+        val byId = boxes.associateBy { it.id }
+        return list.map { w -> byId[w.id]?.let { w.copy(col = it.col, row = it.row, cols = it.w, rows = it.h, heightDp = 0) } ?: w }
     }
-
-    fun withCells(list: List<HostedWidget>, id: Int, cols: Int, rows: Int): List<HostedWidget> =
-        list.map { if (it.id == id) it.copy(cols = cols, rows = rows, heightDp = 0) else it }
 }
 
 /** Widgets colocados, como un JSON en DataStore. */

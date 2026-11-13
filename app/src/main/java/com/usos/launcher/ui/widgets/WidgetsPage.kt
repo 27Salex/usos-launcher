@@ -64,7 +64,6 @@ import com.usos.launcher.R
 import com.usos.launcher.data.sections.Cell
 import com.usos.launcher.data.sections.MosaicEdit
 import com.usos.launcher.data.sections.MosaicPacker
-import com.usos.launcher.data.sections.PackResult
 import com.usos.launcher.ui.home.rootRect
 import com.usos.launcher.ui.theme.Bubble
 import com.usos.launcher.ui.theme.BubbleKind
@@ -87,8 +86,7 @@ import kotlin.math.roundToInt
 
 class WidgetsActions(
     val onAdd: (AppWidgetProviderInfo) -> Unit,
-    val onReorder: (order: List<Int>) -> Unit,
-    val onResize: (id: Int, cols: Int, rows: Int) -> Unit,
+    val onLayout: (boxes: List<GBox>) -> Unit,
     val onRemove: (id: Int) -> Unit,
     val onReconfigure: (id: Int) -> Unit,
 )
@@ -124,9 +122,8 @@ fun WidgetsPage(
     var dragPointer by remember { mutableStateOf(Offset.Zero) }
     var dragGrab by remember { mutableStateOf(Offset.Zero) }
     var hoverCell by remember { mutableStateOf<Cell?>(null) }
-    var previewOrder by remember { mutableStateOf<List<Int>?>(null) }
-    var preview by remember { mutableStateOf<PackResult?>(null) }
-    var held by remember { mutableStateOf<PackResult?>(null) }
+    var preview by remember { mutableStateOf<List<GBox>?>(null) }
+    var held by remember { mutableStateOf<List<GBox>?>(null) }
     var resizeId by remember { mutableStateOf<Int?>(null) }
     var resizeFrom by remember { mutableStateOf(WidgetCells(1, 1)) }
     var resizeCells by remember { mutableStateOf<WidgetCells?>(null) }
@@ -157,6 +154,11 @@ fun WidgetsPage(
         return WidgetSizing.dpToRows(WidgetSizing.defaultDp(dp(info.minHeight), info.targetCellHeight))
     }
 
+    // Posiciones actuales; los widgets sin posición (migración o alta) se colocan y se persisten una sola vez.
+    val base = WidgetSizing.resolve(widgets, columns, ::defaultRows)
+    val baseNow by rememberUpdatedState(base)
+    LaunchedEffect(widgets) { if (widgets.any { it.col < 0 || it.row < 0 }) actions.onLayout(baseNow) }
+
     BoxWithConstraints(
         Modifier.fillMaxSize().onGloballyPositioned { pageCoords = it }
             .tapOutside(
@@ -169,16 +171,12 @@ fun WidgetsPage(
         val tileH = MosaicPacker.tileHeightDp(columns, (maxWidth - UsosDimens.ScreenMargin * 2).value).dp
         val stepX = with(LocalDensity.current) { (cell + ColGap).toPx() }
         val stepY = with(LocalDensity.current) { (tileH + RowGap).toPx() }
-        val sizes = widgets.map { it.id to WidgetSizing.cells(it, columns, defaultRows(it.id)) }
-        val pack = WidgetSizing.layout(columns, sizes)
-        val sizeById = sizes.toMap()
-        val totalRows = sizes.sumOf { it.second.rows }.coerceAtLeast(1)
         val eff = if (editing) preview ?: held else null
-        val placements = eff?.placements ?: pack.placements
-        val rowsUsed = maxOf(pack.rowsUsed, eff?.rowsUsed ?: 0)
-        val widgetsNow by rememberUpdatedState(widgets)
-        val packNow by rememberUpdatedState(pack)
-        val sizesNow by rememberUpdatedState(sizes)
+        val placements = eff ?: base
+        // Filas: las usadas (reales o de la vista previa) y, mientras se arrastra, una vacía debajo donde soltar.
+        val rowsUsed = (maxOf(base.maxOfOrNull { it.bottom } ?: 0, eff?.maxOfOrNull { it.bottom } ?: 0) +
+            (if (dragId != null) 1 else 0)).coerceAtLeast(1)
+        val rowsNow by rememberUpdatedState(rowsUsed)
 
         fun spanW(cs: Int) = cell * cs + ColGap * (cs - 1)
         fun spanH(rs: Int) = tileH * rs + RowGap * (rs - 1)
@@ -196,21 +194,18 @@ fun WidgetsPage(
             val id = dragId ?: return
             val g = gridCoords?.takeIf { it.isAttached } ?: return
             val o = g.positionInRoot()
-            val c = MosaicEdit.hoverCell(hoverCell, dragPointer.x - o.x, dragPointer.y - o.y, stepX, stepY, columns, totalRows)
+            val c = MosaicEdit.hoverCell(hoverCell, dragPointer.x - o.x, dragPointer.y - o.y, stepX, stepY, columns, rowsNow)
             hoverCell = c
-            val pv = c?.let { WidgetSizing.previewMove(columns, sizesNow, packNow.placements, id, it) }
-            previewOrder = pv?.first
-            preview = pv?.second
+            preview = c?.let { WidgetGrid.place(baseNow, id, it.col, it.row, columns) }?.takeIf { it != baseNow }
         }
 
         fun dropDrag() {
-            val order = previewOrder
             val pv = preview
-            if (order != null && pv != null && order != widgetsNow.map { it.id }) {
+            if (pv != null) {
                 held = pv
-                actions.onReorder(order)
+                actions.onLayout(pv)
             }
-            dragId = null; hoverCell = null; previewOrder = null; preview = null
+            dragId = null; hoverCell = null; preview = null
         }
 
 
@@ -238,11 +233,11 @@ fun WidgetsPage(
                             Modifier.fillMaxWidth().height(tileH * rowsUsed + RowGap * (rowsUsed - 1).coerceAtLeast(0))
                                 .onGloballyPositioned { gridCoords = it },
                         ) {
-                            pack.placements.forEach { p ->
-                                val id = p.key.toInt()
+                            base.forEach { p ->
+                                val id = p.id
                                 val w = widgets.firstOrNull { it.id == id } ?: return@forEach
                                 key(id) {
-                                    val q = placements.firstOrNull { it.key == p.key }
+                                    val q = placements.firstOrNull { it.id == id }
                                     val dragging = dragId == id
                                     // El que se redimensiona conserva su tamaño real hasta confirmar; lo demás sigue la colocación en vivo.
                                     val shown = if (resizeId == id) p else (q ?: p)
@@ -260,14 +255,14 @@ fun WidgetsPage(
                                         Modifier.offset { pos }.zIndex(if (dragging) 1f else 0f),
                                     ) {
                                         // Fuera de edicion la pulsacion larga no hace nada: solo se edita con EDITAR.
-                                        WidgetBox(w, spanW(shown.colSpan), spanH(shown.rowSpan), grayscale, host, manager) {}
+                                        WidgetBox(w, spanW(shown.w), spanH(shown.h), grayscale, host, manager) {}
                                         if (editing) {
                                             var layer by remember { mutableStateOf<LayoutCoordinates?>(null) }
                                             val canDrag = selected && !resizing
                                             LaunchedEffect(selected) { if (selected) selectedRect = layer?.rootRect() }
                                             val select = { if (selectedId != id) { selectedId = id; selectedRect = null; resizing = false } }
                                             Box(
-                                                Modifier.size(spanW(shown.colSpan), spanH(shown.rowSpan))
+                                                Modifier.size(spanW(shown.w), spanH(shown.h))
                                                     .background(UsosColors.Background.copy(alpha = 0.35f), shape)
                                                     .onGloballyPositioned {
                                                         layer = it
@@ -296,7 +291,7 @@ fun WidgetsPage(
                                                                     updateDragPreview()
                                                                 }
                                                                 if (finished) dropDrag()
-                                                                else { dragId = null; hoverCell = null; previewOrder = null; preview = null }
+                                                                else { dragId = null; hoverCell = null; preview = null }
                                                             }
                                                         } else if (selected) Modifier
                                                         else Modifier.pressGestures(longMs = 400, onLongPress = select) { select() },
@@ -308,7 +303,7 @@ fun WidgetsPage(
                                     if (editing && q != null && preview != null && (dragging || resizeId == id)) {
                                         val t = IntOffset((stepX * q.col).roundToInt(), (stepY * q.row).roundToInt())
                                         Box(
-                                            Modifier.offset { t }.size(spanW(q.colSpan), spanH(q.rowSpan))
+                                            Modifier.offset { t }.size(spanW(q.w), spanH(q.h))
                                                 .border(2.dp, accent, RoundedCornerShape(UsosDimens.RadiusPiece)),
                                         )
                                     }
@@ -333,7 +328,7 @@ fun WidgetsPage(
                         local,
                         onStart = {
                             resizeId = sel
-                            resizeFrom = sizeById[sel] ?: WidgetCells(1, 1)
+                            resizeFrom = baseNow.firstOrNull { it.id == sel }?.let { WidgetCells(it.w, it.h) } ?: WidgetCells(1, 1)
                             resizeCells = resizeFrom
                             frozenRect = selectedRect
                         },
@@ -345,7 +340,7 @@ fun WidgetsPage(
                             if (next != resizeCells) {
                                 resizeCells = next
                                 preview = if (next == resizeFrom) null else
-                                    WidgetSizing.layout(columns, sizesNow.map { (i, c) -> i to (if (i == sel) next else c) })
+                                    WidgetGrid.resize(baseNow, sel, next.cols, next.rows, columns)
                             }
                         },
                         onEnd = { completed ->
@@ -353,7 +348,7 @@ fun WidgetsPage(
                             val pv = preview
                             if (completed && next != null && next != resizeFrom && pv != null) {
                                 held = pv
-                                actions.onResize(sel, next.cols, next.rows)
+                                actions.onLayout(pv)
                             }
                             resizeId = null; resizeCells = null; frozenRect = null; preview = null
                         },

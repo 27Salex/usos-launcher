@@ -366,12 +366,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     fun discardWidgetId(id: Int) { container.widgetHost.deleteAppWidgetId(id) }
 
-    fun reorderWidgets(order: List<Int>) {
-        viewModelScope.launch { container.widgetStore.update { WidgetSizing.reorder(it, order) } }
-    }
-
-    fun resizeWidget(id: Int, cols: Int, rows: Int) {
-        viewModelScope.launch { container.widgetStore.update { WidgetSizing.withCells(it, id, cols, rows) } }
+    /** Persiste posición y tamaño de las cajas dadas (mover, redimensionar o migración). */
+    fun applyWidgetLayout(boxes: List<com.usos.launcher.ui.widgets.GBox>) {
+        viewModelScope.launch { container.widgetStore.update { WidgetSizing.withBoxes(it, boxes) } }
     }
 
     fun removeWidget(id: Int) {
