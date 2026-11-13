@@ -17,8 +17,8 @@ android {
         applicationId = "com.usos.launcher"
         minSdk = 33
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.0.7"
+        versionCode = 10
+        versionName = "1.0.8"
     }
 
     // Clave de release fuera del repo: ~/.android/usos/keystore.properties

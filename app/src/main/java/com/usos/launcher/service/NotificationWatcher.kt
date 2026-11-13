@@ -9,11 +9,11 @@ import com.usos.launcher.domain.AppEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/** Paquetes+perfil con notificaciones activas no ongoing. Solo lee packageName y usuario, nunca el contenido. */
+/** Paquetes+perfil con notificaciones activas no ongoing y cuántas. Solo lee packageName, usuario y flags, nunca el contenido. */
 object NotificationState {
-    private val _keys = MutableStateFlow<Set<String>>(emptySet())
-    val keys: StateFlow<Set<String>> = _keys
-    internal fun set(v: Set<String>) { _keys.value = v }
+    private val _counts = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val counts: StateFlow<Map<String, Int>> = _counts
+    internal fun set(v: Map<String, Int>) { _counts.value = v }
 
     fun isGranted(context: Context): Boolean =
         context.packageName in NotificationManagerCompat.getEnabledListenerPackages(context)
@@ -27,11 +27,15 @@ class NotificationWatcher : NotificationListenerService() {
 
     private fun refresh() {
         val list = runCatching { activeNotifications }.getOrNull() ?: return
-        NotificationState.set(list.filter { !it.isOngoing }.map { key(it) }.toSet())
+        // Los resúmenes de grupo no cuentan, salvo que sean lo único que tiene la app.
+        val counts = list.filter { !it.isOngoing }.groupBy { key(it) }.mapValues { (_, l) ->
+            l.count { it.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY == 0 }.coerceAtLeast(1)
+        }
+        NotificationState.set(counts)
     }
 
     override fun onListenerConnected() = refresh()
     override fun onNotificationPosted(sbn: StatusBarNotification) = refresh()
     override fun onNotificationRemoved(sbn: StatusBarNotification) = refresh()
-    override fun onListenerDisconnected() { NotificationState.set(emptySet()) }
+    override fun onListenerDisconnected() { NotificationState.set(emptyMap()) }
 }

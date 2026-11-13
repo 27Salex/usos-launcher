@@ -77,7 +77,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
 
     /** Aviso de notificaciones en las piezas: NONE (defecto) / DOT / BORDER. */
     val notifMode: Flow<com.usos.launcher.data.notify.NotifMode> =
-        dataStore.data.map { com.usos.launcher.data.notify.NotifMode.fromName(it[notifModeKey]) }.distinctUntilChanged()
+        dataStore.data.map { p -> p[notifModeKey]?.let { com.usos.launcher.data.notify.NotifMode.fromName(it) } ?: com.usos.launcher.data.notify.NotifMode.DOT }.distinctUntilChanged()
     suspend fun setNotifMode(m: com.usos.launcher.data.notify.NotifMode) { dataStore.edit { it[notifModeKey] = m.name } }
 
     private val onboardingKey = booleanPreferencesKey("onboarding_done")

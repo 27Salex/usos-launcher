@@ -55,6 +55,7 @@ import com.usos.launcher.ui.theme.UsosPill
 import com.usos.launcher.ui.theme.UsosText
 import com.usos.launcher.ui.theme.UsosType
 import com.usos.launcher.ui.theme.dashedBorder
+import com.usos.launcher.ui.theme.onColor
 import com.usos.launcher.ui.theme.tap
 import com.usos.launcher.ui.theme.themed
 
@@ -122,7 +123,14 @@ private fun Slot(app: AppEntry, editing: Boolean, enabled: Boolean, onOpen: () -
         ) {
             AppIconOrNull(app, 30.dp, UsosColors.Text) { UsosText(app.defaultCode, UsosType.Button, UsosColors.Text) }
         }
-        if (badge && !editing) Box(Modifier.align(Alignment.TopEnd).offset((-6).dp, 6.dp).size(8.dp).background(accent, CircleShape))
+        if (badge && !editing) {
+            val badges = LocalNotifBadges.current
+            if (badges.mode == com.usos.launcher.data.notify.NotifMode.BORDER) {
+                Box(Modifier.size(DockItem).border(1.5.dp, accent, RoundedCornerShape(UsosDimens.RadiusPiece)))
+            } else {
+                com.usos.launcher.ui.theme.CountBubble(badges.count(app.key), accent, accent.onColor(), Modifier.align(Alignment.TopEnd))
+            }
+        }
         if (editing) {
             Box(
                 Modifier.align(Alignment.TopEnd).offset(4.dp, (-4).dp).size(22.dp)

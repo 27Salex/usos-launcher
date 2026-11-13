@@ -231,8 +231,8 @@ fun HomeScreen(
     val dockApps by viewModel.dockApps.collectAsStateWithLifecycle()
     var dockPicking by remember { mutableStateOf<Int?>(null) }
     val notifMode by viewModel.notifMode.collectAsStateWithLifecycle()
-    val notifKeys by com.usos.launcher.service.NotificationState.keys.collectAsStateWithLifecycle()
-    val notifBadges = remember(notifMode, notifKeys) { com.usos.launcher.ui.theme.NotifBadges(notifMode, notifKeys) }
+    val notifCounts by com.usos.launcher.service.NotificationState.counts.collectAsStateWithLifecycle()
+    val notifBadges = remember(notifMode, notifCounts) { com.usos.launcher.ui.theme.NotifBadges(notifMode, notifCounts) }
     CompositionLocalProvider(
         LocalIconPrefs provides iconPrefs, LocalIcons provides viewModel.iconRepository,
         com.usos.launcher.ui.theme.LocalNotifBadges provides notifBadges,
@@ -660,7 +660,14 @@ private fun SectionBlock(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText(stringResource(s.section.titleRes), UsosType.SectionName, nameColor)
+        val pending = if (frozen) 0 else com.usos.launcher.ui.theme.LocalNotifBadges.current.total(s.tiles.keys)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            UsosText(stringResource(s.section.titleRes), UsosType.SectionName, nameColor)
+            if (pending > 0) {
+                Spacer(Modifier.width(8.dp))
+                com.usos.launcher.ui.theme.CountBubble(pending, accent, accent.onColor(), Modifier.offset(y = (-6).dp))
+            }
+        }
         UsosText(data, UsosType.SectionData, if (isLeisure) accent else UsosColors.TextSecondary)
     }
     AnimatedVisibility(
@@ -999,15 +1006,11 @@ private fun AppTile(
     val dotColor = if (fill == accent) onFill else accent
     val dotOn = notify && badge.mode == com.usos.launcher.data.notify.NotifMode.DOT
     val borderOn = notify && badge.mode == com.usos.launcher.data.notify.NotifMode.BORDER
+    Box(modifier.alpha(if (tile.dimmed) 0.35f else 1f)) {
     Column(
-        modifier
-            .alpha(if (tile.dimmed) 0.35f else 1f)
+        Modifier.fillMaxSize()
             .background(fill, shape)
             .border(if (borderOn) 1.5.dp else 1.dp, if (borderOn) dotColor else edge, shape)
-            .drawWithContent {
-                drawContent()
-                if (dotOn) drawCircle(dotColor, 4.dp.toPx(), androidx.compose.ui.geometry.Offset(size.width - 12.dp.toPx(), 12.dp.toPx()))
-            }
             .then(if (interactive) Modifier.pressGestures(onLongPress = onEnterEdit) { onOpenApp(tile.app) } else Modifier)
             .padding(12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -1017,6 +1020,12 @@ private fun AppTile(
             tile.usageMin?.let { UsosText(UsageSummary.format(it), UsosType.Label, codeColor) }
             UsosText(tile.app.label.uppercase(), UsosType.TileName, nameColor)
         }
+    }
+    if (dotOn) {
+        com.usos.launcher.ui.theme.CountBubble(
+            badge.count(tile.app.key), dotColor, dotColor.onColor(), Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp),
+        )
+    }
     }
 }
 

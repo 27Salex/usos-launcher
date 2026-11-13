@@ -618,7 +618,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.Eagerly, AssistantUi(null, null, null, emptyList()))
 
     val notifMode: StateFlow<com.usos.launcher.data.notify.NotifMode> =
-        settings.notifMode.stateIn(viewModelScope, SharingStarted.Eagerly, com.usos.launcher.data.notify.NotifMode.NONE)
+        settings.notifMode.stateIn(viewModelScope, SharingStarted.Eagerly, com.usos.launcher.data.notify.NotifMode.DOT)
     val searchKeyboard: StateFlow<Boolean> = settings.searchKeyboard.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     fun setSearchKeyboard(on: Boolean) { viewModelScope.launch { settings.setSearchKeyboard(on) } }
     fun setAssistantChoice(v: String?) { viewModelScope.launch { settings.setAssistantChoice(v) } }

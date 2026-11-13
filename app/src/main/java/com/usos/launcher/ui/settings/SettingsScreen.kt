@@ -787,7 +787,7 @@ private fun UpdateSettings() {
 private fun NotifSettings() {
     val context = LocalContext.current
     val store = (context.applicationContext as com.usos.launcher.UsosApp).container.settingsStore
-    val mode by store.notifMode.collectAsStateWithLifecycle(com.usos.launcher.data.notify.NotifMode.NONE)
+    val mode by store.notifMode.collectAsStateWithLifecycle(com.usos.launcher.data.notify.NotifMode.DOT)
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var tick by remember { mutableStateOf(0) }
     androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { tick++; onPauseOrDispose { } }

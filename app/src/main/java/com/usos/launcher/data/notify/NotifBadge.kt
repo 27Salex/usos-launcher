@@ -1,6 +1,6 @@
 package com.usos.launcher.data.notify
 
-/** Aviso de notificación en las piezas. Los nombres persistidos no cambian. */
+/** Aviso de notificación en las piezas. Los nombres persistidos no cambian; sin valor guardado = DOT. */
 enum class NotifMode {
     NONE, DOT, BORDER;
 

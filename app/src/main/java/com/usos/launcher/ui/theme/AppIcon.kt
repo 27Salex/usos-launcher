@@ -1,6 +1,9 @@
 package com.usos.launcher.ui.theme
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +26,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.usos.launcher.data.icons.IconRepository
 import com.usos.launcher.data.icons.LoadedIcon
 import com.usos.launcher.data.sections.IconMode
@@ -34,10 +38,28 @@ val LocalIconPrefs = compositionLocalOf { IconPrefs() }
 /** Aviso de notificaciones: modo elegido y claves (`paquete/serial`) con notificaciones activas. */
 class NotifBadges(
     val mode: com.usos.launcher.data.notify.NotifMode = com.usos.launcher.data.notify.NotifMode.NONE,
-    val active: Set<String> = emptySet(),
+    val counts: Map<String, Int> = emptyMap(),
 ) {
+    val active: Set<String> get() = counts.keys
     fun show(appKey: String, frozen: Boolean = false) =
         com.usos.launcher.data.notify.NotifBadge.show(mode, active, appKey, frozen)
+    fun count(appKey: String): Int = counts[appKey] ?: 0
+    /** Suma de las apps dadas (para el nombre de la sección); 0 si los avisos están apagados. */
+    fun total(appKeys: Collection<String>): Int =
+        if (mode == com.usos.launcher.data.notify.NotifMode.NONE) 0 else appKeys.sumOf { count(it) }
+}
+
+/** Bolita con el número de notificaciones ("9+" a partir de 10). */
+@Composable
+fun CountBubble(count: Int, color: Color, textColor: Color, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.Box(
+        modifier.defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
+            .background(color, androidx.compose.foundation.shape.CircleShape)
+            .padding(horizontal = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        UsosText(if (count > 9) "9+" else count.toString(), UsosType.SmallTag.copy(fontSize = 10.sp, lineHeight = 10.sp), textColor)
+    }
 }
 
 val LocalNotifBadges = compositionLocalOf { NotifBadges() }

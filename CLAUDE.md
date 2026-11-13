@@ -115,3 +115,8 @@ Pendiente de verificar en dispositivo (`adb shell dumpsys package <pkg>` para fi
 - Dock opcional (Ajustes → Inicio, apagado por defecto) encima de BUSCAR: `ui/home/Dock.kt` + `DockPrefs` en `DisplayPrefs.kt`, guardado en `DisplayStore` (`dock_on`, `dock_slots` 3-5, `dock_apps` claves separadas por `\n`, "" = hueco vacío). Reducir huecos no borra las apps guardadas.
 - Fuera de edición solo se ven los huecos ocupados, centrados; en EDITAR (o vacío) se ven todos: tocar = elegir app (`DockPicker`), × = vaciar.
 - `SettingsGlyph` es un engranaje de contorno (Path), no puntos.
+
+## 1.0.8: contador de notificaciones
+- `NotificationState.counts` (clave app → nº de notificaciones descartables; los resúmenes de grupo no suman salvo que sean lo único). `NotifBadges.count/total`.
+- `CountBubble` (AppIcon.kt): número en piezas (modo DOT), dock y junto al nombre de la sección (visible plegada; no en Ocio congelado).
+- Sin valor guardado en `notif_indicator` el modo es DOT (antes NONE); un NONE guardado se respeta.
