@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
+import com.usos.launcher.ui.theme.SettingsGlyph
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ColorFilter
@@ -54,6 +57,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.usos.launcher.data.feeds.ThumbnailLoader
 import com.usos.launcher.ui.theme.LocalAccent
+import com.usos.launcher.ui.theme.LocalOnAccent
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosText
@@ -70,6 +74,7 @@ fun FeedsPage(
     vm: FeedsViewModel,
     topSpacing: Dp,
     onManage: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
@@ -82,27 +87,33 @@ fun FeedsPage(
 
     Column(Modifier.fillMaxSize().padding(horizontal = UsosDimens.ScreenMargin)) {
         Spacer(Modifier.height(topSpacing))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().height(UsosDimens.MinTouch), verticalAlignment = Alignment.CenterVertically) {
             UsosText("Noticias", UsosType.PanelTitle, UsosColors.Text, Modifier.weight(1f))
-            Box(Modifier.height(UsosDimens.MinTouch).tap { onManage() }.padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
-                UsosText("FEEDS", UsosType.Label, UsosColors.TextSecondary)
-            }
+            PillButton("FEEDS +", onManage)
             Box(Modifier.size(UsosDimens.MinTouch).tap { vm.toggleHidden() }, contentAlignment = Alignment.Center) {
                 EyeIcon(crossed = ui?.hidden == true, color = if (ui?.hidden == true) accent else UsosColors.Text)
             }
+            SettingsGlyph(onOpenSettings, Modifier.offset(x = 12.dp))
         }
         val state = ui
         if (state == null) return@Column
-        val status = message ?: state.queueLabel.takeIf { !state.hidden }
         if (state.hidden) {
             UsosText("CONTENIDO OCULTO", UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 8.dp))
             return@Column
         }
-        Box(Modifier.height(24.dp), contentAlignment = Alignment.CenterStart) {
-            if (status != null) UsosText(status, UsosType.Label, accent)
+        Row(Modifier.fillMaxWidth().height(28.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (message != null) {
+                UsosText(message!!, UsosType.Label, accent)
+            } else {
+                UsosText(state.tokensLabel, UsosType.Label, accent)
+                state.nextLabel?.let {
+                    Spacer(Modifier.width(10.dp))
+                    UsosText(it, UsosType.Label, UsosColors.TextSecondary)
+                }
+            }
         }
         LazyRow(
-            Modifier.fillMaxWidth().height(UsosDimens.MinTouch),
+            Modifier.fillMaxWidth().height(44.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -119,21 +130,22 @@ fun FeedsPage(
                 if (state.cards.isEmpty()) {
                     item {
                         val text = when {
-                            !state.hasFeeds -> "AÑADE UN FEED EN «FEEDS»"
-                            state.queueLabel != null -> "AL DÍA POR AHORA"
-                            else -> "AL DÍA"
+                            !state.hasFeeds -> "AÑADE UN FEED EN «FEEDS +»"
+                            state.filter == SAVED_FILTER -> "NADA GUARDADO · TOCA LA ESTRELLA DE UN ARTÍCULO"
+                            else -> "SIN ARTÍCULOS · TIRA PARA ACTUALIZAR"
                         }
-                        UsosText(text, UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 24.dp))
+                        UsosText(text, UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 24.dp), maxLines = 2)
                     }
                 }
                 items(state.cards, key = { it.article.id }) { card ->
                     ArticleCard(card, vm.thumbnails, onOpen = {
-                        runCatching {
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse(card.article.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
+                        vm.open(card.article) { url ->
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
                         }
-                        vm.markRead(card.article.id)
                     }, onStar = { vm.toggleStar(card.article) })
                 }
                 item { Spacer(Modifier.height(navBar + 12.dp)) }
@@ -142,22 +154,28 @@ fun FeedsPage(
     }
 }
 
+/** Píldora pulsable: borde #4A4A4A, radio 22 y 36 dp de alto; activa = fondo de acento y texto negro/blanco según contraste. */
 @Composable
-private fun FilterPill(pill: PillUi, active: Boolean, onClick: () -> Unit) {
+private fun PillButton(text: String, onClick: () -> Unit, active: Boolean = false) {
     val accent = LocalAccent.current
     val shape = RoundedCornerShape(UsosDimens.RadiusPill)
-    val label = if (pill.unread > 0) "${pill.label} ${pill.unread}" else pill.label
     Box(
         Modifier
-            .height(UsosDimens.MinTouch)
+            .height(36.dp)
             .background(if (active) accent else UsosColors.Background, shape)
             .border(1.dp, if (active) accent else UsosColors.BorderStrong, shape)
             .tap { onClick() }
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
-        UsosText(label, UsosType.Pill, if (active) UsosColors.OnAccent else UsosColors.Text)
+        UsosText(text, UsosType.Pill, if (active) LocalOnAccent.current else UsosColors.Text)
     }
+}
+
+@Composable
+private fun FilterPill(pill: PillUi, active: Boolean, onClick: () -> Unit) {
+    val label = if (pill.count > 0) "${pill.label} ${pill.count}" else pill.label
+    PillButton(label, onClick, active)
 }
 
 @Composable
@@ -166,7 +184,7 @@ private fun ArticleCard(card: CardUi, loader: ThumbnailLoader, onOpen: () -> Uni
     val accent = LocalAccent.current
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
     Row(
-        Modifier.fillMaxWidth().background(UsosColors.Surface, shape).tap { onOpen() }
+        Modifier.fillMaxWidth().alpha(if (a.read) 0.5f else 1f).background(UsosColors.Surface, shape).tap { onOpen() }
             .padding(start = 14.dp, top = 14.dp, end = 14.dp, bottom = 2.dp),
     ) {
         Column(Modifier.weight(1f)) {

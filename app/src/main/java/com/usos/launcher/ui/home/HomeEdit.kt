@@ -37,6 +37,7 @@ import com.usos.launcher.data.sections.TileSize
 import com.usos.launcher.data.info.InfoKind
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.theme.LocalAccent
+import com.usos.launcher.ui.theme.LocalOnAccent
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosPill
@@ -153,7 +154,7 @@ fun RemoveZone(hover: Boolean, modifier: Modifier = Modifier) {
             .dashedBorder(if (hover) accent else UsosColors.Text, UsosDimens.RadiusSearch),
         contentAlignment = Alignment.Center,
     ) {
-        UsosText("QUITAR DE INICIO", UsosType.Button, if (hover) UsosColors.OnAccent else UsosColors.Text)
+        UsosText("QUITAR DE INICIO", UsosType.Button, if (hover) LocalOnAccent.current else UsosColors.Text)
     }
 }
 

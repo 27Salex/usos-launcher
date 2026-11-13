@@ -24,6 +24,9 @@ import androidx.compose.ui.text.style.TextOverflow
 
 val LocalAccent = compositionLocalOf { UsosColors.DefaultAccent }
 
+/** Negro o blanco segun la luminancia del acento (WCAG): texto e iconos sobre piezas de acento. */
+val LocalOnAccent = compositionLocalOf { UsosColors.OnAccent }
+
 /** false si el sistema tiene las animaciones reducidas (escala de duración = 0). */
 val LocalAnimationsEnabled = compositionLocalOf { true }
 
@@ -46,6 +49,7 @@ fun UsosTheme(accent: Color, content: @Composable () -> Unit) {
     }
     CompositionLocalProvider(
         LocalAccent provides accent,
+        LocalOnAccent provides accent.onColor(),
         LocalAnimationsEnabled provides enabled,
         content = content,
     )

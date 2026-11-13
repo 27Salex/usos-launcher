@@ -62,6 +62,9 @@ import com.usos.launcher.ui.settings.SettingsScreen
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.search.SearchOverlay
 import com.usos.launcher.ui.theme.LocalAccent
+import com.usos.launcher.ui.theme.onColor
+import androidx.compose.ui.graphics.Color
+import com.usos.launcher.ui.theme.LocalOnAccent
 import com.usos.launcher.ui.theme.LocalAnimationsEnabled
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
@@ -164,15 +167,7 @@ fun HomeScreen(
                     topSpacing = topSpacing(),
                     onOpenSettings = viewModel::openSettings,
                 )
-                2 -> Box(Modifier.fillMaxSize()) {
-                    com.usos.launcher.ui.feeds.FeedsPage(feedsVm, topSpacing(), onManage = { feedManager = true })
-                    // Ajustes: encima de la cabecera (ui.feeds no se toca), alineado a la derecha.
-                    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                    com.usos.launcher.ui.theme.SettingsGlyph(
-                        viewModel::openSettings,
-                        Modifier.align(Alignment.TopEnd).padding(top = max(statusTop, topSpacing() - 44.dp), end = UsosDimens.ScreenMargin - 12.dp),
-                    )
-                }
+                2 -> com.usos.launcher.ui.feeds.FeedsPage(feedsVm, topSpacing(), onManage = { feedManager = true }, onOpenSettings = viewModel::openSettings)
                 else -> HomePage(
                     state = state,
                     notice = notice,
@@ -226,7 +221,9 @@ fun HomeScreen(
 
         // Pantallas superpuestas: cada una registra su propio "atras" y vuelve al inicio.
         when (val r = route) {
-            is Route.Detail -> detail?.let { ui ->
+            is Route.Detail -> detail?.let { d0 ->
+                val recent by viewModel.recentColors.collectAsStateWithLifecycle()
+                val ui = d0.copy(recentColors = recent)
                 AppDetailScreen(
                     ui,
                     DetailActions(
@@ -235,6 +232,7 @@ fun HomeScreen(
                         onInMosaic = { viewModel.setInMosaic(r.key, it) },
                         onCode = { viewModel.setCode(r.key, it) },
                         onHighlight = { viewModel.setHighlight(r.key, it) },
+                        onHighlightColor = { viewModel.setHighlightColor(r.key, it) },
                         onSize = { viewModel.setTileSize(r.key, it) },
                         onRows = { n -> viewModel.setRows(ui.config.section, n) },
                         onBack = viewModel::closeOverlay,
@@ -249,6 +247,8 @@ fun HomeScreen(
                 val perHour by viewModel.feedsPerHour.collectAsStateWithLifecycle()
                 val calendarGranted by viewModel.calendarGranted.collectAsStateWithLifecycle()
                 val provider by viewModel.suggestProvider.collectAsStateWithLifecycle()
+                val searchEngine by viewModel.searchEngine.collectAsStateWithLifecycle()
+                val recentColors by viewModel.recentColors.collectAsStateWithLifecycle()
                 val clock by viewModel.clockPrefs.collectAsStateWithLifecycle()
                 val weatherPrefs by viewModel.weatherPrefs.collectAsStateWithLifecycle()
                 val cities by viewModel.cityResults.collectAsStateWithLifecycle()
@@ -257,12 +257,14 @@ fun HomeScreen(
                 SettingsScreen(
                     com.usos.launcher.ui.settings.SettingsUi(
                         budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
-                        clock, weatherPrefs, cities, iconPrefs, mosaicPrefs, infoSpecs,
+                        clock, weatherPrefs, cities, iconPrefs, mosaicPrefs, infoSpecs, searchEngine, recentColors,
                     ),
                     SettingsActions(
                         onBudget = viewModel::setBudget,
                         onWait = viewModel::setWait,
                         onAccent = viewModel::setAccent,
+                        onCustomAccent = viewModel::setCustomAccent,
+                        onSearchEngine = viewModel::setSearchEngine,
                         onSuggestionsOn = viewModel::setSuggestionsOn,
                         onProvider = viewModel::setSuggestProvider,
                         onGrayscale = viewModel::setWidgetsGrayscale,
@@ -710,8 +712,8 @@ private fun InfoTile(
             .padding(12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText(info.label, UsosType.Label, UsosColors.OnAccent)
-        UsosText(info.data, UsosType.PieceData, UsosColors.OnAccent, maxLines = 3)
+        UsosText(info.label, UsosType.Label, LocalOnAccent.current)
+        UsosText(info.data, UsosType.PieceData, LocalOnAccent.current, maxLines = 3)
     }
 }
 
@@ -726,8 +728,8 @@ private fun FreezeTile(minutesLeft: Int, modifier: Modifier, onFreeze: () -> Uni
             .padding(12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText("CONGELAR ·", UsosType.Label, UsosColors.OnAccent)
-        UsosText("$minutesLeft min", UsosType.PieceData, UsosColors.OnAccent)
+        UsosText("CONGELAR ·", UsosType.Label, LocalOnAccent.current)
+        UsosText("$minutesLeft min", UsosType.PieceData, LocalOnAccent.current)
     }
 }
 
@@ -741,21 +743,27 @@ private fun AppTile(
 ) {
     val accent = LocalAccent.current
     val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+    val custom = tile.highlightColor?.let { Color(it) }
     val fill = when (tile.highlight) {
         Highlight.NORMAL -> UsosColors.Surface
         Highlight.ACCENT -> accent
         Highlight.WHITE -> UsosColors.Text
         Highlight.OUTLINE -> UsosColors.Background
+        Highlight.COLOR -> custom ?: UsosColors.Surface
     }
     val edge = when (tile.highlight) {
         Highlight.NORMAL -> UsosColors.Border
         Highlight.ACCENT -> accent
         Highlight.WHITE -> UsosColors.Text
         Highlight.OUTLINE -> UsosColors.Text
+        Highlight.COLOR -> custom ?: UsosColors.Border
     }
-    val filled = tile.highlight == Highlight.ACCENT || tile.highlight == Highlight.WHITE
-    val codeColor = if (filled) UsosColors.OnAccent else UsosColors.Text
-    val nameColor = if (filled) UsosColors.OnAccent else UsosColors.TextSecondary
+    val filled = tile.highlight == Highlight.ACCENT || tile.highlight == Highlight.WHITE ||
+        (tile.highlight == Highlight.COLOR && custom != null)
+    // Texto e icono en negro o blanco segun la luminancia de la pieza (WCAG).
+    val onFill = if (filled) fill.onColor() else UsosColors.Text
+    val codeColor = onFill
+    val nameColor = if (filled) onFill else UsosColors.TextSecondary
     Column(
         modifier
             .alpha(if (tile.dimmed) 0.35f else 1f)
@@ -765,7 +773,7 @@ private fun AppTile(
             .padding(12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        TileHead(tile.app, tile.code, UsosType.TileCode, codeColor, 28.dp, invert = filled)
+        TileHead(tile.app, tile.code, UsosType.TileCode, codeColor, 28.dp, invert = filled && onFill == UsosColors.OnAccent)
         Column {
             tile.usageMin?.let { UsosText(UsageSummary.format(it), UsosType.Label, codeColor) }
             UsosText(tile.app.label.uppercase(), UsosType.TileName, nameColor)

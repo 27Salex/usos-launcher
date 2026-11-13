@@ -52,7 +52,10 @@ import com.usos.launcher.data.weather.GeoPlace
 import com.usos.launcher.data.feeds.FeedLimits
 import com.usos.launcher.data.leisure.LeisureLimits
 import com.usos.launcher.data.sections.PlacedApp
+import com.usos.launcher.data.suggest.SearchEngine
 import com.usos.launcher.data.suggest.SuggestProvider
+import com.usos.launcher.ui.theme.ColorPicker
+import com.usos.launcher.ui.theme.ColorMath
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.UsosColors
@@ -68,6 +71,8 @@ class SettingsActions(
     val onBudget: (Int) -> Unit,
     val onWait: (Int) -> Unit,
     val onAccent: (Int) -> Unit,
+    val onCustomAccent: (Int) -> Unit,
+    val onSearchEngine: (SearchEngine) -> Unit,
     val onSuggestionsOn: (Boolean) -> Unit,
     val onProvider: (SuggestProvider) -> Unit,
     val onGrayscale: (Boolean) -> Unit,
@@ -114,6 +119,8 @@ class SettingsUi(
     val icons: IconPrefs,
     val mosaic: MosaicPrefs,
     val infoSpecs: Map<Section, InfoSpec>,
+    val searchEngine: SearchEngine,
+    val recentColors: List<Int>,
 )
 
 @Composable
@@ -137,10 +144,17 @@ fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
         Group("INICIO")
         SubHeading("ACENTO")
         val accent = LocalAccent.current
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        val isPreset = UsosColors.AccentChoices.any { it.toArgb() == accent.toArgb() }
+        var customOpen by rememberSaveable { mutableStateOf(false) }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             UsosColors.AccentChoices.forEach { c ->
-                Swatch(c, selected = c.toArgb() == accent.toArgb()) { actions.onAccent(c.toArgb()) }
+                Swatch(c, selected = c.toArgb() == accent.toArgb()) { customOpen = false; actions.onAccent(c.toArgb()) }
             }
+            UsosPill("PERSONALIZADO", filled = !isPreset || customOpen, onClick = { customOpen = !customOpen }, modifier = Modifier.weight(1f))
+        }
+        if (customOpen) {
+            Spacer(Modifier.height(12.dp))
+            ColorPicker(accent.toArgb(), ui.recentColors, actions.onCustomAccent)
         }
         Spacer(Modifier.height(12.dp))
         SubHeading("AGENDA")
@@ -288,18 +302,23 @@ fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
             }
         }
 
+        Spacer(Modifier.height(16.dp))
+        SubHeading("BUSCADOR")
+        Choice(SearchEngine.entries.map { it.label }, ui.searchEngine.ordinal, 2) { actions.onSearchEngine(SearchEngine.entries[it]) }
+        UsosText("Intro abre URLs, apps con nombre exacto o busca aquí.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
         Group("WIDGETS")
         UsosRow("ESCALA DE GRISES") { UsosSwitch(ui.grayscale, actions.onGrayscale) }
         UsosText("Apágala para ver los colores originales de los widgets.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
 
         Group("NOTICIAS")
-        UsosRow("ARTÍCULOS POR HORA") {
+        UsosRow("LECTURAS POR HORA") {
             Stepper("${ui.feedsPerHour}",
                 onMinus = { actions.onFeedsPerHour(ui.feedsPerHour - 1) },
                 onPlus = { actions.onFeedsPerHour(ui.feedsPerHour + 1) },
                 minusEnabled = ui.feedsPerHour > FeedLimits.MIN_PER_HOUR,
                 plusEnabled = ui.feedsPerHour < FeedLimits.MAX_PER_HOUR)
         }
+        UsosText("Abrir un artículo sin leer gasta 1 lectura; el cubo se rellena de forma continua.", UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
 
         Group("SISTEMA")
         if (!confirmWallpaper) {

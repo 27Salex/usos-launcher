@@ -100,20 +100,11 @@ class AppRepository(context: Context) {
         }.isSuccess
     }
 
-    /** Busqueda web del texto con el buscador por defecto del sistema. */
-    fun webSearch(text: String): Boolean {
-        val viaSystem = runCatching {
-            appContext.startActivity(
-                Intent(Intent.ACTION_WEB_SEARCH)
-                    .putExtra(android.app.SearchManager.QUERY, text)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }.isSuccess
-        if (viaSystem) return true
-        // Sin buscador registrado: el navegador con la URL de Google.
-        val url = android.net.Uri.parse("https://www.google.com/search").buildUpon().appendQueryParameter("q", text).build()
-        return runCatching {
-            appContext.startActivity(Intent(Intent.ACTION_VIEW, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }.isSuccess
-    }
+    /** Abre la URL en el navegador por defecto (ACTION_VIEW). */
+    fun openUrl(url: String): Boolean = runCatching {
+        appContext.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.isSuccess
+
+    /** Busca el texto en el buscador elegido, abierto en el navegador por defecto (no ACTION_WEB_SEARCH). */
+    fun webSearch(text: String, engine: com.usos.launcher.data.suggest.SearchEngine): Boolean = openUrl(engine.urlFor(text))
 }

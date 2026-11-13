@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.runtime.remember
 import com.usos.launcher.ui.theme.LocalAccent
+import com.usos.launcher.ui.theme.LocalOnAccent
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosText
@@ -137,6 +138,22 @@ fun SearchOverlay(
                     top = 8.dp, bottom = navBar + 16.dp,
                 ),
             ) {
+                if (query.isNotBlank()) {
+                    item(key = "action") {
+                        val intent = remember(items, query) { SearchClassifier.classify(query, items) { it.app.label } }
+                        val label = when (intent) {
+                            is SearchIntent.OpenUrl -> "ABRIR " + intent.url.substringAfter("://").trimEnd('/').uppercase()
+                            is SearchIntent.OpenApp<*> -> "ABRIR " + (intent.app as SearchItem).app.label.uppercase()
+                            is SearchIntent.WebSearch -> "BUSCAR “${intent.text}”"
+                        }
+                        Box(
+                            Modifier.fillMaxWidth().padding(top = 8.dp).height(UsosDimens.MinTouch + 8.dp)
+                                .background(LocalAccent.current, RoundedCornerShape(UsosDimens.RadiusPiece))
+                                .tap { onSubmit() }.padding(horizontal = 16.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) { UsosText(label, UsosType.Button, LocalOnAccent.current) }
+                    }
+                }
                 if (showSettings) {
                     item(key = "settings") {
                         Box(

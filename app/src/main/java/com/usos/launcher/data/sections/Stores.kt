@@ -10,6 +10,9 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.usos.launcher.data.feeds.FeedLimits
+import com.usos.launcher.data.feeds.ReadTokens
+import com.usos.launcher.data.feeds.TokenState
+import com.usos.launcher.data.suggest.SearchEngine
 import com.usos.launcher.data.suggest.SuggestProvider
 import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
@@ -91,7 +94,7 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     private val feedsHiddenKey = booleanPreferencesKey("feeds_hidden")
     private val calendarAskedKey = booleanPreferencesKey("calendar_asked")
 
-    /** Artículos que el panel de noticias desvela por hora de reloj (3..10). */
+    /** Lecturas por hora (3..10): tamaño del cubo de lecturas y ritmo de relleno. */
     val feedsPerHour: Flow<Int> = dataStore.data
         .map { FeedLimits.clamp(it[perHourKey] ?: FeedLimits.DEFAULT_PER_HOUR) }.distinctUntilChanged()
     val feedsHidden: Flow<Boolean> = dataStore.data.map { it[feedsHiddenKey] ?: false }.distinctUntilChanged()
@@ -173,6 +176,48 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     /** Los feeds por defecto se crean una sola vez, si al primer arranque no hay ninguno. */
     suspend fun feedsSeeded(): Boolean = dataStore.data.first()[feedsSeededKey] ?: false
     suspend fun setFeedsSeeded() { dataStore.edit { it[feedsSeededKey] = true } }
+
+
+    // ---- Buscador, lecturas de noticias y colores recientes ----
+    private val engineKey = stringPreferencesKey("search_engine")
+    private val tokenCountKey = intPreferencesKey("read_tokens")
+    private val tokenAtKey = androidx.datastore.preferences.core.longPreferencesKey("read_tokens_at")
+    private val recentColorsKey = stringPreferencesKey("recent_colors")
+
+    val searchEngine: Flow<SearchEngine> = dataStore.data.map { SearchEngine.fromName(it[engineKey]) }.distinctUntilChanged()
+    suspend fun setSearchEngine(e: SearchEngine) { dataStore.edit { it[engineKey] = e.name } }
+
+    /** Cubo de lecturas; null = nunca usado (lleno). */
+    val readTokens: Flow<TokenState?> = dataStore.data.map { p ->
+        val c = p[tokenCountKey]
+        val at = p[tokenAtKey]
+        if (c == null || at == null) null else TokenState(c, at)
+    }.distinctUntilChanged()
+
+    /** Gasta una lectura de forma atómica; false si no quedaba ninguna. */
+    suspend fun spendReadToken(now: Long, perHour: Int): Boolean {
+        var ok = false
+        dataStore.edit { p ->
+            val cur = p[tokenCountKey]?.let { c -> p[tokenAtKey]?.let { TokenState(c, it) } }
+            val next = ReadTokens.spend(cur, now, perHour)
+            if (next != null) {
+                p[tokenCountKey] = next.count
+                p[tokenAtKey] = next.refilledAt
+                ok = true
+            }
+        }
+        return ok
+    }
+
+    val recentColors: Flow<List<Int>> = dataStore.data
+        .map { p -> p[recentColorsKey].orEmpty().split(',').mapNotNull { it.toIntOrNull() } }.distinctUntilChanged()
+
+    suspend fun addRecentColor(argb: Int) {
+        dataStore.edit { p ->
+            val cur = p[recentColorsKey].orEmpty().split(',').mapNotNull { it.toIntOrNull() }
+            p[recentColorsKey] = (listOf(argb) + cur.filter { it != argb }).take(8).joinToString(",")
+        }
+    }
 
     suspend fun setLastOpenSection(section: Section?) {
         dataStore.edit { if (section == null) it.remove(lastOpenKey) else it[lastOpenKey] = section.name }

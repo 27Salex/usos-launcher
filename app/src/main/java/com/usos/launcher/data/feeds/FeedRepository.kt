@@ -5,40 +5,91 @@ import android.graphics.BitmapFactory
 import android.util.LruCache
 import android.util.Xml
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.ByteArrayInputStream
 import java.io.IOException
+
+/** User-Agent de navegador normal: algunos sitios bloquean el de OkHttp o el de curl. */
+const val BROWSER_UA =
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
+
+/** Respuesta de una URL: un feed ya analizado u otra cosa (normalmente HTML). */
+sealed interface Fetched {
+    data class Parsed(val feed: ParsedFeed) : Fetched
+    data class Other(val body: String, val finalUrl: String) : Fetched
+}
+
+class HttpException(val code: Int) : IOException("HTTP $code")
+class NotAFeedException : IOException("NO ES UN FEED")
 
 /** Descarga y analiza un feed. Interfaz para poder sustituirla en tests. */
 interface FeedFetcher {
+    /** Descarga [url] siguiendo redirecciones. HttpException si el código no es 2xx; otra IOException = sin conexión. */
     @Throws(IOException::class)
-    suspend fun fetch(url: String): ParsedFeed
+    suspend fun probe(url: String): Fetched
+
+    @Throws(IOException::class)
+    suspend fun fetch(url: String): ParsedFeed = (probe(url) as? Fetched.Parsed)?.feed ?: throw NotAFeedException()
 }
 
 class OkHttpFeedFetcher(private val http: OkHttpClient) : FeedFetcher {
-    override suspend fun fetch(url: String): ParsedFeed = withContext(Dispatchers.IO) {
+    override suspend fun probe(url: String): Fetched = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url)
-            .header("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml, */*")
+            .header("User-Agent", BROWSER_UA)
+            .header("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml, text/html;q=0.8, */*;q=0.5")
+            .header("Accept-Language", "es-ES,es;q=0.9,en;q=0.7")
             .build()
         http.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+            if (!response.isSuccessful) throw HttpException(response.code)
+            val bytes = response.body.source().let { src ->
+                src.request(MAX_BYTES + 1)
+                if (src.buffer.size > MAX_BYTES) throw NotAFeedException()
+                src.readByteArray()
+            }
+            val charset = response.body.contentType()?.charset() ?: Charsets.UTF_8
+            val head = String(bytes, 0, minOf(bytes.size, 4000), Charsets.ISO_8859_1)
+            if (!FeedDiscovery.looksLikeFeed(head)) {
+                return@use Fetched.Other(String(bytes, charset), response.request.url.toString())
+            }
             val parser = Xml.newPullParser()
-            parser.setInput(response.body.byteStream(), null)
+            parser.setInput(ByteArrayInputStream(bytes), null)
             try {
-                FeedParser.parse(parser)
+                Fetched.Parsed(FeedParser.parse(parser))
             } catch (e: org.xmlpull.v1.XmlPullParserException) {
-                throw IOException("Feed no válido", e)
+                throw NotAFeedException()
             }
         }
     }
+
+    private companion object {
+        const val MAX_BYTES = 6L * 1024 * 1024
+    }
 }
 
-sealed interface AddResult {
-    data object Added : AddResult
-    data object InvalidUrl : AddResult
-    data object Duplicate : AddResult
-    data object NetworkError : AddResult
+/** Un feed encontrado al descubrir, con su vista previa ya descargada. */
+class FoundFeed internal constructor(val url: String, val title: String, val itemCount: Int, internal val parsed: ParsedFeed)
+
+sealed interface DiscoverResult {
+    data class Found(val feeds: List<FoundFeed>) : DiscoverResult
+    data class Failed(val message: String) : DiscoverResult
+}
+
+sealed interface AddOutcome {
+    data class Added(val feedId: Long) : AddOutcome
+    data object Duplicate : AddOutcome
+    data class Failed(val message: String) : AddOutcome
+}
+
+object FeedErrors {
+    const val INVALID = "URL NO VÁLIDA"
+    const val NOT_A_FEED = "NO ES UN FEED"
+    const val OFFLINE = "SIN CONEXIÓN"
+    fun http(code: Int) = "HTTP $code"
 }
 
 class FeedRepository(
@@ -49,33 +100,104 @@ class FeedRepository(
     val feeds = dao.feeds()
     val articles = dao.articles()
 
-    suspend fun addFeed(rawUrl: String): AddResult {
-        val url = FeedFormat.normalizeUrl(rawUrl) ?: return AddResult.InvalidUrl
-        if (dao.feedsNow().any { it.url == url }) return AddResult.Duplicate
-        val parsed = try {
-            fetcher.fetch(url)
+    /**
+     * Acepta URL de feed, URL de web o un dominio. Si la respuesta no es un feed busca los `<link rel="alternate">`
+     * del HTML, los feeds conocidos del sitio y, por último, rutas habituales. Devuelve los feeds válidos con vista previa.
+     */
+    suspend fun discover(raw: String): DiscoverResult {
+        val url = FeedFormat.normalizeUrl(raw) ?: return DiscoverResult.Failed(FeedErrors.INVALID)
+        var firstError: String? = null
+        val first = try {
+            fetcher.probe(url)
+        } catch (e: HttpException) {
+            firstError = FeedErrors.http(e.code)
+            null
+        } catch (e: NotAFeedException) {
+            firstError = FeedErrors.NOT_A_FEED
+            null
         } catch (e: IOException) {
-            return AddResult.NetworkError
+            return DiscoverResult.Failed(FeedErrors.OFFLINE)
         }
-        val title = parsed.title?.takeIf { it.isNotBlank() }
-            ?: url.substringAfter("://").substringBefore('/')
-        val id = dao.insertFeed(Feed(url = url, title = title, lastFetchedAt = now()))
-        store(id, parsed)
-        return AddResult.Added
+        if (first is Fetched.Parsed) return DiscoverResult.Found(listOf(found(url, first.feed)))
+
+        val html = first as? Fetched.Other
+        val base = html?.finalUrl ?: url
+        val candidates = LinkedHashSet<String>()
+        html?.let { h -> FeedDiscovery.alternateLinks(h.body, base).forEach { candidates += it.url } }
+        FeedDiscovery.knownFeeds(base).forEach { candidates += it }
+        FeedDiscovery.commonCandidates(base).forEach { candidates += it }
+        candidates.remove(url)
+
+        val results = coroutineScope {
+            candidates.map { c ->
+                async {
+                    try {
+                        (fetcher.probe(c) as? Fetched.Parsed)?.let { found(c, it.feed) }
+                    } catch (e: IOException) {
+                        null
+                    }
+                }
+            }.awaitAll()
+        }.filterNotNull().distinctBy { it.url }
+        if (results.isNotEmpty()) return DiscoverResult.Found(results)
+        return DiscoverResult.Failed(firstError ?: FeedErrors.NOT_A_FEED)
     }
 
-    /** Actualiza todos los feeds; true si todos respondieron. Un feed caído no detiene a los demás. */
-    suspend fun refreshAll(): Boolean {
-        var ok = true
-        for (feed in dao.feedsNow()) {
-            try {
-                store(feed.id, fetcher.fetch(feed.url))
-                dao.setFetched(feed.id, now())
-            } catch (e: IOException) {
-                ok = false
-            }
+    private fun found(url: String, parsed: ParsedFeed) = FoundFeed(
+        url = url,
+        title = parsed.title?.takeIf { it.isNotBlank() } ?: (FeedDiscovery.hostOf(url) ?: url),
+        itemCount = parsed.items.size,
+        parsed = parsed,
+    )
+
+    /** Guarda el feed y sus artículos ya descargados. Devuelve el id, o null si ya existía. */
+    suspend fun add(found: FoundFeed, titleOverride: String? = null): Long? {
+        if (dao.feedsNow().any { it.url == found.url }) return null
+        val title = titleOverride?.takeIf { it.isNotBlank() } ?: found.title
+        val id = dao.insertFeed(Feed(url = found.url, title = title, lastFetchedAt = now()))
+        store(id, found.parsed)
+        return id
+    }
+
+    /** Descarga una URL concreta de feed (sugeridos) y la añade con el nombre dado. */
+    suspend fun addByUrl(url: String, title: String?): AddOutcome {
+        if (dao.feedsNow().any { it.url == url }) return AddOutcome.Duplicate
+        val f = try {
+            found(url, fetcher.fetch(url))
+        } catch (e: HttpException) {
+            return AddOutcome.Failed(FeedErrors.http(e.code))
+        } catch (e: NotAFeedException) {
+            return AddOutcome.Failed(FeedErrors.NOT_A_FEED)
+        } catch (e: IOException) {
+            return AddOutcome.Failed(FeedErrors.OFFLINE)
         }
-        return ok
+        return add(f, title)?.let { AddOutcome.Added(it) } ?: AddOutcome.Duplicate
+    }
+
+    /** Actualiza todos los feeds en paralelo; true si todos respondieron. Un feed caído no detiene a los demás. */
+    suspend fun refreshAll(): Boolean = refresh(dao.feedsNow())
+
+    /** Actualiza los feeds de [ids] (null = todos); sin [force] solo los que llevan más de 10 min sin descargarse. */
+    suspend fun refreshFeeds(ids: Collection<Long>? = null, force: Boolean = false): Boolean {
+        val t = now()
+        val list = dao.feedsNow().filter {
+            (ids == null || it.id in ids) && (force || FeedFormat.needsRefresh(it.lastFetchedAt.takeIf { l -> l > 0 }, t))
+        }
+        return refresh(list)
+    }
+
+    private suspend fun refresh(list: List<Feed>): Boolean = coroutineScope {
+        list.map { feed ->
+            async {
+                try {
+                    store(feed.id, fetcher.fetch(feed.url))
+                    dao.setFetched(feed.id, now())
+                    true
+                } catch (e: IOException) {
+                    false
+                }
+            }
+        }.awaitAll().all { it }
     }
 
     /** Crea los feeds por defecto (sin descargar) si no hay ninguno; true si los creo. */
@@ -85,7 +207,7 @@ class FeedRepository(
         return true
     }
 
-    suspend fun lastFetchedAt(): Long? = dao.feedsNow().minOfOrNull { it.lastFetchedAt }
+    suspend fun feedsNow(): List<Feed> = dao.feedsNow()
 
     private suspend fun store(feedId: Long, parsed: ParsedFeed) {
         val fetchedAt = now()
@@ -108,9 +230,6 @@ class FeedRepository(
     suspend fun delete(id: Long) = dao.deleteFeed(id)
     suspend fun markRead(id: Long) = dao.markRead(id)
     suspend fun setStarred(id: Long, starred: Boolean) = dao.setStarred(id, starred)
-    suspend fun reveal(ids: List<Long>) {
-        if (ids.isNotEmpty()) dao.reveal(ids, now())
-    }
 }
 
 /** Miniaturas: descarga con OkHttp, decodifica con BitmapFactory y guarda en una caché LRU en memoria. */
@@ -127,7 +246,8 @@ class ThumbnailLoader(private val http: OkHttpClient) {
         cache.get(url)?.let { return it }
         return withContext(Dispatchers.IO) {
             runCatching {
-                val bytes = http.newCall(Request.Builder().url(url).build()).execute().use { r ->
+                val request = Request.Builder().url(url).header("User-Agent", BROWSER_UA).build()
+                val bytes = http.newCall(request).execute().use { r ->
                     if (!r.isSuccessful) return@runCatching null
                     r.body.source().use { src ->
                         src.request(MAX_BYTES + 1)

@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.usos.launcher.data.leisure.LeisureLimits
 import com.usos.launcher.data.leisure.LeisureStatus
 import com.usos.launcher.ui.theme.LocalAccent
+import com.usos.launcher.ui.theme.LocalOnAccent
 import com.usos.launcher.ui.theme.LocalAnimationsEnabled
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
@@ -98,7 +99,7 @@ private fun Frozen(status: LeisureStatus.Frozen, accent: androidx.compose.ui.gra
                     .tap { picked = min },
                 contentAlignment = Alignment.Center,
             ) {
-                UsosText(min.toString(), UsosType.Pill, if (on) UsosColors.OnAccent else UsosColors.Text)
+                UsosText(min.toString(), UsosType.Pill, if (on) LocalOnAccent.current else UsosColors.Text)
             }
         }
     }
@@ -112,7 +113,7 @@ private fun Frozen(status: LeisureStatus.Frozen, accent: androidx.compose.ui.gra
             .tap(enabled = options.isNotEmpty()) { onThaw(selected) },
         contentAlignment = Alignment.Center,
     ) {
-        UsosText("DESCONGELAR", UsosType.Button, UsosColors.OnAccent)
+        UsosText("DESCONGELAR", UsosType.Button, LocalOnAccent.current)
     }
 }
 

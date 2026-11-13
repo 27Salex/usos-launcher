@@ -52,6 +52,8 @@ import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.search.SearchFilter
 import com.usos.launcher.ui.search.SearchItem
+import com.usos.launcher.ui.search.SearchClassifier
+import com.usos.launcher.ui.search.SearchIntent
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -72,6 +74,7 @@ data class TileUi(
     val code: String,
     val dimmed: Boolean,
     val highlight: Highlight = Highlight.NORMAL,
+    val highlightColor: Int? = null,
     val usageMin: Int? = null,
 )
 
@@ -117,6 +120,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     val suggestionsOn: StateFlow<Boolean> = settings.suggestionsOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val searchEngine: StateFlow<com.usos.launcher.data.suggest.SearchEngine> = settings.searchEngine
+        .stateIn(viewModelScope, SharingStarted.Eagerly, com.usos.launcher.data.suggest.SearchEngine.GOOGLE)
+    val recentColors: StateFlow<List<Int>> = settings.recentColors
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val suggestProvider: StateFlow<SuggestProvider> = settings.suggestProvider
         .stateIn(viewModelScope, SharingStarted.Eagerly, SuggestProvider.GOOGLE)
 
@@ -234,7 +241,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     info = info,
                     tiles = forMosaic.associate {
                         it.config.key to TileUi(
-                            it.app, it.code, it.app.isQuiet, it.config.highlight,
+                            it.app, it.code, it.app.isQuiet, it.config.highlight, it.config.highlightColor,
                             usageMin = if (it.config.showUsage) usage[it.app.packageName] ?: 0 else null,
                         )
                     },
@@ -356,12 +363,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setSuggestionsOn(on: Boolean) { viewModelScope.launch { settings.setSuggestionsOn(on) } }
     fun setSuggestProvider(p: SuggestProvider) { viewModelScope.launch { settings.setSuggestProvider(p) } }
+    fun setSearchEngine(e: com.usos.launcher.data.suggest.SearchEngine) { viewModelScope.launch { settings.setSearchEngine(e) } }
+    /** Acento con color libre: se guarda y entra en las muestras recientes. */
+    fun setCustomAccent(argb: Int) { viewModelScope.launch { settings.setAccent(argb); settings.addRecentColor(argb) } }
+    fun setHighlightColor(key: String, argb: Int) {
+        updateConfig(key) { it.copy(highlight = Highlight.COLOR, highlightColor = argb) }
+        viewModelScope.launch { settings.addRecentColor(argb) }
+    }
     fun setWidgetsGrayscale(on: Boolean) { viewModelScope.launch { settings.setWidgetsGrayscale(on) } }
 
     /** Tocar una sugerencia lanza la busqueda web. */
     fun pickSuggestion(text: String) {
         closeSearch()
-        if (!repository.webSearch(text)) showNotice("NO SE PUDO BUSCAR")
+        if (!repository.webSearch(text, searchEngine.value)) showNotice("NO SE PUDO BUSCAR")
     }
 
     private fun onAlert(alert: LauncherAlert) {
@@ -512,7 +526,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val opened = intent != null && runCatching {
             container.appContext.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
         }.isSuccess
-        if (!opened) repository.webSearch("tiempo")
+        if (!opened) repository.webSearch("tiempo", searchEngine.value)
     }
 
     /** Pone un bitmap negro como fondo de inicio y de bloqueo. */
@@ -802,16 +816,20 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         openApp(item.app)
     }
 
-    /** Intro: una sola coincidencia la abre; si no, busqueda web del texto. */
+    /** Intro (o tocar la primera fila): URL > app con nombre exacto > busqueda en el buscador elegido. */
     fun submitSearch() {
         val text = _query.value.trim()
         if (text.isEmpty()) return
-        val matches = SearchFilter.groups(searchItems.value, text).flatMap { it.items }
-        if (matches.size == 1) {
-            pickFromSearch(matches[0])
-        } else {
-            closeSearch()
-            if (!repository.webSearch(text)) showNotice("NO SE PUDO BUSCAR")
+        when (val intent = SearchClassifier.classify(text, searchItems.value) { it.app.label }) {
+            is SearchIntent.OpenUrl -> {
+                closeSearch()
+                if (!repository.openUrl(intent.url)) showNotice("NO SE PUDO ABRIR")
+            }
+            is SearchIntent.OpenApp<*> -> pickFromSearch(intent.app as SearchItem)
+            is SearchIntent.WebSearch -> {
+                closeSearch()
+                if (!repository.webSearch(intent.text, searchEngine.value)) showNotice("NO SE PUDO BUSCAR")
+            }
         }
     }
 

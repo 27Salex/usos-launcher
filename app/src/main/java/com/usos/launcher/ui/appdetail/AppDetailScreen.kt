@@ -53,6 +53,8 @@ import com.usos.launcher.data.usage.UsageSummary
 import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.theme.LocalAccent
+import com.usos.launcher.ui.theme.ColorPicker
+import androidx.compose.ui.graphics.toArgb
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosPill
@@ -72,6 +74,7 @@ data class DetailUi(
     val storageBytes: Long?,
     val mosaicFull: Boolean,
     val rows: Int = 2,
+    val recentColors: List<Int> = emptyList(),
 )
 
 class DetailActions(
@@ -80,6 +83,7 @@ class DetailActions(
     val onInMosaic: (Boolean) -> Unit,
     val onCode: (String) -> Unit,
     val onHighlight: (Highlight) -> Unit,
+    val onHighlightColor: (Int) -> Unit,
     val onSize: (TileSize) -> Unit,
     val onRows: (Int) -> Unit,
     val onBack: () -> Unit,
@@ -184,6 +188,17 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
                     modifier = Modifier.weight(1f),
                 )
             }
+        Spacer(Modifier.height(8.dp))
+        val accentNow = LocalAccent.current
+        UsosPill(
+            "COLOR", filled = cfg.highlight == Highlight.COLOR,
+            onClick = { actions.onHighlightColor(cfg.highlightColor ?: accentNow.toArgb()) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (cfg.highlight == Highlight.COLOR) {
+            Spacer(Modifier.height(12.dp))
+            ColorPicker(cfg.highlightColor ?: accentNow.toArgb(), ui.recentColors, actions.onHighlightColor)
+        }
         }
 
         Spacer(Modifier.height(28.dp))

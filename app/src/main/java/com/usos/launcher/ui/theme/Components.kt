@@ -36,7 +36,7 @@ fun UsosSwitch(checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean =
         ) {
             Box(
                 Modifier.size(18.dp)
-                    .background(if (checked) UsosColors.OnAccent else UsosColors.TextSecondary, CircleShape),
+                    .background(if (checked) LocalOnAccent.current else UsosColors.TextSecondary, CircleShape),
             )
         }
     }

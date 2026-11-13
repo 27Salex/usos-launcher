@@ -36,6 +36,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.usos.launcher.data.feeds.Feed
+import com.usos.launcher.data.feeds.SuggestedFeeds
+import com.usos.launcher.ui.theme.tap
 import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
@@ -43,14 +45,17 @@ import com.usos.launcher.ui.theme.UsosPill
 import com.usos.launcher.ui.theme.UsosText
 import com.usos.launcher.ui.theme.UsosType
 
-/** Gestión de feeds: añadir por URL, renombrar y borrar. */
+/** Gestión de feeds: buscar por URL de feed, de web o dominio; sugeridos de un toque; renombrar y borrar. */
 @Composable
 fun FeedManagerScreen(vm: FeedsViewModel, onBack: () -> Unit) {
     BackHandler { onBack() }
     val feeds by vm.feeds.collectAsStateWithLifecycle()
-    val busy by vm.refreshing.collectAsStateWithLifecycle()
+    val discover by vm.discover.collectAsStateWithLifecycle()
+    val adding by vm.adding.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     var url by rememberSaveable { mutableStateOf("") }
+    val busy = discover is DiscoverUi.Loading || adding
+    val have = feeds.map { it.url }.toSet()
     Column(
         Modifier
             .fillMaxSize()
@@ -65,20 +70,52 @@ fun FeedManagerScreen(vm: FeedsViewModel, onBack: () -> Unit) {
     ) {
         UsosText("Feeds", UsosType.PanelTitle, UsosColors.Text)
         Spacer(Modifier.height(16.dp))
-        UsosText("AÑADIR POR URL (RSS O ATOM)", UsosType.Label, UsosColors.TextSecondary)
+        UsosText("AÑADIR · URL DE FEED, DE WEB O DOMINIO", UsosType.Label, UsosColors.TextSecondary)
         Spacer(Modifier.height(8.dp))
-        TextBox(url, { url = it }, "https://…", ImeAction.Go, onGo = {
-            if (url.isNotBlank()) vm.addFeed(url) { url = "" }
-        })
+        TextBox(url, { url = it }, "crunchyroll.com", ImeAction.Go, onGo = { if (url.isNotBlank() && !busy) vm.search(url) })
         Spacer(Modifier.height(8.dp))
         UsosPill(
-            if (busy) "LEYENDO…" else "AÑADIR", filled = true, enabled = !busy && url.isNotBlank(),
-            onClick = { vm.addFeed(url) { url = "" } }, modifier = Modifier.fillMaxWidth(),
+            if (discover is DiscoverUi.Loading) "BUSCANDO…" else "BUSCAR FEEDS", filled = true, enabled = !busy && url.isNotBlank(),
+            onClick = { vm.search(url) }, modifier = Modifier.fillMaxWidth(),
         )
         Box(Modifier.height(28.dp), contentAlignment = Alignment.CenterStart) {
             message?.let { UsosText(it, UsosType.Label, LocalAccent.current) }
         }
-        Spacer(Modifier.height(8.dp))
+        (discover as? DiscoverUi.Results)?.let { r ->
+            UsosText("ENCONTRADOS · ELIGE UNO", UsosType.Label, UsosColors.TextSecondary)
+            r.feeds.forEach { f ->
+                val added = f.url in have
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        UsosText(f.title, UsosType.PieceData, UsosColors.Text)
+                        UsosText("${f.itemCount} ARTÍCULOS · ${f.url.substringAfter("://")}", UsosType.Label, UsosColors.TextSecondary)
+                    }
+                    UsosPill(
+                        if (added) "YA LO TIENES" else "AÑADIR", filled = !added, enabled = !added,
+                        onClick = { vm.addFound(f, onBack); url = "" },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        UsosText("SUGERIDOS", UsosType.Label, UsosColors.TextSecondary)
+        val pending = SuggestedFeeds.list.filter { it.second !in have }
+        if (pending.isEmpty()) UsosText("YA TIENES TODOS", UsosType.Label, UsosColors.TextSecondary, Modifier.padding(vertical = 12.dp))
+        pending.forEach { (name, feedUrl) ->
+            Row(
+                Modifier.fillMaxWidth().height(UsosDimens.MinTouch + 4.dp).tap(enabled = !busy) { vm.addSuggested(name, feedUrl, onBack) },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                UsosText(name, UsosType.Pill, UsosColors.Text, Modifier.weight(1f))
+                UsosText("+", UsosType.PieceData, LocalAccent.current)
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
         UsosText("TUS FEEDS", UsosType.Label, UsosColors.TextSecondary)
         Spacer(Modifier.height(4.dp))
         if (feeds.isEmpty()) {

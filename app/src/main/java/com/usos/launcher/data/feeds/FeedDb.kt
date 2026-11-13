@@ -37,7 +37,7 @@ data class Article(
     val publishedAt: Long,
     val read: Boolean = false,
     val starred: Boolean = false,
-    /** Momento en que el panel desveló el artículo; null = en cola. */
+    /** Sin uso (heredado del límite por hora); se conserva la columna para no migrar la base. */
     val revealedAt: Long? = null,
 )
 
@@ -73,13 +73,10 @@ interface FeedDao {
     @Query("UPDATE articles SET starred = :starred WHERE id = :id")
     suspend fun setStarred(id: Long, starred: Boolean)
 
-    @Query("UPDATE articles SET revealedAt = :at WHERE id IN (:ids) AND revealedAt IS NULL")
-    suspend fun reveal(ids: List<Long>, at: Long)
-
-    /** Conserva los 100 más recientes de la fuente, más todo lo guardado con estrella. */
+    /** Conserva los 200 más recientes de la fuente, más todo lo guardado con estrella. */
     @Query(
         "DELETE FROM articles WHERE feedId = :feedId AND starred = 0 AND id NOT IN " +
-            "(SELECT id FROM articles WHERE feedId = :feedId ORDER BY publishedAt DESC, id DESC LIMIT 100)",
+            "(SELECT id FROM articles WHERE feedId = :feedId ORDER BY publishedAt DESC, id DESC LIMIT 200)",
     )
     suspend fun prune(feedId: Long)
 }
