@@ -378,4 +378,10 @@
     <string name="widget_bars_accent">ACCENT</string>
     <string name="widget_config_tz">TIME ZONE</string>
     <string name="widget_tz_system">SYSTEM</string>
+    <string name="settings_dock_on">PINNED APPS DOCK</string>
+    <string name="settings_dock_slots">DOCK SLOTS</string>
+    <string name="settings_dock_hint">Tap an empty slot to pick an app. In EDIT you can change or remove them.</string>
+    <string name="dock_pick_title">PINNED APP</string>
+    <string name="dock_search_hint">SEARCH APP</string>
+    <string name="dock_empty_slot">EMPTY SLOT</string>
 </resources>

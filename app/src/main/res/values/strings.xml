@@ -381,4 +381,10 @@
     <string name="widget_bars_accent">ACENTO</string>
     <string name="widget_config_tz">ZONA HORARIA</string>
     <string name="widget_tz_system">SISTEMA</string>
+    <string name="settings_dock_on">DOCK DE APPS FIJAS</string>
+    <string name="settings_dock_slots">HUECOS DEL DOCK</string>
+    <string name="settings_dock_hint">Toca un hueco vacío para elegir app. En EDITAR puedes cambiarlas o quitarlas.</string>
+    <string name="dock_pick_title">APP FIJAS</string>
+    <string name="dock_search_hint">BUSCAR APP</string>
+    <string name="dock_empty_slot">VACIAR HUECO</string>
 </resources>

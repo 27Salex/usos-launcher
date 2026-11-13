@@ -316,6 +316,27 @@ class DisplayStore(private val dataStore: DataStore<Preferences>) {
         )
     }.distinctUntilChanged()
 
+    private val dockOnKey = booleanPreferencesKey("dock_on")
+    private val dockSlotsKey = intPreferencesKey("dock_slots")
+    private val dockAppsKey = stringPreferencesKey("dock_apps")
+
+    val dockPrefs: Flow<DockPrefs> = dataStore.data.map { p ->
+        DockPrefs(
+            on = p[dockOnKey] ?: false,
+            slots = (p[dockSlotsKey] ?: DockPrefs.DEFAULT_SLOTS).coerceIn(DockPrefs.MIN_SLOTS, DockPrefs.MAX_SLOTS),
+            apps = DockPrefs.decode(p[dockAppsKey]),
+        )
+    }.distinctUntilChanged()
+
+    suspend fun setDockOn(on: Boolean) { dataStore.edit { it[dockOnKey] = on } }
+    suspend fun setDockSlots(n: Int) { dataStore.edit { it[dockSlotsKey] = n.coerceIn(DockPrefs.MIN_SLOTS, DockPrefs.MAX_SLOTS) } }
+    suspend fun setDockApp(i: Int, key: String?) {
+        dataStore.edit {
+            val cur = DockPrefs(apps = DockPrefs.decode(it[dockAppsKey]))
+            it[dockAppsKey] = DockPrefs.encode(cur.with(i, key))
+        }
+    }
+
     suspend fun setIconMode(m: IconMode) { dataStore.edit { it[iconModeKey] = m.name } }
     suspend fun setIconShowCode(on: Boolean) { dataStore.edit { it[iconCodeKey] = on } }
     suspend fun setColumns(n: Int) { dataStore.edit { it[columnsKey] = n } }

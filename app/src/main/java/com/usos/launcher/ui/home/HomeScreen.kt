@@ -227,6 +227,9 @@ fun HomeScreen(
     }
 
     val iconPrefs by viewModel.iconPrefs.collectAsStateWithLifecycle()
+    val dockPrefs by viewModel.dockPrefs.collectAsStateWithLifecycle()
+    val dockApps by viewModel.dockApps.collectAsStateWithLifecycle()
+    var dockPicking by remember { mutableStateOf<Int?>(null) }
     val notifMode by viewModel.notifMode.collectAsStateWithLifecycle()
     val notifKeys by com.usos.launcher.service.NotificationState.keys.collectAsStateWithLifecycle()
     val notifBadges = remember(notifMode, notifKeys) { com.usos.launcher.ui.theme.NotifBadges(notifMode, notifKeys) }
@@ -295,6 +298,12 @@ fun HomeScreen(
                     onCancelThaw = viewModel::cancelThaw,
                     onFreeze = viewModel::freezeLeisure,
                     onOpenInfo = viewModel::openInfo,
+                    dock = if (!dockPrefs.on) null else { ed, hide ->
+                        Dock(
+                            dockApps, ed, hide, onOpen = viewModel::openApp, onPick = { dockPicking = it },
+                            onClear = { viewModel.setDockApp(it, null) }, onEnterEdit = viewModel::enterEdit,
+                        )
+                    },
                     clock = clockPrefs,
                     weatherPrefs = weatherPrefs,
                     weather = weather,
@@ -377,7 +386,7 @@ fun HomeScreen(
                         budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
                         clock, weatherPrefs, cities, iconPrefs, mosaicPrefs, infoSpecs, searchEngine, recentColors,
                         searchKeyboard, assistantUi, feedsKeep, clockTap, allApps, versionName, thumbsGray,
-                        fontChoices.first, fontChoices.second, bgPrefs,
+                        fontChoices.first, fontChoices.second, bgPrefs, dockPrefs,
                     ),
                     SettingsActions(
                         onBudget = viewModel::setBudget,
@@ -408,6 +417,8 @@ fun HomeScreen(
                         onBlackWallpaper = viewModel::applyBlackWallpaper,
                         onIconMode = viewModel::setIconMode,
                         onIconShowCode = viewModel::setIconShowCode,
+                        onDockOn = viewModel::setDockOn,
+                        onDockSlots = viewModel::setDockSlots,
                         onColumns = viewModel::setColumns,
                         onRows = viewModel::setRows,
                         onInfoSize = viewModel::setInfoSize,
@@ -431,6 +442,14 @@ fun HomeScreen(
             }
             Route.Onboarding -> OnboardingScreen(onFinish = viewModel::finishOnboarding)
             Route.Home -> Unit
+        }
+        dockPicking?.let { slot ->
+            DockPicker(
+                apps = installedApps.orEmpty(), current = dockPrefs.at(slot),
+                onPick = { viewModel.setDockApp(slot, it.key); dockPicking = null },
+                onClear = { viewModel.setDockApp(slot, null); dockPicking = null },
+                onClose = { dockPicking = null },
+            )
         }
         if (feedManager) {
             com.usos.launcher.ui.feeds.FeedManagerScreen(feedsVm, onBack = { feedManager = false })
@@ -473,6 +492,7 @@ private fun HomePage(
     assistant: HomeViewModel.AssistantUi,
     onAssistant: () -> Unit,
     onAssistantPicker: () -> Unit,
+    dock: (@Composable (editing: Boolean, hidden: Boolean) -> Unit)? = null,
 ) {
     val now by rememberNow()
     val density = LocalDensity.current
@@ -554,6 +574,10 @@ private fun HomePage(
             }
 
             Spacer(Modifier.height(8.dp))
+            if (dock != null) {
+                dock(editing, searchActive || edit.dragging)
+                Spacer(Modifier.height(10.dp))
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 val hide = searchActive || edit.dragging
                 SearchBar(notice, hidden = hide, onClick = onOpenSearch, modifier = Modifier.weight(1f))

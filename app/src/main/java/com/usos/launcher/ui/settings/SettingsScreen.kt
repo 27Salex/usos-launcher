@@ -107,6 +107,8 @@ class SettingsActions(
     val onBlackWallpaper: () -> Unit,
     val onIconMode: (IconMode) -> Unit,
     val onIconShowCode: (Boolean) -> Unit,
+    val onDockOn: (Boolean) -> Unit,
+    val onDockSlots: (Int) -> Unit,
     val onColumns: (Int) -> Unit,
     val onRows: (Section, Int) -> Unit,
     val onInfoSize: (InfoKind, TileSize) -> Unit,
@@ -154,6 +156,7 @@ class SettingsUi(
     val fontTitle: com.usos.launcher.ui.theme.FontChoice,
     val fontText: com.usos.launcher.ui.theme.FontChoice,
     val background: com.usos.launcher.data.sections.BackgroundPrefs,
+    val dock: com.usos.launcher.data.sections.DockPrefs,
 )
 
 /** Categorías de la pantalla principal de Ajustes: clave guardada, título y orden. */
@@ -233,6 +236,14 @@ private fun summary(c: Cat, ui: SettingsUi): String = when (c) {
 @Composable
 private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
+    UsosRow(stringResource(R.string.settings_dock_on)) { UsosSwitch(ui.dock.on, actions.onDockOn) }
+    if (ui.dock.on) {
+        SubHeading(stringResource(R.string.settings_dock_slots), top = 4.dp)
+        val opts = (com.usos.launcher.data.sections.DockPrefs.MIN_SLOTS..com.usos.launcher.data.sections.DockPrefs.MAX_SLOTS).toList()
+        Choice(opts.map { it.toString() }, opts.indexOf(ui.dock.slots), opts.size) { actions.onDockSlots(opts[it]) }
+        UsosText(stringResource(R.string.settings_dock_hint), UsosType.Label, UsosColors.TextSecondary)
+        Spacer(Modifier.height(12.dp))
+    }
     SubHeading(stringResource(R.string.settings_home_columns))
     Choice(listOf("3", "4"), if (ui.mosaic.columns == 4) 1 else 0, 2) { actions.onColumns(if (it == 1) 4 else 3) }
     SubHeading(stringResource(R.string.settings_home_rows), top = 4.dp)

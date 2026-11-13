@@ -766,6 +766,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun setRows(section: Section, n: Int) { viewModelScope.launch { container.displayStore.setRows(section, n) } }
     fun setInfoSize(kind: InfoKind, size: TileSize) { viewModelScope.launch { container.displayStore.setInfoSize(kind, size) } }
     fun setInfoHidden(kind: InfoKind, hidden: Boolean) { viewModelScope.launch { container.displayStore.setInfoHidden(kind, hidden) } }
+    val dockPrefs: StateFlow<com.usos.launcher.data.sections.DockPrefs> = container.displayStore.dockPrefs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, com.usos.launcher.data.sections.DockPrefs())
+
+    /** Apps de cada hueco del dock (null = vacío o desinstalada). */
+    val dockApps: StateFlow<List<AppEntry?>> = combine(dockPrefs, apps) { d, a ->
+        val byKey = a.orEmpty().associateBy { it.key }
+        (0 until d.slots).map { i -> d.at(i)?.let { byKey[it] } }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun setDockOn(on: Boolean) { viewModelScope.launch { container.displayStore.setDockOn(on) } }
+    fun setDockSlots(n: Int) { viewModelScope.launch { container.displayStore.setDockSlots(n) } }
+    fun setDockApp(i: Int, key: String?) { viewModelScope.launch { container.displayStore.setDockApp(i, key) } }
+
     fun setIconMode(m: IconMode) { viewModelScope.launch { container.displayStore.setIconMode(m) } }
     fun setIconShowCode(on: Boolean) { viewModelScope.launch { container.displayStore.setIconShowCode(on) } }
 

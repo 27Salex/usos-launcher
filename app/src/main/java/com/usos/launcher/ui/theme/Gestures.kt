@@ -154,23 +154,32 @@ fun Modifier.tapOutside(
     }
 }
 
-/** Boton discreto de ajustes: engranaje de puntos (centro + corona de 8), zona tactil de 44 dp. */
+/** Boton discreto de ajustes: engranaje de contorno (8 dientes + eje), zona tactil de 44 dp. */
 @Composable
 fun SettingsGlyph(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier.size(UsosDimens.MinTouch).tap { onClick() }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(24.dp)) {
             val c = Offset(size.width / 2f, size.height / 2f)
-            val ring = size.width * 0.36f
-            val r = size.width * 0.075f
-            drawCircle(UsosColors.TextSecondary, r * 1.5f, c)
-            for (i in 0 until 8) {
-                val a = Math.toRadians(i * 45.0)
-                val big = i % 2 == 0
-                drawCircle(
-                    UsosColors.TextSecondary, if (big) r * 1.25f else r,
-                    Offset(c.x + (ring * Math.cos(a)).toFloat(), c.y + (ring * Math.sin(a)).toFloat()),
-                )
+            val rOut = size.width * 0.47f
+            val rIn = size.width * 0.35f
+            val teeth = 8
+            val step = 2 * Math.PI / teeth
+            fun pt(a: Double, r: Float) = Offset(c.x + (r * Math.cos(a)).toFloat(), c.y + (r * Math.sin(a)).toFloat())
+            val gear = androidx.compose.ui.graphics.Path().apply {
+                for (i in 0 until teeth) {
+                    val a = i * step - Math.PI / 2
+                    val p0 = pt(a - step * 0.30, rIn)
+                    if (i == 0) moveTo(p0.x, p0.y) else lineTo(p0.x, p0.y)
+                    pt(a - step * 0.17, rOut).let { lineTo(it.x, it.y) }
+                    pt(a + step * 0.17, rOut).let { lineTo(it.x, it.y) }
+                    pt(a + step * 0.30, rIn).let { lineTo(it.x, it.y) }
+                    pt(a + step * 0.50, rIn * 0.98f).let { lineTo(it.x, it.y) }
+                }
+                close()
             }
+            val stroke = Stroke(width = 1.8.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round)
+            drawPath(gear, UsosColors.TextSecondary, style = stroke)
+            drawCircle(UsosColors.TextSecondary, size.width * 0.13f, c, style = stroke)
         }
     }
 }

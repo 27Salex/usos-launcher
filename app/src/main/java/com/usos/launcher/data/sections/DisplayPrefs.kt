@@ -56,3 +56,27 @@ data class MosaicPrefs(
     fun infoSizeFor(k: com.usos.launcher.data.info.InfoKind): TileSize =
         infoSize[k] ?: com.usos.launcher.data.info.InfoPieces.defaultSize(k)
 }
+
+/**
+ * Dock de apps fijas encima de BUSCAR. [apps] guarda la clave de cada hueco ("" = vacío); se conservan las que
+ * quedan fuera al reducir [slots], así subir el número de huecos las recupera.
+ */
+data class DockPrefs(val on: Boolean = false, val slots: Int = DEFAULT_SLOTS, val apps: List<String> = emptyList()) {
+    fun at(i: Int): String? = apps.getOrNull(i)?.takeIf { it.isNotEmpty() }
+
+    /** Pone [key] en el hueco [i] (null = vaciarlo); la misma app no se repite en otro hueco. */
+    fun with(i: Int, key: String?): List<String> {
+        val l = MutableList(maxOf(apps.size, i + 1)) { apps.getOrNull(it).orEmpty() }
+        if (key != null) l.indices.forEach { if (l[it] == key) l[it] = "" }
+        l[i] = key.orEmpty()
+        return l.dropLastWhile { it.isEmpty() }
+    }
+
+    companion object {
+        const val MIN_SLOTS = 3
+        const val MAX_SLOTS = 5
+        const val DEFAULT_SLOTS = 4
+        fun decode(raw: String?): List<String> = raw?.takeIf { it.isNotEmpty() }?.split('\n') ?: emptyList()
+        fun encode(l: List<String>): String = l.joinToString("\n")
+    }
+}
