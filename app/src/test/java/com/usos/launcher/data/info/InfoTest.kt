@@ -59,49 +59,4 @@ class InfoTest {
         assertEquals(InfoKind.AGENDA, pieces[Section.WORK]?.kind)
         assertEquals("IR A CASA", pieces[Section.MOVE]?.data)
     }
-
-    // --- Colocación en la rejilla 3 x 2 ---
-
-    private fun coords(cells: List<MosaicCell>) = cells.map { Triple(it.col, it.row, if (it.isInfo) -1 else it.itemIndex) }
-
-    @Test
-    fun grid_noInfo_sixItems() {
-        val cells = MosaicGrid.place(null, 6)
-        assertEquals(6, cells.size)
-        assertEquals(listOf(Triple(0, 0, 0), Triple(1, 0, 1), Triple(2, 0, 2), Triple(0, 1, 3), Triple(1, 1, 4), Triple(2, 1, 5)), coords(cells))
-    }
-
-    @Test
-    fun grid_wideInfo_appsFillTheRest() {
-        val cells = MosaicGrid.place(InfoShape.WIDE, 4)
-        assertEquals(
-            listOf(Triple(0, 0, -1), Triple(2, 0, 0), Triple(0, 1, 1), Triple(1, 1, 2), Triple(2, 1, 3)),
-            coords(cells),
-        )
-        assertEquals(2, cells[0].colSpan)
-    }
-
-    @Test
-    fun grid_tallInfo_appsFillTheRest() {
-        val cells = MosaicGrid.place(InfoShape.TALL, 4)
-        assertEquals(
-            listOf(Triple(0, 0, -1), Triple(1, 0, 0), Triple(2, 0, 1), Triple(1, 1, 2), Triple(2, 1, 3)),
-            coords(cells),
-        )
-        assertEquals(2, cells[0].rowSpan)
-    }
-
-    @Test
-    fun grid_capacityAndOverflow() {
-        assertEquals(6, MosaicGrid.itemCapacity(null))
-        assertEquals(4, MosaicGrid.itemCapacity(InfoShape.WIDE))
-        assertEquals(4, MosaicGrid.itemCapacity(InfoShape.TALL))
-        assertEquals(5, MosaicGrid.place(InfoShape.TALL, 9).size) // info + 4 apps; el exceso no cabe
-        assertEquals(1, MosaicGrid.place(InfoShape.WIDE, 0).size)
-    }
-
-    @Test
-    fun grid_fewItems() {
-        assertEquals(listOf(Triple(0, 0, 0), Triple(1, 0, 1)), coords(MosaicGrid.place(null, 2)))
-    }
 }

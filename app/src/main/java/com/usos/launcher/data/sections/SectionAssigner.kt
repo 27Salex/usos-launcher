@@ -52,6 +52,7 @@ object SectionAssigner {
                     highlight = old?.highlight ?: Highlight.NORMAL,
                     showUsage = old?.showUsage ?: false,
                     manual = false,
+                    size = old?.size ?: TileSize.S1X1,
                 )
             }
         }

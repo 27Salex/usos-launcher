@@ -13,7 +13,6 @@ import com.usos.launcher.data.sections.AppConfig
 import com.usos.launcher.data.info.InfoKind
 import com.usos.launcher.data.info.InfoPiece
 import com.usos.launcher.data.info.InfoPieces
-import com.usos.launcher.data.info.MosaicGrid
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import java.time.ZoneId
@@ -38,8 +37,17 @@ import com.usos.launcher.service.isBlockerEnabled
 import com.usos.launcher.ui.appdetail.DetailUi
 import com.usos.launcher.data.sections.DEFAULT_ACCENT
 import com.usos.launcher.data.leisure.LeisureStatus
-import com.usos.launcher.data.sections.MOSAIC_CAPACITY
 import com.usos.launcher.data.sections.SectionLayout
+import com.usos.launcher.data.sections.IconMode
+import com.usos.launcher.data.sections.IconPrefs
+import com.usos.launcher.data.sections.MosaicEntry
+import com.usos.launcher.data.sections.MosaicPacker
+import com.usos.launcher.data.sections.MosaicPrefs
+import com.usos.launcher.data.sections.Placement
+import com.usos.launcher.data.sections.SectionMosaic
+import com.usos.launcher.data.sections.TileSize
+import com.usos.launcher.data.sections.entry
+import com.usos.launcher.data.sections.Cell
 import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
 import com.usos.launcher.ui.search.SearchFilter
@@ -67,7 +75,22 @@ data class TileUi(
     val usageMin: Int? = null,
 )
 
-data class SectionUi(val section: Section, val count: Int, val tiles: List<TileUi>, val info: InfoPiece? = null)
+/** Mosaico ya colocado: [placements] (clave de app o [SectionMosaic.INFO_KEY]), [freeze] = hueco de CONGELAR. */
+data class SectionUi(
+    val section: Section,
+    val count: Int,
+    val tiles: Map<String, TileUi>,
+    val info: InfoPiece? = null,
+    val columns: Int = 3,
+    val placements: List<Placement> = emptyList(),
+    val freeze: Cell? = null,
+    val rowsUsed: Int = 0,
+)
+
+/** Pieza de información de una sección: tamaño, si está oculta y si hay algo que mostrar. */
+data class InfoSpec(val kind: InfoKind, val size: TileSize, val hidden: Boolean, val available: Boolean) {
+    val visibleSize: TileSize? get() = if (available && !hidden) size else null
+}
 
 data class HomeUiState(val sections: List<SectionUi>, val open: Section?)
 
@@ -156,17 +179,39 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         .map { Color(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Color(DEFAULT_ACCENT))
 
+    val mosaicPrefs: StateFlow<MosaicPrefs> = container.displayStore.mosaicPrefs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, MosaicPrefs())
+    val iconPrefs: StateFlow<IconPrefs> = container.displayStore.iconPrefs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, IconPrefs())
+    val iconRepository get() = container.iconRepository
+
     /** Piezas de información por sección: Agenda (si hay permiso y evento) y Mapas (si está instalado). */
     private val infoPieces: StateFlow<Map<Section, InfoPiece>> = combine(agenda, apps) { ag, a ->
         val mapsInstalled = a.orEmpty().any { it.packageName == InfoPieces.MAPS_PACKAGE && it.isMainProfile }
         InfoPieces.bySection(listOf(ag, InfoPieces.mapsPiece(mapsInstalled)))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
-    private class Extras(val usage: Map<String, Int>, val info: Map<Section, InfoPiece>)
+    /** Tamaño, ocultación y disponibilidad de cada pieza de información (para el mosaico y el editor). */
+    val infoSpecs: StateFlow<Map<Section, InfoSpec>> = combine(infoPieces, apps, mosaicPrefs) { pieces, a, prefs ->
+        val mapsInstalled = a.orEmpty().any { it.packageName == InfoPieces.MAPS_PACKAGE && it.isMainProfile }
+        InfoKind.entries.associate { kind ->
+            val section = InfoPieces.sectionOf(kind)
+            section to InfoSpec(
+                kind, prefs.infoSizeFor(kind), kind in prefs.infoHidden,
+                available = if (kind == InfoKind.MAPS) mapsInstalled else pieces[section] != null,
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    private class Extras(
+        val usage: Map<String, Int>, val info: Map<Section, InfoPiece>,
+        val prefs: MosaicPrefs, val specs: Map<Section, InfoSpec>,
+    )
 
     /** null hasta que apps, configuración y sección abierta están listas. */
     val state: StateFlow<HomeUiState?> = combine(
-        apps, configStore.configs, open, openLoaded, combine(todayUsage, infoPieces) { u, i -> Extras(u, i) },
+        apps, configStore.configs, open, openLoaded,
+        combine(todayUsage, infoPieces, mosaicPrefs, infoSpecs) { u, i, p, s -> Extras(u, i, p, s) },
     ) { a, c, o, loaded, extras ->
         val usage = extras.usage
         if (a == null || !loaded || a.any { it.key !in c }) return@combine null
@@ -174,30 +219,36 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         HomeUiState(
             sections = Section.home.map { section ->
                 val placed = grouped[section].orEmpty()
-                val info = extras.info[section]
+                val infoSize = extras.specs[section]?.visibleSize
+                val info = if (infoSize != null) extras.info[section] ?: mapsFallback(section) else null
                 // La pieza de Mapas sustituye a la app de Mapas en el mosaico de Moverse.
                 val forMosaic = if (info?.kind == InfoKind.MAPS) placed.filter { it.app.packageName != InfoPieces.MAPS_PACKAGE } else placed
-                val slots = when {
-                    info != null -> MosaicGrid.itemCapacity(MosaicGrid.shapeOf(info.kind))
-                    section == Section.LEISURE -> LEISURE_APP_SLOTS
-                    else -> MOSAIC_CAPACITY
-                }
+                val packed = SectionMosaic.layout(
+                    extras.prefs.columns, extras.prefs.rowsFor(section), if (info != null) infoSize else null,
+                    forMosaic.map { it.entry() }, reserveFreeze = SectionMosaic.reservesFreeze(section),
+                )
                 SectionUi(
                     section = section,
                     count = placed.size,
                     info = info,
-                    tiles = SectionLayout.mosaic(forMosaic, slots)
-                        .map {
-                            TileUi(
-                                it.app, it.code, it.app.isQuiet, it.config.highlight,
-                                usageMin = if (it.config.showUsage) usage[it.app.packageName] ?: 0 else null,
-                            )
-                        },
+                    tiles = forMosaic.associate {
+                        it.config.key to TileUi(
+                            it.app, it.code, it.app.isQuiet, it.config.highlight,
+                            usageMin = if (it.config.showUsage) usage[it.app.packageName] ?: 0 else null,
+                        )
+                    },
+                    columns = extras.prefs.columns,
+                    placements = packed.placements,
+                    freeze = packed.reserved,
+                    rowsUsed = packed.rowsUsed,
                 )
             },
             open = o,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private fun mapsFallback(section: Section): InfoPiece? =
+        if (section == Section.MOVE) InfoPieces.mapsPiece(true) else null
 
     /** Todas las apps para la busqueda; las de ocio llevan `frozen` mientras el ocio no este abierto. */
     val searchItems: StateFlow<List<SearchItem>> = combine(
@@ -216,7 +267,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         (Section.home + Section.NONE).map { it to grouped[it].orEmpty() }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val detail: StateFlow<DetailUi?> = combine(_route, apps, configs, detailExtras) { r, a, c, extras ->
+    val detail: StateFlow<DetailUi?> = combine(
+        _route, apps, configs, detailExtras, combine(mosaicPrefs, infoSpecs) { p, s -> p to s },
+    ) { r, a, c, extras, ps ->
         val key = (r as? Route.Detail)?.key ?: return@combine null
         val app = a?.firstOrNull { it.key == key } ?: return@combine null
         val cfg = c[key] ?: return@combine null
@@ -226,7 +279,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             app = app, config = cfg, code = cfg.code?.takeIf { it.isNotBlank() } ?: app.defaultCode,
             usage = ex?.usage, hasPermission = ex?.hasPermission ?: usageRepo.hasPermission(),
             storageBytes = ex?.storage,
-            mosaicFull = placed.count { it.config.inMosaic } >= capacityFor(cfg.section),
+            mosaicFull = cfg.section != Section.NONE && !SectionMosaic.fits(
+                ps.first.columns, ps.first.rowsFor(cfg.section), ps.second[cfg.section]?.visibleSize,
+                placed.map { it.entry() }, key, SectionMosaic.reservesFreeze(cfg.section),
+            ),
+            rows = ps.first.rowsFor(cfg.section),
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -482,8 +539,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     // ---- Ficha de app ----
 
-    private fun capacityFor(section: Section) =
-        if (section == Section.LEISURE) LEISURE_APP_SLOTS else MOSAIC_CAPACITY
+    /** ¿Se vería [key] (activada) en el mosaico de [section]? Usa filas, columnas, pieza de info y CONGELAR reales. */
+    private fun fitsIn(section: Section, entries: List<MosaicEntry>, key: String): Boolean {
+        if (section == Section.NONE) return false
+        val prefs = mosaicPrefs.value
+        return SectionMosaic.fits(
+            prefs.columns, prefs.rowsFor(section), infoSpecs.value[section]?.visibleSize, entries, key,
+            SectionMosaic.reservesFreeze(section),
+        )
+    }
 
     private fun updateConfig(key: String, change: (AppConfig) -> AppConfig) {
         viewModelScope.launch {
@@ -510,7 +574,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 val cfg = all[key] ?: return@update all
                 if (cfg.section == section) return@update all
                 val inSection = all.values.filter { it.section == section && it.key != key }
-                val room = section != Section.NONE && inSection.count { it.inMosaic } < capacityFor(section)
+                val room = fitsIn(section, inSection.sortedBy { it.order }.map { MosaicEntry(it.key, it.size, it.inMosaic) } +
+                    MosaicEntry(key, cfg.size, true), key)
                 all + (key to cfg.copy(
                     section = section,
                     order = (inSection.maxOfOrNull { it.order } ?: -1) + 1,
@@ -526,16 +591,33 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             var full = false
             configStore.update { all ->
                 val cfg = all[key] ?: return@update all
-                val others = all.values.count { it.section == cfg.section && it.inMosaic && it.key != key }
-                if (on && others >= capacityFor(cfg.section)) {
-                    full = true
-                    return@update all
+                if (on) {
+                    val entries = all.values.filter { it.section == cfg.section }.sortedBy { it.order }
+                        .map { MosaicEntry(it.key, it.size, it.inMosaic) }
+                    if (!fitsIn(cfg.section, entries, key)) {
+                        full = true
+                        return@update all
+                    }
                 }
                 all + (key to cfg.copy(inMosaic = on, manual = true))
             }
             if (full) showNotice("MOSAICO LLENO")
         }
     }
+
+    fun setTileSize(key: String, size: TileSize) = updateConfig(key) { it.copy(size = size, manual = true) }
+
+    // ---- Mosaico e iconos ----
+
+    fun setColumns(n: Int) { viewModelScope.launch { container.displayStore.setColumns(n) } }
+    fun setRows(section: Section, n: Int) { viewModelScope.launch { container.displayStore.setRows(section, n) } }
+    fun setInfoSize(kind: InfoKind, size: TileSize) { viewModelScope.launch { container.displayStore.setInfoSize(kind, size) } }
+    fun setInfoHidden(kind: InfoKind, hidden: Boolean) { viewModelScope.launch { container.displayStore.setInfoHidden(kind, hidden) } }
+    fun setIconMode(m: IconMode) { viewModelScope.launch { container.displayStore.setIconMode(m) } }
+    fun setIconShowCode(on: Boolean) { viewModelScope.launch { container.displayStore.setIconShowCode(on) } }
+
+    fun openMosaicEditor() { _route.value = Route.MosaicEditor }
+    fun closeMosaicEditor() { _route.value = Route.Settings }
 
     // ---- Ajustes ----
 
@@ -645,8 +727,6 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     companion object {
-        /** El mosaico de Ocio reserva una celda para la pieza CONGELAR. */
-        const val LEISURE_APP_SLOTS = MOSAIC_CAPACITY - 1
 
         /** Apps del tiempo conocidas por fabricante, por orden; si no hay ninguna se busca «tiempo» en la web. */
         val WEATHER_PACKAGES = listOf(

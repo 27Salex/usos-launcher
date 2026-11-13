@@ -45,6 +45,10 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.usos.launcher.data.sections.AppConfig
 import com.usos.launcher.data.sections.Highlight
+import com.usos.launcher.data.sections.TileSize
+import com.usos.launcher.ui.theme.AppIconImage
+import com.usos.launcher.ui.theme.LocalIconPrefs
+import com.usos.launcher.data.sections.IconMode
 import com.usos.launcher.data.usage.UsageSummary
 import com.usos.launcher.domain.AppEntry
 import com.usos.launcher.domain.Section
@@ -67,6 +71,7 @@ data class DetailUi(
     val hasPermission: Boolean,
     val storageBytes: Long?,
     val mosaicFull: Boolean,
+    val rows: Int = 2,
 )
 
 class DetailActions(
@@ -75,6 +80,8 @@ class DetailActions(
     val onInMosaic: (Boolean) -> Unit,
     val onCode: (String) -> Unit,
     val onHighlight: (Highlight) -> Unit,
+    val onSize: (TileSize) -> Unit,
+    val onRows: (Int) -> Unit,
     val onBack: () -> Unit,
 )
 
@@ -100,7 +107,13 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
                 start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin,
             ),
     ) {
-        UsosText(app.label, UsosType.PanelTitle, UsosColors.Text, maxLines = 2)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (LocalIconPrefs.current.mode != IconMode.NONE) {
+                AppIconImage(app, 32.dp, UsosColors.Text)
+                androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
+            }
+            UsosText(app.label, UsosType.PanelTitle, UsosColors.Text, Modifier.weight(1f), maxLines = 2)
+        }
         Spacer(Modifier.height(4.dp))
         UsosText(
             (app.versionName?.let { "VERSIÓN $it" } ?: app.packageName).uppercase(),
@@ -134,6 +147,25 @@ fun AppDetailScreen(ui: DetailUi, actions: DetailActions) {
         }
         if (ui.mosaicFull && !cfg.inMosaic && cfg.section != Section.NONE) {
             UsosText("MOSAICO LLENO · QUITA OTRA APP ANTES", UsosType.Label, LocalAccent.current, maxLines = 2)
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Label("TAMAÑO DE LA PIEZA")
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TileSize.entries.forEach { s ->
+                UsosPill(s.label, filled = s == cfg.size, onClick = { actions.onSize(s) }, modifier = Modifier.weight(1f))
+            }
+        }
+        if (cfg.section != Section.NONE) {
+            Spacer(Modifier.height(16.dp))
+            Label("FILAS DEL MOSAICO DE ${cfg.section.title.uppercase()}")
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                (1..4).forEach { n ->
+                    UsosPill(n.toString(), filled = n == ui.rows, onClick = { actions.onRows(n) }, modifier = Modifier.weight(1f))
+                }
+            }
         }
 
         Spacer(Modifier.height(16.dp))

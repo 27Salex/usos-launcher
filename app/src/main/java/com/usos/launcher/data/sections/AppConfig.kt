@@ -17,6 +17,7 @@ data class AppConfig(
     val highlight: Highlight = Highlight.NORMAL,
     val showUsage: Boolean = false,
     val manual: Boolean = false,
+    val size: TileSize = TileSize.S1X1,
 ) {
     val key: String get() = AppEntry.configKey(packageName, userSerial)
 }

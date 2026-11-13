@@ -39,6 +39,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
 import kotlinx.coroutines.delay
+import com.usos.launcher.data.info.InfoKind
+import com.usos.launcher.data.sections.IconMode
+import com.usos.launcher.data.sections.IconPrefs
+import com.usos.launcher.data.sections.MosaicPrefs
+import com.usos.launcher.data.sections.TileSize
+import com.usos.launcher.ui.home.InfoSpec
 import com.usos.launcher.data.sections.ClockPrefs
 import com.usos.launcher.data.sections.ClockType
 import com.usos.launcher.data.sections.WeatherPrefs
@@ -83,6 +89,13 @@ class SettingsActions(
     val onWeatherBelow: (Boolean) -> Unit,
     val onWeatherAccent: (Boolean) -> Unit,
     val onBlackWallpaper: () -> Unit,
+    val onIconMode: (IconMode) -> Unit,
+    val onIconShowCode: (Boolean) -> Unit,
+    val onColumns: (Int) -> Unit,
+    val onRows: (Section, Int) -> Unit,
+    val onInfoSize: (InfoKind, TileSize) -> Unit,
+    val onInfoHidden: (InfoKind, Boolean) -> Unit,
+    val onEditMosaic: () -> Unit,
     val onBack: () -> Unit,
 )
 
@@ -98,6 +111,9 @@ class SettingsUi(
     val clock: ClockPrefs,
     val weather: WeatherPrefs,
     val cityResults: List<GeoPlace>,
+    val icons: IconPrefs,
+    val mosaic: MosaicPrefs,
+    val infoSpecs: Map<Section, InfoSpec>,
 )
 
 @Composable
@@ -135,6 +151,40 @@ fun SettingsScreen(ui: SettingsUi, actions: SettingsActions) {
             Spacer(Modifier.height(8.dp))
             UsosPill("CONCEDER CALENDARIO", filled = false, onClick = actions.onCalendarPermission, modifier = Modifier.fillMaxWidth())
         }
+        Spacer(Modifier.height(12.dp))
+        SubHeading("ICONOS")
+        Choice(IconMode.entries.map { it.label }, IconMode.entries.indexOf(ui.icons.mode), 3) { actions.onIconMode(IconMode.entries[it]) }
+        if (ui.icons.mode != IconMode.NONE) {
+            UsosRow("MOSTRAR CÓDIGO") { UsosSwitch(ui.icons.showCode, actions.onIconShowCode) }
+            UsosText(
+                "Con el código apagado el icono lo sustituye. Monocromo usa la capa monocroma de la app.",
+                UsosType.Label, UsosColors.TextSecondary, maxLines = 2,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        SubHeading("COLUMNAS DEL MOSAICO")
+        Choice(listOf("3", "4"), if (ui.mosaic.columns == 4) 1 else 0, 2) { actions.onColumns(if (it == 1) 4 else 3) }
+        SubHeading("MOSAICO POR SECCIÓN (FILAS)", top = 4.dp)
+        Section.home.forEach { s ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                UsosText(s.title.uppercase(), UsosType.Label, UsosColors.Text, Modifier.width(88.dp))
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    (1..4).forEach { n ->
+                        UsosPill(n.toString(), filled = n == ui.mosaic.rowsFor(s), onClick = { actions.onRows(s, n) }, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        SubHeading("PIEZAS DE INFORMACIÓN", top = 4.dp)
+        InfoKind.entries.forEach { k ->
+            val spec = ui.infoSpecs.values.firstOrNull { it.kind == k } ?: return@forEach
+            if (!spec.available && k == InfoKind.MAPS) return@forEach
+            UsosRow(if (k == InfoKind.AGENDA) "AGENDA" else "IR A CASA") {
+                UsosSwitch(!spec.hidden, { actions.onInfoHidden(k, !it) })
+            }
+            Choice(TileSize.entries.map { it.label }, TileSize.entries.indexOf(spec.size), 4) { actions.onInfoSize(k, TileSize.entries[it]) }
+        }
+        UsosPill("EDITAR MOSAICO", filled = false, onClick = actions.onEditMosaic, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
         SubHeading("ORDEN DE APPS")
         UsosText("Las primeras entran al mosaico (●).", UsosType.Label, UsosColors.TextSecondary)

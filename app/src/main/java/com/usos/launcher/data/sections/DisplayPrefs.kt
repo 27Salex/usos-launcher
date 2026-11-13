@@ -30,3 +30,26 @@ data class WeatherPrefs(
 ) {
     val hasCity: Boolean get() = cityName.isNotEmpty()
 }
+
+enum class IconMode(val label: String) {
+    NONE("NINGUNO"), MONO("MONOCROMO"), COLOR("COLOR");
+
+    companion object {
+        fun fromName(name: String?): IconMode = entries.firstOrNull { it.name == name } ?: NONE
+    }
+}
+
+/** Iconos de app en las piezas: modo global y si el código se muestra junto al icono. */
+data class IconPrefs(val mode: IconMode = IconMode.NONE, val showCode: Boolean = true)
+
+/** Mosaico: columnas globales, filas por sección y piezas de información (tamaño y ocultas). */
+data class MosaicPrefs(
+    val columns: Int = 3,
+    val rows: Map<com.usos.launcher.domain.Section, Int> = emptyMap(),
+    val infoSize: Map<com.usos.launcher.data.info.InfoKind, TileSize> = emptyMap(),
+    val infoHidden: Set<com.usos.launcher.data.info.InfoKind> = emptySet(),
+) {
+    fun rowsFor(s: com.usos.launcher.domain.Section): Int = rows[s] ?: MosaicPacker.DEFAULT_ROWS
+    fun infoSizeFor(k: com.usos.launcher.data.info.InfoKind): TileSize =
+        infoSize[k] ?: com.usos.launcher.data.info.InfoPieces.defaultSize(k)
+}

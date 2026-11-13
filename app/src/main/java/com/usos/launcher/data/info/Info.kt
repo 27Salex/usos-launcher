@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
+import com.usos.launcher.data.sections.TileSize
 import com.usos.launcher.domain.Section
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,6 +23,12 @@ data class CalEvent(val title: String, val beginMs: Long, val endMs: Long, val a
 /** Lógica pura de las piezas de información. */
 object InfoPieces {
     const val MAPS_PACKAGE = "com.google.android.apps.maps"
+
+    /** Tamaño por defecto de cada pieza: Agenda 2×1, Ir a casa 1×2. */
+    fun defaultSize(kind: InfoKind): TileSize = when (kind) {
+        InfoKind.AGENDA -> TileSize.S2X1
+        InfoKind.MAPS -> TileSize.S1X2
+    }
 
     /** Sección donde vive cada pieza. */
     fun sectionOf(kind: InfoKind): Section = when (kind) {
@@ -60,48 +67,6 @@ object InfoPieces {
 
     fun bySection(pieces: List<InfoPiece?>): Map<Section, InfoPiece> =
         pieces.filterNotNull().associateBy { sectionOf(it.kind) }
-}
-
-/** Forma de una pieza de información en la rejilla 3 x 2. */
-enum class InfoShape(val colSpan: Int, val rowSpan: Int) { WIDE(2, 1), TALL(1, 2) }
-
-data class MosaicCell(
-    val col: Int,
-    val row: Int,
-    val colSpan: Int,
-    val rowSpan: Int,
-    /** true = la pieza de información; false = elemento [itemIndex] de la lista de apps. */
-    val isInfo: Boolean,
-    val itemIndex: Int = -1,
-)
-
-/** Colocación pura en la rejilla 3 x 2 con una pieza 2x1 o 1x2 opcional. Las apps ocupan el resto en orden. */
-object MosaicGrid {
-    const val COLUMNS = 3
-    const val ROWS = 2
-
-    fun itemCapacity(info: InfoShape?): Int = COLUMNS * ROWS - (info?.let { it.colSpan * it.rowSpan } ?: 0)
-
-    fun place(info: InfoShape?, itemCount: Int): List<MosaicCell> {
-        val taken = Array(ROWS) { BooleanArray(COLUMNS) }
-        val cells = mutableListOf<MosaicCell>()
-        if (info != null) {
-            for (r in 0 until info.rowSpan) for (c in 0 until info.colSpan) taken[r][c] = true
-            cells += MosaicCell(0, 0, info.colSpan, info.rowSpan, isInfo = true)
-        }
-        var next = 0
-        loop@ for (r in 0 until ROWS) for (c in 0 until COLUMNS) {
-            if (taken[r][c]) continue
-            if (next >= itemCount) break@loop
-            cells += MosaicCell(c, r, 1, 1, isInfo = false, itemIndex = next++)
-        }
-        return cells
-    }
-
-    fun shapeOf(kind: InfoKind): InfoShape = when (kind) {
-        InfoKind.AGENDA -> InfoShape.WIDE
-        InfoKind.MAPS -> InfoShape.TALL
-    }
 }
 
 /** Acceso a CalendarContract.Instances; solo se llama con READ_CALENDAR concedido. */

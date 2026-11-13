@@ -178,3 +178,40 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { if (section == null) it.remove(lastOpenKey) else it[lastOpenKey] = section.name }
     }
 }
+
+/** Ajustes de iconos y mosaico. */
+class DisplayStore(private val dataStore: DataStore<Preferences>) {
+    private val iconModeKey = stringPreferencesKey("icon_mode")
+    private val iconCodeKey = booleanPreferencesKey("icon_show_code")
+    private val columnsKey = intPreferencesKey("mosaic_columns")
+    private fun rowsKey(s: Section) = intPreferencesKey("mosaic_rows_" + s.name)
+    private fun infoSizeKey(k: com.usos.launcher.data.info.InfoKind) = stringPreferencesKey("info_size_" + k.name)
+    private fun infoHiddenKey(k: com.usos.launcher.data.info.InfoKind) = booleanPreferencesKey("info_hidden_" + k.name)
+
+    val iconPrefs: Flow<IconPrefs> = dataStore.data.map {
+        IconPrefs(IconMode.fromName(it[iconModeKey]), it[iconCodeKey] ?: true)
+    }.distinctUntilChanged()
+
+    val mosaicPrefs: Flow<MosaicPrefs> = dataStore.data.map { p ->
+        val kinds = com.usos.launcher.data.info.InfoKind.entries
+        MosaicPrefs(
+            columns = (p[columnsKey] ?: 3).let { if (it in MosaicPacker.COLUMN_CHOICES) it else 3 },
+            rows = Section.home.associateWith {
+                (p[rowsKey(it)] ?: MosaicPacker.DEFAULT_ROWS).coerceIn(MosaicPacker.MIN_ROWS, MosaicPacker.MAX_ROWS)
+            },
+            infoSize = kinds.associateWith {
+                TileSize.fromName(p[infoSizeKey(it)] ?: com.usos.launcher.data.info.InfoPieces.defaultSize(it).name)
+            },
+            infoHidden = kinds.filter { p[infoHiddenKey(it)] ?: false }.toSet(),
+        )
+    }.distinctUntilChanged()
+
+    suspend fun setIconMode(m: IconMode) { dataStore.edit { it[iconModeKey] = m.name } }
+    suspend fun setIconShowCode(on: Boolean) { dataStore.edit { it[iconCodeKey] = on } }
+    suspend fun setColumns(n: Int) { dataStore.edit { it[columnsKey] = n } }
+    suspend fun setRows(s: Section, n: Int) {
+        dataStore.edit { it[rowsKey(s)] = n.coerceIn(MosaicPacker.MIN_ROWS, MosaicPacker.MAX_ROWS) }
+    }
+    suspend fun setInfoSize(k: com.usos.launcher.data.info.InfoKind, s: TileSize) { dataStore.edit { it[infoSizeKey(k)] = s.name } }
+    suspend fun setInfoHidden(k: com.usos.launcher.data.info.InfoKind, hidden: Boolean) { dataStore.edit { it[infoHiddenKey(k)] = hidden } }
+}

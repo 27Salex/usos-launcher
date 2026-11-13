@@ -35,6 +35,8 @@ class AppContainer(context: Context) {
     val appRepository = AppRepository(context)
     val appConfigStore = AppConfigStore(dataStore)
     val settingsStore = SettingsStore(dataStore)
+    val displayStore = com.usos.launcher.data.sections.DisplayStore(dataStore)
+    val iconRepository by lazy { com.usos.launcher.data.icons.IconRepository(appContext) }
     val usageRepository = UsageRepository(context)
     val suggestClient: SuggestClient by lazy { OkHttpSuggestClient() }
 

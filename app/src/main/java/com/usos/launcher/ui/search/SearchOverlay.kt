@@ -50,6 +50,7 @@ import com.usos.launcher.ui.theme.LocalAccent
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosText
+import com.usos.launcher.ui.theme.TileHead
 import com.usos.launcher.ui.theme.UsosType
 import com.usos.launcher.ui.theme.tap
 
@@ -233,7 +234,7 @@ private fun SmallTile(
             .padding(8.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText(item.code, UsosType.SmallCode, if (item.frozen) UsosColors.LeisureFrozen else UsosColors.Text)
+        TileHead(item.app, item.code, UsosType.SmallCode, if (item.frozen) UsosColors.LeisureFrozen else UsosColors.Text, 22.dp, invert = false)
         Column {
             UsosText(item.app.label.uppercase(), UsosType.SmallName, nameColor)
             if (item.frozen) {

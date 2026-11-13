@@ -66,12 +66,15 @@ import com.usos.launcher.ui.theme.LocalAnimationsEnabled
 import com.usos.launcher.ui.theme.UsosColors
 import com.usos.launcher.ui.theme.UsosDimens
 import com.usos.launcher.ui.theme.UsosText
+import com.usos.launcher.ui.theme.TileHead
+import com.usos.launcher.ui.theme.LocalIconPrefs
+import com.usos.launcher.ui.theme.LocalIcons
+import androidx.compose.runtime.CompositionLocalProvider
 import com.usos.launcher.ui.theme.UsosType
 import com.usos.launcher.ui.theme.tap
 import com.usos.launcher.ui.theme.usosTween
 
 private val SectionRowHeight = 46.dp
-private val TileHeight = 95.dp
 private val TileColumnGap = 11.dp
 private val TileRowGap = 10.dp
 private val ClockTopOffset = 60.dp
@@ -119,6 +122,8 @@ fun HomeScreen(
         }
     }
 
+    val iconPrefs by viewModel.iconPrefs.collectAsStateWithLifecycle()
+    CompositionLocalProvider(LocalIconPrefs provides iconPrefs, LocalIcons provides viewModel.iconRepository) {
     Box(Modifier.fillMaxSize().background(UsosColors.Background)) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
             when (page) {
@@ -183,6 +188,8 @@ fun HomeScreen(
                         onInMosaic = { viewModel.setInMosaic(r.key, it) },
                         onCode = { viewModel.setCode(r.key, it) },
                         onHighlight = { viewModel.setHighlight(r.key, it) },
+                        onSize = { viewModel.setTileSize(r.key, it) },
+                        onRows = { n -> viewModel.setRows(ui.config.section, n) },
                         onBack = viewModel::closeOverlay,
                     ),
                 )
@@ -198,10 +205,12 @@ fun HomeScreen(
                 val clock by viewModel.clockPrefs.collectAsStateWithLifecycle()
                 val weatherPrefs by viewModel.weatherPrefs.collectAsStateWithLifecycle()
                 val cities by viewModel.cityResults.collectAsStateWithLifecycle()
+                val mosaicPrefs by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
+                val infoSpecs by viewModel.infoSpecs.collectAsStateWithLifecycle()
                 SettingsScreen(
                     com.usos.launcher.ui.settings.SettingsUi(
                         budget, wait, orderLists, suggestionsOn, provider, grayscale, perHour, calendarGranted,
-                        clock, weatherPrefs, cities,
+                        clock, weatherPrefs, cities, iconPrefs, mosaicPrefs, infoSpecs,
                     ),
                     SettingsActions(
                         onBudget = viewModel::setBudget,
@@ -228,7 +237,31 @@ fun HomeScreen(
                         onWeatherBelow = viewModel::setWeatherBelowClock,
                         onWeatherAccent = viewModel::setWeatherAccent,
                         onBlackWallpaper = viewModel::applyBlackWallpaper,
+                        onIconMode = viewModel::setIconMode,
+                        onIconShowCode = viewModel::setIconShowCode,
+                        onColumns = viewModel::setColumns,
+                        onRows = viewModel::setRows,
+                        onInfoSize = viewModel::setInfoSize,
+                        onInfoHidden = viewModel::setInfoHidden,
+                        onEditMosaic = viewModel::openMosaicEditor,
                         onBack = viewModel::closeOverlay,
+                    ),
+                )
+            }
+            Route.MosaicEditor -> {
+                val orderLists by viewModel.orderLists.collectAsStateWithLifecycle()
+                val mosaicPrefs by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
+                val infoSpecs by viewModel.infoSpecs.collectAsStateWithLifecycle()
+                com.usos.launcher.ui.settings.MosaicEditorScreen(
+                    com.usos.launcher.ui.settings.MosaicEditorUi(orderLists, mosaicPrefs, infoSpecs),
+                    com.usos.launcher.ui.settings.MosaicEditorActions(
+                        onRows = viewModel::setRows,
+                        onMove = viewModel::moveInSection,
+                        onInMosaic = viewModel::setInMosaic,
+                        onSize = viewModel::setTileSize,
+                        onInfoSize = viewModel::setInfoSize,
+                        onInfoHidden = viewModel::setInfoHidden,
+                        onBack = viewModel::closeMosaicEditor,
                     ),
                 )
             }
@@ -238,6 +271,7 @@ fun HomeScreen(
         if (feedManager) {
             com.usos.launcher.ui.feeds.FeedManagerScreen(feedsVm, onBack = { feedManager = false })
         }
+    }
     }
 }
 
@@ -371,8 +405,7 @@ private fun SectionBlock(
                 LeisurePanel(leisure, onThaw, onCancelThaw)
             } else {
                 Mosaic(
-                    tiles = s.tiles,
-                    info = s.info,
+                    s = s,
                     onOpenInfo = onOpenInfo,
                     onOpenApp = onOpenApp,
                     onLongPressApp = onLongPressApp,
@@ -386,13 +419,12 @@ private fun SectionBlock(
 }
 
 /**
- * Rejilla 3 x 2; ancho de celda = (ancho útil - 22 dp) / 3. Una pieza de información (2x1 o 1x2)
- * ocupa la esquina superior izquierda y las apps rellenan el resto en orden (MosaicGrid, puro).
+ * Rejilla de 3 o 4 columnas; ancho de celda = (ancho útil - 11 dp x (columnas - 1)) / columnas. Las piezas ya
+ * vienen colocadas por el empaquetado denso (SectionMosaic / MosaicPacker, puros).
  */
 @Composable
 private fun Mosaic(
-    tiles: List<TileUi>,
-    info: com.usos.launcher.data.info.InfoPiece?,
+    s: SectionUi,
     onOpenInfo: (com.usos.launcher.data.info.InfoKind) -> Unit,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
     onLongPressApp: (com.usos.launcher.domain.AppEntry) -> Unit,
@@ -400,25 +432,24 @@ private fun Mosaic(
     trailing: (@Composable (Modifier) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val cell = (maxWidth - TileColumnGap * 2) / 3
-        val shape = info?.let { com.usos.launcher.data.info.MosaicGrid.shapeOf(it.kind) }
-        val itemCount = tiles.size + if (trailing != null) 1 else 0
-        val placed = com.usos.launcher.data.info.MosaicGrid.place(shape, itemCount)
-        val rows = (placed.maxOfOrNull { it.row + it.rowSpan } ?: 0)
-        Box(Modifier.fillMaxWidth().height(TileHeight * rows + TileRowGap * (rows - 1).coerceAtLeast(0))) {
-            placed.forEach { c ->
-                val m = Modifier
-                    .offset(x = (cell + TileColumnGap) * c.col, y = (TileHeight + TileRowGap) * c.row)
-                    .size(
-                        cell * c.colSpan + TileColumnGap * (c.colSpan - 1),
-                        TileHeight * c.rowSpan + TileRowGap * (c.rowSpan - 1),
-                    )
-                when {
-                    c.isInfo && info != null -> InfoTile(info, m) { onOpenInfo(info.kind) }
-                    c.itemIndex < tiles.size -> AppTile(tiles[c.itemIndex], m, onOpenApp, onLongPressApp)
-                    else -> trailing?.invoke(m)
+        val cols = s.columns
+        val cell = (maxWidth - TileColumnGap * (cols - 1)) / cols
+        val tileH = com.usos.launcher.data.sections.MosaicPacker.tileHeightDp(cols, maxWidth.value).dp
+        val rows = if (trailing != null) s.rowsUsed else s.placements.maxOfOrNull { it.row + it.rowSpan } ?: 0
+        fun place(col: Int, row: Int, cs: Int, rs: Int) = Modifier
+            .offset(x = (cell + TileColumnGap) * col, y = (tileH + TileRowGap) * row)
+            .size(cell * cs + TileColumnGap * (cs - 1), tileH * rs + TileRowGap * (rs - 1))
+        Box(Modifier.fillMaxWidth().height(tileH * rows + TileRowGap * (rows - 1).coerceAtLeast(0))) {
+            s.placements.forEach { c ->
+                val m = place(c.col, c.row, c.colSpan, c.rowSpan)
+                if (c.key == com.usos.launcher.data.sections.SectionMosaic.INFO_KEY) {
+                    s.info?.let { info -> InfoTile(info, m) { onOpenInfo(info.kind) } }
+                } else {
+                    s.tiles[c.key]?.let { AppTile(it, m, onOpenApp, onLongPressApp) }
                 }
             }
+            val f = s.freeze
+            if (trailing != null && f != null) trailing(place(f.col, f.row, 1, 1))
         }
     }
 }
@@ -485,7 +516,7 @@ private fun AppTile(
             .padding(12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        UsosText(tile.code, UsosType.TileCode, codeColor)
+        TileHead(tile.app, tile.code, UsosType.TileCode, codeColor, 28.dp, invert = filled)
         Column {
             tile.usageMin?.let { UsosText(UsageSummary.format(it), UsosType.Label, codeColor) }
             UsosText(tile.app.label.uppercase(), UsosType.TileName, nameColor)
