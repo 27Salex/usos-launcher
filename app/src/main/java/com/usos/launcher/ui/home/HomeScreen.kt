@@ -115,7 +115,6 @@ import com.usos.launcher.ui.theme.dashedBorder
 import com.usos.launcher.ui.theme.pressGestures
 import com.usos.launcher.ui.theme.swipeVertical
 import com.usos.launcher.ui.theme.tapOutside
-import com.usos.launcher.ui.theme.verticalGestureLock
 import kotlin.math.roundToInt
 import com.usos.launcher.ui.theme.usosTween
 
@@ -157,7 +156,6 @@ fun HomeScreen(
     val animations = LocalAnimationsEnabled.current
     val animationsNow by rememberUpdatedState(animations)
     val pager = rememberPagerState(initialPage = 1) { 3 }
-    var verticalGesture by remember { mutableStateOf(false) }
     var widgetsEditing by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val edit = remember { EditState() }
     val searchProgress = remember { Animatable(0f) }
@@ -185,10 +183,10 @@ fun HomeScreen(
 
     val iconPrefs by viewModel.iconPrefs.collectAsStateWithLifecycle()
     CompositionLocalProvider(LocalIconPrefs provides iconPrefs, LocalIcons provides viewModel.iconRepository) {
-    Box(Modifier.fillMaxSize().background(UsosColors.Background).verticalGestureLock { verticalGesture = it }) {
+    Box(Modifier.fillMaxSize().background(UsosColors.Background)) {
         HorizontalPager(
             state = pager, modifier = Modifier.fillMaxSize(),
-            userScrollEnabled = !editing && !widgetsEditing && !verticalGesture && !searchOpen && searchProgress.value == 0f,
+            userScrollEnabled = !editing && !widgetsEditing && !searchOpen,
         ) { page ->
             when (page) {
                 0 -> com.usos.launcher.ui.widgets.WidgetsPage(

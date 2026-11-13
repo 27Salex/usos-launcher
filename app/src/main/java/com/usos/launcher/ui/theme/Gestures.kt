@@ -74,6 +74,21 @@ fun Modifier.pressGestures(
     }
 }
 
+/** Decisión pura del eje de un gesto: dominante tras superar el touchSlop. Nunca se cambia el estado del pager por ella. */
+object GestureAxis {
+    enum class Axis { UNDECIDED, HORIZONTAL, VERTICAL }
+
+    fun decide(dx: Float, dy: Float, slop: Float): Axis {
+        val ax = kotlin.math.abs(dx)
+        val ay = kotlin.math.abs(dy)
+        return when {
+            maxOf(ax, ay) <= slop -> Axis.UNDECIDED
+            ax >= ay -> Axis.HORIZONTAL
+            else -> Axis.VERTICAL
+        }
+    }
+}
+
 /**
  * Detecta un deslizamiento vertical sin consumirlo (el scroll de los hijos sigue funcionando). [accept] se evalúa
  * en el DOWN (posición local); si devuelve false el gesto se ignora. El eje se decide una sola vez, al superar el
@@ -98,47 +113,18 @@ fun Modifier.swipeVertical(
             val c = event.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
             if (c.changedToUp()) return@awaitEachGesture
             val d = c.position - down.position
-            val ax = kotlin.math.abs(d.x)
             val ay = kotlin.math.abs(d.y)
             if (!vertical) {
-                if (maxOf(ax, ay) <= slop) continue
-                if (ax >= ay) return@awaitEachGesture // eje horizontal: no es del cajón
-                vertical = true
+                when (GestureAxis.decide(d.x, d.y, slop)) {
+                    GestureAxis.Axis.UNDECIDED -> continue
+                    GestureAxis.Axis.HORIZONTAL -> return@awaitEachGesture // no es del cajón; el pager lo recibe intacto
+                    GestureAxis.Axis.VERTICAL -> vertical = true
+                }
             }
             if (ay > threshold) {
                 if (d.y < 0) onUp?.invoke() else onDown?.invoke()
                 return@awaitEachGesture
             }
-        }
-    }
-}
-
-/**
- * Avisa de si el gesto en curso es vertical (eje dominante tras superar ~el touchSlop), sin consumir nada. Sirve
- * para bloquear el pager horizontal mientras dura un gesto vertical. [onVertical] vuelve a false al soltar.
- */
-fun Modifier.verticalGestureLock(onVertical: (Boolean) -> Unit): Modifier = pointerInput(Unit) {
-    val slop = viewConfiguration.touchSlop * 0.6f
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-        var decided = false
-        try {
-            while (true) {
-                val event = awaitPointerEvent(PointerEventPass.Initial)
-                val c = event.changes.firstOrNull { it.id == down.id } ?: break
-                if (c.changedToUp() || !c.pressed) break
-                if (!decided) {
-                    val d = c.position - down.position
-                    val ax = kotlin.math.abs(d.x)
-                    val ay = kotlin.math.abs(d.y)
-                    if (maxOf(ax, ay) > slop) {
-                        decided = true
-                        if (ay > ax) onVertical(true)
-                    }
-                }
-            }
-        } finally {
-            onVertical(false)
         }
     }
 }
