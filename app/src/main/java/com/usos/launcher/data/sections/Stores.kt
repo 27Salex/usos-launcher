@@ -122,6 +122,12 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
         .map { FeedLimits.clampKeep(it[feedsKeepKey] ?: FeedLimits.DEFAULT_KEEP) }.distinctUntilChanged()
     suspend fun setFeedsKeep(n: Int) { dataStore.edit { it[feedsKeepKey] = FeedLimits.clampKeep(n) } }
 
+    private val feedsRefreshKey = intPreferencesKey("feeds_refresh_min")
+    /** Minutos de antigüedad para descargar al abrir Noticias; 0 = solo manual. */
+    val feedsRefreshMin: Flow<Int> = dataStore.data
+        .map { FeedLimits.clampRefresh(it[feedsRefreshKey] ?: FeedLimits.DEFAULT_REFRESH_MIN) }.distinctUntilChanged()
+    suspend fun setFeedsRefreshMin(n: Int) { dataStore.edit { it[feedsRefreshKey] = FeedLimits.clampRefresh(n) } }
+
     /** Al tocar el reloj: "SYSTEM" (defecto), "NONE" o "APP:<paquete>". */
     val clockTap: Flow<String> = dataStore.data.map { it[clockTapKey] ?: "SYSTEM" }.distinctUntilChanged()
     suspend fun setClockTap(v: String) { dataStore.edit { it[clockTapKey] = v } }
@@ -147,6 +153,19 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     suspend fun setAccent(argb: Int) { dataStore.edit { it[accentKey] = argb } }
 
     // ---- Reloj, tiempo y primer reparto de feeds ----
+    private val nsClockKey = stringPreferencesKey("nightstand_clock")
+    private val nsCalendarKey = booleanPreferencesKey("nightstand_calendar")
+    private val nsSecondsKey = booleanPreferencesKey("nightstand_seconds")
+    private val nsDimKey = booleanPreferencesKey("nightstand_dim")
+
+    val nightstand: Flow<NightstandPrefs> = dataStore.data.map {
+        NightstandPrefs(NightClock.fromName(it[nsClockKey]), it[nsCalendarKey] ?: true, it[nsSecondsKey] ?: false, it[nsDimKey] ?: true)
+    }.distinctUntilChanged()
+    suspend fun setNightClock(c: NightClock) { dataStore.edit { it[nsClockKey] = c.name } }
+    suspend fun setNightCalendar(on: Boolean) { dataStore.edit { it[nsCalendarKey] = on } }
+    suspend fun setNightSeconds(on: Boolean) { dataStore.edit { it[nsSecondsKey] = on } }
+    suspend fun setNightDim(on: Boolean) { dataStore.edit { it[nsDimKey] = on } }
+
     private val clockTypeKey = stringPreferencesKey("clock_type")
     private val clockSecondsKey = booleanPreferencesKey("clock_seconds")
     private val clockAnimatedKey = booleanPreferencesKey("clock_animated")

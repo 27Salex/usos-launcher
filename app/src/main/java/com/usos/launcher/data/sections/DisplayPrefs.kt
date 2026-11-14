@@ -80,3 +80,19 @@ data class DockPrefs(val on: Boolean = false, val slots: Int = DEFAULT_SLOTS, va
         fun encode(l: List<String>): String = l.joinToString("\n")
     }
 }
+
+/** Modo mesita (reloj horizontal a pantalla completa). Se abre solo a mano. */
+enum class NightClock(@StringRes val labelRes: Int) {
+    FLIP(R.string.night_clock_flip), DIGITAL(R.string.clock_type_digital), DOTS(R.string.clock_type_dots);
+
+    companion object {
+        fun fromName(name: String?): NightClock = entries.firstOrNull { it.name == name } ?: FLIP
+    }
+}
+
+data class NightstandPrefs(
+    val clock: NightClock = NightClock.FLIP,
+    val calendar: Boolean = true,
+    val seconds: Boolean = false,
+    val dim: Boolean = true,
+)

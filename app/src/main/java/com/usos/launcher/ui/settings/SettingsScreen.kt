@@ -303,6 +303,7 @@ private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
 @Composable
 private fun ClockSettings(ui: SettingsUi, actions: SettingsActions) {
     var pickingApp by rememberSaveable { mutableStateOf(false) }
+    NightstandSettings()
     SubHeading(stringResource(R.string.settings_clock_type))
     Choice(ClockType.entries.map { stringResource(it.labelRes) }, ClockType.entries.indexOf(ui.clock.type), 2) {
         actions.onClockType(ClockType.entries[it])
@@ -468,6 +469,27 @@ private fun NewsSettings(ui: SettingsUi, actions: SettingsActions) {
     UsosText(stringResource(R.string.settings_news_keep_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
     Spacer(Modifier.height(12.dp))
     UsosRow(stringResource(R.string.thumbs_gray).uppercase()) { UsosSwitch(ui.thumbsGray, actions.onThumbsGray) }
+    Spacer(Modifier.height(12.dp))
+    NewsRefreshSettings()
+}
+
+/** Cuándo se descargan las noticias: al abrir Noticias si tienen más de X o solo a mano. */
+@Composable
+private fun NewsRefreshSettings() {
+    val context = LocalContext.current
+    val store = (context.applicationContext as com.usos.launcher.UsosApp).container.settingsStore
+    val min by store.feedsRefreshMin.collectAsStateWithLifecycle(FeedLimits.DEFAULT_REFRESH_MIN)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val opts = FeedLimits.REFRESH_CHOICES
+    SubHeading(stringResource(R.string.settings_news_refresh))
+    Choice(
+        listOf("10 MIN", "1 H", "6 H", stringResource(R.string.settings_news_refresh_manual)),
+        opts.indexOf(min).coerceAtLeast(0), 4,
+    ) { scope.launch { store.setFeedsRefreshMin(opts[it]) } }
+    UsosText(
+        stringResource(if (min == 0) R.string.settings_news_refresh_hint_manual else R.string.settings_news_refresh_hint),
+        UsosType.Label, UsosColors.TextSecondary, maxLines = 3,
+    )
 }
 
 @Composable
@@ -817,5 +839,25 @@ private fun NotifSettings() {
     } else {
         UsosText(stringResource(R.string.settings_notif_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
     }
+    Spacer(Modifier.height(16.dp))
+}
+
+/** Modo mesita: estilo del reloj, calendario, segundos, atenuar y botón para abrirlo (nunca se abre solo). */
+@Composable
+private fun NightstandSettings() {
+    val context = LocalContext.current
+    val store = (context.applicationContext as com.usos.launcher.UsosApp).container.settingsStore
+    val p by store.nightstand.collectAsStateWithLifecycle(com.usos.launcher.data.sections.NightstandPrefs())
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    SubHeading(stringResource(R.string.night_title))
+    UsosPill(stringResource(R.string.night_open), filled = true, onClick = { com.usos.launcher.ui.home.NightstandActivity.open(context) }, modifier = Modifier.fillMaxWidth())
+    Spacer(Modifier.height(4.dp))
+    UsosText(stringResource(R.string.night_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 3)
+    Spacer(Modifier.height(8.dp))
+    val kinds = com.usos.launcher.data.sections.NightClock.entries
+    Choice(kinds.map { stringResource(it.labelRes) }, kinds.indexOf(p.clock), 3) { scope.launch { store.setNightClock(kinds[it]) } }
+    UsosRow(stringResource(R.string.night_calendar)) { UsosSwitch(p.calendar, onChange = { v -> scope.launch { store.setNightCalendar(v) } }) }
+    UsosRow(stringResource(R.string.settings_clock_seconds)) { UsosSwitch(p.seconds, onChange = { v -> scope.launch { store.setNightSeconds(v) } }) }
+    UsosRow(stringResource(R.string.night_dim)) { UsosSwitch(p.dim, onChange = { v -> scope.launch { store.setNightDim(v) } }) }
     Spacer(Modifier.height(16.dp))
 }

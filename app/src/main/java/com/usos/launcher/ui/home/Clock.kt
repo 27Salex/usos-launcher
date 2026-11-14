@@ -128,6 +128,7 @@ fun ClockBlock(
     weather: WeatherNow?,
     onWeather: () -> Unit,
     onClock: (() -> Unit)? = null,
+    onLongClock: (() -> Unit)? = null,
 ) {
     val animated = clock.animated && LocalAnimationsEnabled.current
     val breathes = animated && (clock.type == ClockType.DOTS || clock.type == ClockType.DIGITAL)
@@ -143,7 +144,7 @@ fun ClockBlock(
 
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(
-            if (onClock != null) Modifier.tap { onClock() } else Modifier,
+            if (onClock != null || onLongClock != null) Modifier.tap(onLongClick = onLongClock) { onClock?.invoke() } else Modifier,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
         when (clock.type) {

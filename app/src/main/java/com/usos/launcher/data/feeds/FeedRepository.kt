@@ -182,10 +182,10 @@ class FeedRepository(
     suspend fun refreshAll(): Boolean = refresh(dao.feedsNow())
 
     /** Actualiza los feeds de [ids] (null = todos); sin [force] solo los que llevan más de 10 min sin descargarse. */
-    suspend fun refreshFeeds(ids: Collection<Long>? = null, force: Boolean = false): Boolean {
+    suspend fun refreshFeeds(ids: Collection<Long>? = null, force: Boolean = false, maxAgeMs: Long = FeedLimits.REFRESH_AFTER_MS): Boolean {
         val t = now()
         val list = dao.feedsNow().filter {
-            (ids == null || it.id in ids) && (force || FeedFormat.needsRefresh(it.lastFetchedAt.takeIf { l -> l > 0 }, t))
+            (ids == null || it.id in ids) && (force || FeedFormat.needsRefresh(it.lastFetchedAt.takeIf { l -> l > 0 }, t, maxAgeMs))
         }
         return refresh(list)
     }

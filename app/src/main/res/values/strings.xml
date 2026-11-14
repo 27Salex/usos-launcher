@@ -387,4 +387,16 @@
     <string name="dock_pick_title">APP FIJAS</string>
     <string name="dock_search_hint">BUSCAR APP</string>
     <string name="dock_empty_slot">VACIAR HUECO</string>
+    <string name="settings_news_refresh">ACTUALIZAR NOTICIAS</string>
+    <string name="settings_news_refresh_manual">MANUAL</string>
+    <string name="settings_news_refresh_hint">Se descargan al abrir Noticias si tienen más de ese tiempo. Nunca en segundo plano.</string>
+    <string name="settings_news_refresh_hint_manual">Solo se descargan al tirar hacia abajo en Noticias. Nunca en segundo plano.</string>
+    <string name="night_title">MODO MESITA</string>
+    <string name="night_open">ABRIR MODO MESITA</string>
+    <string name="night_hint">Reloj en horizontal con la pantalla siempre encendida, para la mesita de noche. También se abre manteniendo pulsado el reloj del inicio. Toca la pantalla para salir.</string>
+    <string name="night_calendar">MINI CALENDARIO</string>
+    <string name="night_dim">ATENUAR PANTALLA</string>
+    <string name="night_clock_flip">FLIP</string>
+    <string name="night_exit">SALIR</string>
+    <string name="night_alarm">ALARMA %1$s</string>
 </resources>

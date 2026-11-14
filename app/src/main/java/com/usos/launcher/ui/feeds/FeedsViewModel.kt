@@ -118,7 +118,7 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
     fun setFilter(feedId: Long?) {
         filter.value = feedId
         if (feedId == SAVED_FILTER) return
-        runRefresh { repo.refreshFeeds(feedId?.let { listOf(it) }, force = false) }
+        autoRefresh(feedId?.let { listOf(it) })
     }
 
     fun toggleHidden() {
@@ -161,7 +161,16 @@ class FeedsViewModel(private val app: UsosApp) : ViewModel() {
         viewModelScope.launch {
             if (repo.feedsNow().isEmpty()) return@launch
             repo.pruneAll()
-            runRefresh { repo.refreshFeeds(null, force = false) }
+            autoRefresh(null)
+        }
+    }
+
+    /** Descarga automática según Ajustes → Noticias (nunca en segundo plano); en manual no hace nada. */
+    private fun autoRefresh(ids: List<Long>?) {
+        viewModelScope.launch {
+            val min = settings.feedsRefreshMin.first()
+            if (min == 0) return@launch
+            runRefresh { repo.refreshFeeds(ids, force = false, maxAgeMs = min * 60_000L) }
         }
     }
 

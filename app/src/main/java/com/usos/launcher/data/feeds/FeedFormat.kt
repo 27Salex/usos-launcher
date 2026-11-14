@@ -17,8 +17,8 @@ object FeedFormat {
     }
 
     /** true si no hay datos o han pasado más de 10 min desde la última actualización. */
-    fun needsRefresh(lastFetchedAt: Long?, now: Long): Boolean =
-        lastFetchedAt == null || now - lastFetchedAt > FeedLimits.REFRESH_AFTER_MS
+    fun needsRefresh(lastFetchedAt: Long?, now: Long, maxAgeMs: Long = FeedLimits.REFRESH_AFTER_MS): Boolean =
+        lastFetchedAt == null || now - lastFetchedAt > maxAgeMs
 
     /** Completa el esquema (https por defecto) y valida; null si no es una URL http(s) razonable. */
     fun normalizeUrl(raw: String): String? {

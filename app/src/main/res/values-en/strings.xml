@@ -384,4 +384,16 @@
     <string name="dock_pick_title">PINNED APP</string>
     <string name="dock_search_hint">SEARCH APP</string>
     <string name="dock_empty_slot">EMPTY SLOT</string>
+    <string name="settings_news_refresh">REFRESH NEWS</string>
+    <string name="settings_news_refresh_manual">MANUAL</string>
+    <string name="settings_news_refresh_hint">Downloaded when you open News if older than that. Never in the background.</string>
+    <string name="settings_news_refresh_hint_manual">Only downloaded when you pull down in News. Never in the background.</string>
+    <string name="night_title">NIGHTSTAND MODE</string>
+    <string name="night_open">OPEN NIGHTSTAND MODE</string>
+    <string name="night_hint">Landscape clock with the screen always on, for your bedside table. Also opens by long-pressing the home clock. Tap the screen to exit.</string>
+    <string name="night_calendar">MINI CALENDAR</string>
+    <string name="night_dim">DIM SCREEN</string>
+    <string name="night_clock_flip">FLIP</string>
+    <string name="night_exit">EXIT</string>
+    <string name="night_alarm">ALARM %1$s</string>
 </resources>

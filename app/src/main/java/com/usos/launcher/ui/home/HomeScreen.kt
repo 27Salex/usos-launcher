@@ -495,6 +495,7 @@ private fun HomePage(
     dock: (@Composable (editing: Boolean, hidden: Boolean) -> Unit)? = null,
 ) {
     val now by rememberNow()
+    val nightCtx = LocalContext.current
     val density = LocalDensity.current
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -554,7 +555,10 @@ private fun HomePage(
                 .padding(horizontal = UsosDimens.ScreenMargin),
         ) {
             Spacer(Modifier.height(topSpacing()))
-            ClockBlock(now, clock, weatherPrefs, weather, onWeather = onOpenWeather, onClock = onOpenClock)
+            ClockBlock(
+                now, clock, weatherPrefs, weather, onWeather = onOpenWeather, onClock = onOpenClock,
+                onLongClock = { NightstandActivity.open(nightCtx) },
+            )
             Spacer(Modifier.height(16.dp))
             WeekStrip(now.toLocalDate())
             Spacer(Modifier.height(12.dp))
@@ -660,7 +664,7 @@ private fun SectionBlock(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        val pending = if (frozen) 0 else com.usos.launcher.ui.theme.LocalNotifBadges.current.total(s.tiles.keys)
+        val pending = if (frozen) 0 else com.usos.launcher.ui.theme.LocalNotifBadges.current.total(s.placements.map { it.key }.filter { it in s.tiles })
         Row(verticalAlignment = Alignment.CenterVertically) {
             UsosText(stringResource(s.section.titleRes), UsosType.SectionName, nameColor)
             if (pending > 0) {

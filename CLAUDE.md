@@ -118,5 +118,10 @@ Pendiente de verificar en dispositivo (`adb shell dumpsys package <pkg>` para fi
 
 ## 1.0.8: contador de notificaciones
 - `NotificationState.counts` (clave app → nº de notificaciones descartables; los resúmenes de grupo no suman salvo que sean lo único). `NotifBadges.count/total`.
-- `CountBubble` (AppIcon.kt): número en piezas (modo DOT), dock y junto al nombre de la sección (visible plegada; no en Ocio congelado).
+- `CountBubble` (AppIcon.kt): número en piezas (modo DOT), dock y junto al nombre de la sección (solo apps colocadas en el mosaico; visible plegada; no en Ocio congelado).
 - Sin valor guardado en `notif_indicator` el modo es DOT (antes NONE); un NONE guardado se respeta.
+
+## 1.0.9: noticias configurables y modo mesita
+- Noticias: `feeds_refresh_min` (`FeedLimits.REFRESH_CHOICES` 10/60/360/0; 0 = solo manual, tirar hacia abajo). `FeedsViewModel.autoRefresh` lo respeta al abrir y al filtrar. Nunca hubo descarga en segundo plano.
+- Contador de sección: solo apps colocadas en el mosaico (`s.placements`).
+- Modo mesita (`ui.home.NightstandActivity`, `sensorLandscape`, FLAG_KEEP_SCREEN_ON, barras ocultas): se abre SOLO a mano (Ajustes → Reloj «ABRIR MODO MESITA» o pulsación larga en el reloj del inicio). `NightstandPrefs` en SettingsStore (`nightstand_clock` FLIP/DIGITAL/DOTS, `nightstand_calendar`, `nightstand_seconds`, `nightstand_dim` → brillo de ventana 0,02). Reloj flip con `FlipDigit` (mitades con rotationX, 600 ms), mini mes, próxima alarma (<24 h), desplazamiento anti-quemado por minuto. Toque = botón SALIR 4 s; atrás sale.

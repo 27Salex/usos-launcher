@@ -14,6 +14,11 @@ object FeedLimits {
     /** Un feed se vuelve a descargar al abrir el panel o filtrarlo si lleva más de 10 min sin actualizar. */
     const val REFRESH_AFTER_MS = 10 * 60 * 1000L
 
+    /** Antigüedad (min) a partir de la que se descarga al abrir Noticias; 0 = solo manual (tirar hacia abajo). */
+    val REFRESH_CHOICES = listOf(10, 60, 360, 0)
+    const val DEFAULT_REFRESH_MIN = 10
+    fun clampRefresh(n: Int): Int = if (n in REFRESH_CHOICES) n else DEFAULT_REFRESH_MIN
+
     /** Artículos que se conservan por feed (más los guardados): opciones de Ajustes y valor por defecto. */
     val KEEP_CHOICES = listOf(10, 20, 30, 50)
     const val DEFAULT_KEEP = 20
