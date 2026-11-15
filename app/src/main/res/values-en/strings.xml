@@ -396,4 +396,15 @@
     <string name="night_clock_flip">FLIP</string>
     <string name="night_exit">EXIT</string>
     <string name="night_alarm">ALARM %1$s</string>
+    <string name="backup_title">BACKUP</string>
+    <string name="backup_hint">Your setup is saved automatically to Google backup and comes back when you reinstall. You can also save it to a file: grid, settings, dock, feeds and Usos widgets. Widgets from other apps must be added again.</string>
+    <string name="backup_export">EXPORT</string>
+    <string name="backup_import">IMPORT</string>
+    <string name="backup_exported">Setup saved.</string>
+    <string name="backup_failed">Could not save the file.</string>
+    <string name="backup_invalid">That file is not a Usos backup.</string>
+    <string name="backup_confirm">This will replace your current setup (includes %1$d feeds). Continue?</string>
+    <string name="backup_replace">REPLACE</string>
+    <string name="backup_imported">Setup imported.</string>
+    <string name="cancel_upper">CANCEL</string>
 </resources>

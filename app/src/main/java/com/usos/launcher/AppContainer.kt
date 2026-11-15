@@ -63,6 +63,14 @@ class AppContainer(context: Context) {
     val widgetHost: AppWidgetHost = UsosWidgetHost(appContext, WIDGET_HOST_ID)
     val widgetManager: AppWidgetManager = AppWidgetManager.getInstance(appContext)
     val widgetStore = WidgetStore(dataStore)
+    internal val dataStoreForBackup get() = dataStore
+    val backupManager by lazy { com.usos.launcher.data.backup.BackupManager(this) }
+
+    /** Quita los widgets de otras apps guardados cuyo id ya no existe en el host (p. ej. tras restaurar o importar). */
+    suspend fun pruneMissingWidgets() {
+        val ids = widgetHost.appWidgetIds.toSet()
+        widgetStore.update { l -> l.filter { it.id < 0 || it.id in ids } }
+    }
 
     /** Aviso pendiente del servicio de bloqueo para el launcher (mismo proceso). */
     val pendingAlert = MutableStateFlow<LauncherAlert?>(null)

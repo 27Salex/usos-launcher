@@ -213,6 +213,12 @@ class FeedRepository(
 
     suspend fun feedsNow(): List<Feed> = dao.feedsNow()
 
+    /** Añade (sin descargar) los feeds importados que no estén ya; se descargan al abrir Noticias. */
+    suspend fun importFeeds(list: List<com.usos.launcher.data.backup.FeedEntry>) {
+        val have = dao.feedsNow().map { it.url }.toMutableSet()
+        list.forEach { if (have.add(it.url)) dao.insertFeed(Feed(url = it.url, title = it.title)) }
+    }
+
     private suspend fun store(feedId: Long, parsed: ParsedFeed) {
         val fetchedAt = now()
         dao.insertArticles(

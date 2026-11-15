@@ -399,4 +399,15 @@
     <string name="night_clock_flip">FLIP</string>
     <string name="night_exit">SALIR</string>
     <string name="night_alarm">ALARMA %1$s</string>
+    <string name="backup_title">COPIA DE SEGURIDAD</string>
+    <string name="backup_hint">Tu configuración se guarda sola en la copia de Google y vuelve al reinstalar. Además puedes guardarla en un archivo: mosaico, ajustes, dock, feeds y widgets de Usos. Los widgets de otras apps hay que volver a añadirlos.</string>
+    <string name="backup_export">EXPORTAR</string>
+    <string name="backup_import">IMPORTAR</string>
+    <string name="backup_exported">Configuración guardada.</string>
+    <string name="backup_failed">No se pudo guardar el archivo.</string>
+    <string name="backup_invalid">Ese archivo no es una copia de Usos.</string>
+    <string name="backup_confirm">Se reemplazará tu configuración actual (incluye %1$d feeds). ¿Seguir?</string>
+    <string name="backup_replace">REEMPLAZAR</string>
+    <string name="backup_imported">Configuración importada.</string>
+    <string name="cancel_upper">CANCELAR</string>
 </resources>

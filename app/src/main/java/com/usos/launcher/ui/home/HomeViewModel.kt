@@ -382,6 +382,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val saved = container.widgetStore.current()
         val ids = withContext(Dispatchers.Default) { container.widgetHost.appWidgetIds.toList() }
         WidgetSizing.orphans(ids, saved).forEach { container.widgetHost.deleteAppWidgetId(it) }
+        container.pruneMissingWidgets()
     }
 
     fun addWidget(id: Int) {

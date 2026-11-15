@@ -598,6 +598,7 @@ private fun SystemSettings(ui: SettingsUi, actions: SettingsActions) {
     var confirmWallpaper by rememberSaveable { mutableStateOf(false) }
     LanguageSetting()
     Spacer(Modifier.height(16.dp))
+    BackupSettings()
     SubHeading(stringResource(R.string.settings_system_permissions))
     if (ui.calendarGranted) {
         UsosText(stringResource(R.string.settings_system_calendar_granted), UsosType.Label, UsosColors.TextSecondary)
@@ -859,5 +860,54 @@ private fun NightstandSettings() {
     UsosRow(stringResource(R.string.night_calendar)) { UsosSwitch(p.calendar, onChange = { v -> scope.launch { store.setNightCalendar(v) } }) }
     UsosRow(stringResource(R.string.settings_clock_seconds)) { UsosSwitch(p.seconds, onChange = { v -> scope.launch { store.setNightSeconds(v) } }) }
     UsosRow(stringResource(R.string.night_dim)) { UsosSwitch(p.dim, onChange = { v -> scope.launch { store.setNightDim(v) } }) }
+    Spacer(Modifier.height(16.dp))
+}
+
+/** Copia de seguridad: exportar/importar la configuración a un archivo (la copia de Google va aparte, automática). */
+@Composable
+private fun BackupSettings() {
+    val context = LocalContext.current
+    val backup = (context.applicationContext as com.usos.launcher.UsosApp).container.backupManager
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var status by remember { mutableStateOf<Int?>(null) }
+    var pending by remember { mutableStateOf<com.usos.launcher.data.backup.ConfigFile?>(null) }
+    val exporter = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri -> if (uri != null) scope.launch { status = if (backup.export(uri)) R.string.backup_exported else R.string.backup_failed } }
+    val importer = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) scope.launch {
+            val f = backup.read(uri)
+            if (f == null) status = R.string.backup_invalid else { pending = f; status = null }
+        }
+    }
+    SubHeading(stringResource(R.string.backup_title))
+    UsosText(stringResource(R.string.backup_hint), UsosType.Label, UsosColors.TextSecondary, maxLines = 4)
+    Spacer(Modifier.height(8.dp))
+    val f = pending
+    if (f == null) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            UsosPill(stringResource(R.string.backup_export), filled = false, modifier = Modifier.weight(1f), onClick = {
+                exporter.launch("usos-config-" + java.time.LocalDate.now() + ".json")
+            })
+            UsosPill(stringResource(R.string.backup_import), filled = false, modifier = Modifier.weight(1f), onClick = {
+                importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+            })
+        }
+    } else {
+        UsosText(stringResource(R.string.backup_confirm, f.feeds.size), UsosType.Label, LocalAccent.current, maxLines = 3)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            UsosPill(stringResource(R.string.backup_replace), filled = true, modifier = Modifier.weight(1f), onClick = {
+                scope.launch { backup.import(f); pending = null; status = R.string.backup_imported }
+            })
+            UsosPill(stringResource(R.string.cancel_upper), filled = false, modifier = Modifier.weight(1f), onClick = { pending = null })
+        }
+    }
+    status?.let {
+        Spacer(Modifier.height(6.dp))
+        UsosText(stringResource(it), UsosType.Label, LocalAccent.current)
+    }
     Spacer(Modifier.height(16.dp))
 }
