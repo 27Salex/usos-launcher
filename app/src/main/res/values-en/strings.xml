@@ -407,4 +407,8 @@
     <string name="backup_replace">REPLACE</string>
     <string name="backup_imported">Setup imported.</string>
     <string name="cancel_upper">CANCEL</string>
+    <string name="home_work_paused">PAUSED</string>
+    <string name="home_work_paused_text">The work profile is paused and its apps are hidden.</string>
+    <string name="home_work_resume">TURN ON WORK PROFILE</string>
+    <string name="notice_work_resume_failed">COULD NOT TURN ON THE PROFILE</string>
 </resources>

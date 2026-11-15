@@ -91,6 +91,16 @@ class AppRepository(context: Context) {
         return result.distinctBy { it.key }
     }
 
+    /**
+     * Quita la pausa del perfil de trabajo (el launcher predeterminado puede hacerlo; si el perfil tiene bloqueo
+     * propio el sistema pide la credencial). Devuelve false solo si el sistema no lo permite.
+     */
+    fun resumeWorkProfile(): Boolean = runCatching {
+        val me = Process.myUserHandle()
+        userManager.userProfiles.filter { it != me && userManager.isQuietModeEnabled(it) }
+            .forEach { userManager.requestQuietModeEnabled(false, it) }
+    }.isSuccess
+
     /** Abre la app. Devuelve false si el perfil está en pausa o el lanzamiento falla. */
     fun launch(app: AppEntry): Boolean {
         if (app.isQuiet) return false

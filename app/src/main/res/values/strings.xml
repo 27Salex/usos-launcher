@@ -410,4 +410,8 @@
     <string name="backup_replace">REEMPLAZAR</string>
     <string name="backup_imported">Configuración importada.</string>
     <string name="cancel_upper">CANCELAR</string>
+    <string name="home_work_paused">EN PAUSA</string>
+    <string name="home_work_paused_text">El perfil de trabajo está en pausa y sus apps están ocultas.</string>
+    <string name="home_work_resume">ACTIVAR PERFIL DE TRABAJO</string>
+    <string name="notice_work_resume_failed">NO SE PUDO ACTIVAR EL PERFIL</string>
 </resources>

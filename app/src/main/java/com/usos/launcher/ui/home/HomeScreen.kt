@@ -275,6 +275,7 @@ fun HomeScreen(
                     blockerActive = blockerActive,
                     searchActive = searchOpen || searchProgress.value > 0f,
                     onToggle = viewModel::toggleSection,
+                    onResumeWork = viewModel::resumeWorkProfile,
                     onOpenApp = viewModel::openApp,
                     onOpenSearch = viewModel::openSearch,
                     gesturesOn = route == Route.Home && !searchOpen,
@@ -471,6 +472,7 @@ private fun HomePage(
     leisure: LeisureStatus?,
     searchActive: Boolean,
     onToggle: (Section) -> Unit,
+    onResumeWork: () -> Unit,
     onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit,
     blockerActive: Boolean,
     onOpenSearch: () -> Unit,
@@ -568,6 +570,7 @@ private fun HomePage(
                     state.sections.forEach { s ->
                         SectionBlock(
                             s, isOpen = state.open == s.section, leisure = leisure, blockerActive = blockerActive,
+                            workPaused = state.workPaused && s.section == Section.WORK, onResumeWork = onResumeWork,
                             editing = editing, edit = edit, editActions = editActions,
                             onAdd = { cell -> adding = s.section to cell },
                             onToggle = { sec -> edit.clearSelection(); onToggle(sec) }, onOpenApp = onOpenApp, onEnterEdit = onEnterEdit,
@@ -634,6 +637,8 @@ private fun SectionBlock(
     isOpen: Boolean,
     leisure: LeisureStatus?,
     blockerActive: Boolean,
+    workPaused: Boolean,
+    onResumeWork: () -> Unit,
     editing: Boolean,
     edit: EditState,
     editActions: EditActions,
@@ -649,9 +654,10 @@ private fun SectionBlock(
     val animations = LocalAnimationsEnabled.current
     val accent = LocalAccent.current
     val isLeisure = s.section == Section.LEISURE
-    val frozen = isLeisure && leisure?.isOpen != true
+    val frozen = (isLeisure && leisure?.isOpen != true) || workPaused
     val nameColor = if (edit.hoverSection == s.section) accent else if (frozen) UsosColors.LeisureFrozen else UsosColors.Text
     val data: String = when {
+        workPaused -> stringResource(R.string.home_work_paused)
         !isLeisure -> if (isOpen) "—" else s.count.toString()
         leisure is LeisureStatus.Open -> stringResource(R.string.home_minutes, leisure.minutesLeft)
         leisure is LeisureStatus.Thawing -> stringResource(R.string.home_seconds, leisure.secondsLeft)
@@ -710,7 +716,9 @@ private fun SectionBlock(
                     UsosText(stringResource(R.string.home_blocker_inactive), UsosType.Label, accent)
                 }
             }
-            if (isLeisure && leisure !is LeisureStatus.Open) {
+            if (workPaused) {
+                WorkPausedPanel(onResumeWork)
+            } else if (isLeisure && leisure !is LeisureStatus.Open) {
                 LeisurePanel(leisure, onThaw, onCancelThaw)
             } else {
                 Mosaic(
@@ -726,6 +734,16 @@ private fun SectionBlock(
                 if (editing) RowsControl(s.rows) { editActions.onRows(s.section, it) }
             }
         }
+    }
+}
+
+/** Trabajo con el perfil en pausa: al desplegar la sección se ofrece activarlo (el sistema puede pedir el bloqueo). */
+@Composable
+private fun WorkPausedPanel(onResume: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        UsosText(stringResource(R.string.home_work_paused_text), UsosType.Label, UsosColors.TextSecondary)
+        Spacer(Modifier.height(12.dp))
+        com.usos.launcher.ui.theme.UsosPill(stringResource(R.string.home_work_resume), filled = true, onClick = onResume)
     }
 }
 

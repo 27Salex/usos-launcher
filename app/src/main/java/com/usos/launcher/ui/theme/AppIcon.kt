@@ -1,6 +1,8 @@
 package com.usos.launcher.ui.theme
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.defaultMinSize
@@ -22,6 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
@@ -85,6 +91,21 @@ internal fun rememberIcon(app: AppEntry, mode: IconMode, invert: Boolean, size: 
  */
 @Composable
 fun TileHead(app: AppEntry, code: String, codeStyle: TextStyle, color: Color, iconSize: Dp, invert: Boolean) {
+    if (app.isMainProfile) { TileHeadBody(app, code, codeStyle, color, iconSize, invert); return }
+    val prefs = LocalIconPrefs.current
+    // En color el icono ya trae la insignia del sistema; en el resto se añade el maletín.
+    if (prefs.mode == IconMode.COLOR && rememberIcon(app, prefs.mode, invert, iconSize)?.bitmap != null) {
+        TileHeadBody(app, code, codeStyle, color, iconSize, invert); return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TileHeadBody(app, code, codeStyle, color, iconSize, invert)
+        Spacer(Modifier.width(5.dp))
+        WorkGlyph(color, (iconSize.value * 0.5f).coerceAtLeast(11f).dp)
+    }
+}
+
+@Composable
+private fun TileHeadBody(app: AppEntry, code: String, codeStyle: TextStyle, color: Color, iconSize: Dp, invert: Boolean) {
     val prefs = LocalIconPrefs.current
     if (prefs.mode == IconMode.NONE) {
         UsosText(code, codeStyle, color)
@@ -120,11 +141,32 @@ fun AppIconOrNull(app: AppEntry, size: Dp, color: Color, fallback: @Composable (
     val prefs = LocalIconPrefs.current
     val icon = rememberIcon(app, prefs.mode, false, size)
     val bmp = icon?.bitmap
-    if (bmp == null) { fallback(); return }
-    Image(
-        bitmap = remember(bmp) { bmp.asImageBitmap() }, contentDescription = null, modifier = Modifier.size(size),
-        colorFilter = if (icon.tint) ColorFilter.tint(color) else null,
-    )
+    val work = !app.isMainProfile && (bmp == null || icon.tint)
+    Box {
+        if (bmp == null) fallback()
+        else Image(
+            bitmap = remember(bmp) { bmp.asImageBitmap() }, contentDescription = null, modifier = Modifier.size(size),
+            colorFilter = if (icon.tint) ColorFilter.tint(color) else null,
+        )
+        if (work) WorkGlyph(color, (size.value * 0.42f).coerceAtLeast(10f).dp, Modifier.align(Alignment.BottomEnd).padding(start = 2.dp))
+    }
+}
+
+/**
+ * Maletín de perfil de trabajo (como la insignia de Android), para iconos monocromos o códigos de 2 letras.
+ * Contorno del color del texto sobre un fondo negro que lo separa del icono.
+ */
+@Composable
+fun WorkGlyph(color: Color, size: Dp, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(size)) {
+        val w = this.size.width
+        val sw = w * 0.11f
+        drawCircle(UsosColors.Background, w / 2f)
+        val bodyTop = w * 0.36f
+        drawRoundRect(color, Offset(w * 0.14f, bodyTop), Size(w * 0.72f, w * 0.48f), CornerRadius(w * 0.08f), style = Stroke(sw))
+        drawRoundRect(color, Offset(w * 0.36f, w * 0.20f), Size(w * 0.28f, bodyTop - w * 0.20f + sw / 2), CornerRadius(w * 0.05f), style = Stroke(sw))
+        drawLine(color, Offset(w * 0.14f, w * 0.56f), Offset(w * 0.86f, w * 0.56f), sw)
+    }
 }
 
 /** Icono suelto (ficha de app). */

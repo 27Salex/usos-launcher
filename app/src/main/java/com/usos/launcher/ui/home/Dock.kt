@@ -78,8 +78,10 @@ fun Dock(
 ) {
     val grow = remember { Animatable(0f) }
     LaunchedEffect(Unit) { grow.animateTo(1f, tween(UsosMotion.DurationMs * 2, easing = UsosMotion.Easing)) }
-    val showHoles = editing || apps.all { it == null }
-    val shown = apps.indices.filter { showHoles || apps[it] != null }
+    // Las apps del perfil de trabajo en pausa no se ven fuera de edición.
+    val visible = { i: Int -> apps[i] != null && apps[i]?.isQuiet != true }
+    val showHoles = editing || apps.indices.none(visible)
+    val shown = apps.indices.filter { showHoles || visible(it) }
     val shape = RoundedCornerShape(UsosDimens.RadiusSearch)
     Box(Modifier.fillMaxWidth().alpha(if (hidden) 0f else 1f), contentAlignment = Alignment.Center) {
         Row(

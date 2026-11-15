@@ -58,13 +58,22 @@ class ClassifierTest {
     }
 
     @Test fun initialLayoutPinsKnownAppsAndFillsMosaicInOrder() {
+        val whatsapp = app("com.whatsapp", label = "WhatsApp")
+        val telegram = app("org.telegram.messenger", label = "Telegram")
+        val out = SectionAssigner.reconcile(listOf(telegram, whatsapp), emptyMap())
+        assertEquals(Section.TALK, out[whatsapp.key]!!.section)
+        assertTrue(out[whatsapp.key]!!.order < out[telegram.key]!!.order)
+        assertTrue(out[whatsapp.key]!!.inMosaic && out[telegram.key]!!.inMosaic)
+    }
+
+    @Test fun onlyWorkProfileAppsGoToWorkByDefault() {
         val slack = app("com.Slack", ApplicationInfo.CATEGORY_SOCIAL, label = "Slack")
         val teams = app("com.microsoft.teams", label = "Teams")
         val others = (1..8).map { app("w.$it", main = false, label = "W$it") }
         val out = SectionAssigner.reconcile(listOf(others[0], teams, slack) + others.drop(1), emptyMap())
-        assertEquals(Section.WORK, out[slack.key]!!.section)
-        assertTrue(out[slack.key]!!.order < out[teams.key]!!.order)
-        assertTrue(out[slack.key]!!.inMosaic && out[teams.key]!!.inMosaic)
+        assertEquals(Section.TALK, out[slack.key]!!.section)
+        assertEquals(Section.NONE, out[teams.key]!!.section)
+        assertTrue(others.all { out[it.key]!!.section == Section.WORK })
         assertEquals(6, out.values.count { it.section == Section.WORK && it.inMosaic })
         assertFalse(out.values.any { it.section == Section.NONE && it.inMosaic })
     }

@@ -22,11 +22,7 @@ object InitialLayout {
         Entry(section, emptySet(), match)
 
     private val entries: List<Entry> = listOf(
-        // Trabajo (Agenda es una pieza de información de la Fase 8)
-        Entry(Section.WORK, pkgs("com.Slack")),
-        Entry(Section.WORK, pkgs("com.microsoft.teams")),
-        Entry(Section.WORK, pkgs("com.atlassian.android.jira.core")),
-        Entry(Section.WORK, pkgs("com.github.android")),
+        // Trabajo: solo las apps del perfil de trabajo (AppClassifier); aquí no se fija ninguna.
         // Hablar
         Entry(Section.TALK, pkgs("com.whatsapp")),
         Entry(Section.TALK, pkgs("org.telegram.messenger")),

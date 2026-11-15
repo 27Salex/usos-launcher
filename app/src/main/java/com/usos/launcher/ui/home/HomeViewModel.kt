@@ -106,7 +106,8 @@ data class InfoSpec(val kind: InfoKind, val size: TileSize, val hidden: Boolean,
     val visibleSize: TileSize? get() = if (available && !hidden) size else null
 }
 
-data class HomeUiState(val sections: List<SectionUi>, val open: Section?)
+/** [workPaused] = el perfil de trabajo está en pausa: sus apps se ocultan y Trabajo ofrece activarlo. */
+data class HomeUiState(val sections: List<SectionUi>, val open: Section?, val workPaused: Boolean = false)
 
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private val repository = container.appRepository
@@ -264,9 +265,11 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val usage = extras.usage
         if (a == null || !loaded || a.any { it.key !in c }) return@combine null
         val grouped = SectionLayout.build(a, c)
+        val workPaused = a.any { !it.isMainProfile && it.isQuiet }
         HomeUiState(
             sections = Section.home.map { section ->
-                val placed = grouped[section].orEmpty()
+                // Con el perfil de trabajo en pausa sus apps no se ven en ninguna sección.
+                val placed = grouped[section].orEmpty().filter { !it.app.isQuiet }
                 val infoSize = extras.specs[section]?.visibleSize
                 val info = if (infoSize != null) extras.info[section] ?: mapsFallback(section) else null
                 // La pieza de Mapas sustituye a la app de Mapas en el mosaico de Moverse.
@@ -295,8 +298,13 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 )
             },
             open = o,
+            workPaused = workPaused,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun resumeWorkProfile() {
+        if (!repository.resumeWorkProfile()) showNotice(R.string.notice_work_resume_failed)
+    }
 
     private fun mapsFallback(section: Section): InfoPiece? =
         if (section == Section.MOVE) InfoPieces.mapsPiece(true) else null
@@ -306,6 +314,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         apps, configs, leisure.map { it?.isOpen == true }.distinctUntilChanged(),
     ) { a, c, leisureOpen ->
         a.orEmpty().mapNotNull { app ->
+            if (app.isQuiet) return@mapNotNull null
             val cfg = c[app.key] ?: return@mapNotNull null
             val code = cfg.code?.takeIf { it.isNotBlank() } ?: app.defaultCode
             SearchItem(app, code, cfg.section, frozen = cfg.section == Section.LEISURE && !leisureOpen)
