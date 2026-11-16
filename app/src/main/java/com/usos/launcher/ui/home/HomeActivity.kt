@@ -115,8 +115,8 @@ class HomeActivity : ComponentActivity() {
     private fun applyWindowBackground(mode: com.usos.launcher.data.sections.BackgroundMode) {
         val system = mode == com.usos.launcher.data.sections.BackgroundMode.SYSTEM
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(if (system) Color.TRANSPARENT else Color.BLACK))
-        if (system) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-        else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        // windowShowWallpaper=true ya esta en el tema (Theme.Usos); alternar el flag en ejecucion no es fiable en ventanas opacas.
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
     }
 
     /** Lanzado desde el icono «Usos» del cajón (activity-alias): abre directamente los ajustes. */

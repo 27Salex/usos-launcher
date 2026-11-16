@@ -83,14 +83,25 @@ class IconRepository(context: Context) {
             IconMode.COLOR -> LoadedIcon(render(info.getBadgedIcon(density), px, 1f), tint = false)
             IconMode.MONO -> {
                 val d = info.getIcon(density)
-                val mono = (d as? AdaptiveIconDrawable)?.monochrome
+                val adaptive = d as? AdaptiveIconDrawable
+                val mono = adaptive?.monochrome
                 if (mono != null) {
                     // La capa mide 108 dp y la zona visible son los 72 centrales.
                     LoadedIcon(render(mono, px, 1.5f), tint = true)
                 } else {
-                    val bmp = render(d, px, 1f)
+                    // Sin capa monocroma: silueta por contraste con el fondo. En iconos adaptativos, la capa
+                    // delantera contra el color medio de la trasera; en los demás, contra el color del borde.
+                    val fg = adaptive?.foreground
+                    val bmp = if (fg != null) render(fg, px, 1.5f) else render(d, px, 1f)
                     val pixels = IntArray(px * px).also { bmp.getPixels(it, 0, px, 0, 0, px, px) }
-                    val mask = IconMask.grayMask(pixels, invert)
+                    val bg = if (adaptive != null) {
+                        adaptive.background?.let { b ->
+                            val bb = render(b, px, 1.5f)
+                            IconMask.averageColor(IntArray(px * px).also { bb.getPixels(it, 0, px, 0, 0, px, px) })
+                        }
+                    } else IconMask.borderColor(pixels, px)
+                    val mask = IconMask.contrastMask(pixels, bg)
+                        ?: if (fg == null) IconMask.grayMask(pixels, invert) else null
                     if (mask == null) {
                         LoadedIcon(null, false)
                     } else {

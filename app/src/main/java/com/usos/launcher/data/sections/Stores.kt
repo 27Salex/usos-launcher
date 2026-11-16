@@ -136,6 +136,15 @@ class SettingsStore(private val dataStore: DataStore<Preferences>) {
     val searchKeyboard: Flow<Boolean> = dataStore.data.map { it[searchKeyboardKey] ?: false }.distinctUntilChanged()
     suspend fun setSearchKeyboard(on: Boolean) { dataStore.edit { it[searchKeyboardKey] = on } }
 
+    /**
+     * Palabras para filtrar solo web apps en la búsqueda (`search_pwa_keywords`, separadas por salto de línea).
+     * Sin interfaz: se guardan en el dispositivo (p. ej. importando una copia), nunca en el código.
+     */
+    val pwaKeywords: Flow<Set<String>> = dataStore.data.map { p ->
+        p[stringPreferencesKey("search_pwa_keywords")].orEmpty().split('\n')
+            .map { com.usos.launcher.ui.search.SearchFilter.normalize(it.trim()) }.filter { it.isNotEmpty() }.toSet()
+    }.distinctUntilChanged()
+
     /** Asistente de IA elegido (ver AssistantChoice); null = automático (el primero instalado). */
     val assistantChoice: Flow<String?> = dataStore.data.map { it[assistantKey] }.distinctUntilChanged()
     suspend fun setAssistantChoice(v: String?) { dataStore.edit { if (v == null) it.remove(assistantKey) else it[assistantKey] = v } }
@@ -332,8 +341,20 @@ class DisplayStore(private val dataStore: DataStore<Preferences>) {
                 TileSize.fromName(p[infoSizeKey(it)] ?: com.usos.launcher.data.info.InfoPieces.defaultSize(it).name)
             },
             infoHidden = kinds.filter { p[infoHiddenKey(it)] ?: false }.toSet(),
+            sectionOrder = SectionTabs.decodeOrder(p[sectionOrderKey]),
+            hiddenSections = SectionTabs.decodeHidden(p[sectionsHiddenKey]),
         )
     }.distinctUntilChanged()
+
+    private val sectionOrderKey = stringPreferencesKey("section_order")
+    private val sectionsHiddenKey = stringPreferencesKey("sections_hidden")
+    suspend fun setSectionOrder(order: List<Section>) { dataStore.edit { it[sectionOrderKey] = SectionTabs.encode(order) } }
+    suspend fun setSectionHidden(s: Section, hidden: Boolean) {
+        dataStore.edit {
+            val cur = SectionTabs.decodeHidden(it[sectionsHiddenKey])
+            it[sectionsHiddenKey] = SectionTabs.encode(if (hidden) cur + s else cur - s)
+        }
+    }
 
     private val dockOnKey = booleanPreferencesKey("dock_on")
     private val dockSlotsKey = intPreferencesKey("dock_slots")

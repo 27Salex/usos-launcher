@@ -12,6 +12,7 @@ import com.usos.launcher.AppContainer
 import com.usos.launcher.UsosApp
 import android.os.SystemClock
 import com.usos.launcher.data.sections.AppConfig
+import com.usos.launcher.data.tiles.toAppEntry
 import com.usos.launcher.data.info.InfoKind
 import com.usos.launcher.data.info.InfoPiece
 import com.usos.launcher.data.info.InfoPieces
@@ -107,7 +108,11 @@ data class InfoSpec(val kind: InfoKind, val size: TileSize, val hidden: Boolean,
 }
 
 /** [workPaused] = el perfil de trabajo está en pausa: sus apps se ocultan y Trabajo ofrece activarlo. */
-data class HomeUiState(val sections: List<SectionUi>, val open: Section?, val workPaused: Boolean = false)
+data class HomeUiState(
+    val sections: List<SectionUi>, val open: Section?, val workPaused: Boolean = false,
+    /** Piezas propias (destino, contactos) por clave de configuración. */
+    val customTiles: Map<String, com.usos.launcher.data.tiles.CustomTile> = emptyMap(),
+)
 
 class HomeViewModel(private val container: AppContainer) : ViewModel() {
     private val repository = container.appRepository
@@ -204,9 +209,21 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     val budget: StateFlow<Int> = leisureRepo.budget
     val wait: StateFlow<Int> = leisureRepo.wait
 
-    private val apps: StateFlow<List<AppEntry>?> = repository.apps
+    /** Apps instaladas reales (sin piezas propias). */
+    private val realApps: StateFlow<List<AppEntry>?> = repository.apps
         .map<List<AppEntry>, List<AppEntry>?> { it }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val customTiles: StateFlow<List<com.usos.launcher.data.tiles.CustomTile>> = container.customTileStore.tiles
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Apps + piezas propias como «apps virtuales» (paquete `usos.tile.<id>`, serial -1) que ya tienen
+     * configuración: así mosaico, edición, búsqueda y orden las tratan igual que a una app.
+     */
+    private val apps: StateFlow<List<AppEntry>?> = combine(realApps, customTiles, container.appConfigStore.configs) { a, t, c ->
+        a?.plus(t.map { it.toAppEntry() }.filter { it.key in c })
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** null mientras se lee de DataStore; luego la sección abierta o [NoSection]. */
     private val open = MutableStateFlow<Section?>(null)
@@ -266,8 +283,9 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         if (a == null || !loaded || a.any { it.key !in c }) return@combine null
         val grouped = SectionLayout.build(a, c)
         val workPaused = a.any { !it.isMainProfile && it.isQuiet }
+        val visible = extras.prefs.visibleSections
         HomeUiState(
-            sections = Section.home.map { section ->
+            sections = visible.map { section ->
                 // Con el perfil de trabajo en pausa sus apps no se ven en ninguna sección.
                 val placed = grouped[section].orEmpty().filter { !it.app.isQuiet }
                 val infoSize = extras.specs[section]?.visibleSize
@@ -297,8 +315,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     infoSize = if (info != null) infoSize else null,
                 )
             },
-            open = o,
+            // Pestañas: siempre hay una abierta (la recordada si sigue visible, si no la primera).
+            open = o?.takeIf { it in visible } ?: visible.first(),
             workPaused = workPaused,
+            customTiles = customTiles.value.associateBy { com.usos.launcher.data.tiles.CustomTiles.configKey(it.id) },
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -356,7 +376,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             openLoaded.value = true
         }
         viewModelScope.launch {
-            apps.collect { list -> if (list != null) configStore.reconcile(list) }
+            realApps.collect { list -> if (list != null) configStore.reconcile(list) }
         }
         viewModelScope.launch {
             if (!settings.onboardingDone.first()) _route.value = Route.Onboarding
@@ -474,7 +494,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         refreshUsage()
     }
 
-    fun openDetailByKey(key: String) { apps.value?.firstOrNull { it.key == key }?.let { openDetail(it) } }
+    fun openDetailByKey(key: String) {
+        if (com.usos.launcher.data.tiles.CustomTiles.isVirtual(key)) { editCustomTile(key); return }
+        apps.value?.firstOrNull { it.key == key }?.let { openDetail(it) }
+    }
 
     fun openSettings(category: String? = null) { closeSearch(); _route.value = Route.Settings(category) }
     val installedApps: StateFlow<List<AppEntry>?> get() = apps
@@ -629,6 +652,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     val notifMode: StateFlow<com.usos.launcher.data.notify.NotifMode> =
         settings.notifMode.stateIn(viewModelScope, SharingStarted.Eagerly, com.usos.launcher.data.notify.NotifMode.DOT)
+    val pwaKeywords: StateFlow<Set<String>> = settings.pwaKeywords.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
     val searchKeyboard: StateFlow<Boolean> = settings.searchKeyboard.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     fun setSearchKeyboard(on: Boolean) { viewModelScope.launch { settings.setSearchKeyboard(on) } }
     fun setAssistantChoice(v: String?) { viewModelScope.launch { settings.setAssistantChoice(v) } }
@@ -846,6 +870,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun removeFromMosaic(key: String) {
+        if (com.usos.launcher.data.tiles.CustomTiles.isVirtual(key)) { deleteCustomTile(key); return }
         viewModelScope.launch {
             configStore.update { all -> all[key]?.let { all + (key to it.copy(inMosaic = false, manual = true)) } ?: all }
         }
@@ -880,13 +905,83 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** Pestañas: elige la sección visible (ya no se pliega). */
     fun toggleSection(section: Section) {
-        val next = if (open.value == section) null else section
-        open.value = next
-        viewModelScope.launch { settings.setLastOpenSection(next) }
+        open.value = section
+        viewModelScope.launch { settings.setLastOpenSection(section) }
+    }
+
+    fun moveSectionTab(section: Section, delta: Int) {
+        viewModelScope.launch {
+            container.displayStore.setSectionOrder(
+                com.usos.launcher.data.sections.SectionTabs.move(mosaicPrefs.value.sectionOrder, section, delta),
+            )
+        }
+    }
+
+    fun setSectionHidden(section: Section, hidden: Boolean) {
+        viewModelScope.launch { container.displayStore.setSectionHidden(section, hidden) }
+    }
+
+    // ---- Piezas propias ----
+
+    /** Editor abierto: pieza (nueva o existente) y, si es nueva, dónde colocarla. */
+    data class TileEditing(val tile: com.usos.launcher.data.tiles.CustomTile, val isNew: Boolean, val section: Section?, val cell: Cell?)
+    private val _tileEditing = MutableStateFlow<TileEditing?>(null)
+    val tileEditing: StateFlow<TileEditing?> = _tileEditing
+
+    fun newCustomTile(kind: com.usos.launcher.data.tiles.TileKind, section: Section, cell: Cell) {
+        _tileEditing.value = TileEditing(
+            com.usos.launcher.data.tiles.CustomTile(id = com.usos.launcher.data.tiles.CustomTiles.newId(), kind = kind),
+            isNew = true, section = section, cell = cell,
+        )
+    }
+
+    fun editCustomTile(key: String) {
+        val t = customTiles.value.firstOrNull { com.usos.launcher.data.tiles.CustomTiles.configKey(it.id) == key } ?: return
+        _tileEditing.value = TileEditing(t, isNew = false, section = null, cell = null)
+    }
+
+    fun closeTileEditor() { _tileEditing.value = null }
+
+    fun saveCustomTile(tile: com.usos.launcher.data.tiles.CustomTile) {
+        val ed = _tileEditing.value
+        _tileEditing.value = null
+        viewModelScope.launch {
+            container.customTileStore.upsert(tile)
+            val key = com.usos.launcher.data.tiles.CustomTiles.configKey(tile.id)
+            if (ed?.isNew == true && ed.section != null) {
+                configStore.update { all ->
+                    if (key in all) all else all + (key to AppConfig(
+                        packageName = com.usos.launcher.data.tiles.CustomTiles.PACKAGE_PREFIX + tile.id, userSerial = -1L,
+                        section = ed.section, order = (all.values.filter { it.section == ed.section }.maxOfOrNull { it.order } ?: -1) + 1,
+                        inMosaic = true, manual = true,
+                        size = if (tile.kind == com.usos.launcher.data.tiles.TileKind.CONTACTS) TileSize.S2X1 else TileSize.S1X1,
+                    ))
+                }
+                // Espera a que la pieza aparezca en el estado y la coloca en la celda elegida.
+                state.first { s -> s?.sections?.any { sec -> key in sec.tiles } == true }
+                ed.cell?.let { placeTile(key, ed.section, it) }
+            }
+        }
+    }
+
+    fun deleteCustomTile(key: String) {
+        _tileEditing.value = null
+        val id = com.usos.launcher.data.tiles.CustomTiles.idOf(key.substringBefore('/'))
+        viewModelScope.launch {
+            configStore.update { it - key }
+            container.customTileStore.remove(id)
+            container.displayStore.dockPrefs.first().apps.forEachIndexed { i, k -> if (k == key) container.displayStore.setDockApp(i, null) }
+        }
     }
 
     fun openApp(app: AppEntry) {
+        if (com.usos.launcher.data.tiles.CustomTiles.isVirtual(app.packageName)) {
+            customTiles.value.firstOrNull { com.usos.launcher.data.tiles.CustomTiles.configKey(it.id) == app.key }
+                ?.let { com.usos.launcher.data.tiles.TileIntents.launch(container.appContext, it) }
+            return
+        }
         // El launcher nunca abre apps de ocio congeladas, venga la peticion de donde venga.
         if (configs.value[app.key]?.section == Section.LEISURE && !leisureRepo.isOpen()) {
             revealLeisure()

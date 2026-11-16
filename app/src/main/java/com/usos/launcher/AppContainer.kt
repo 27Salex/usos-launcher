@@ -63,6 +63,7 @@ class AppContainer(context: Context) {
     val widgetHost: AppWidgetHost = UsosWidgetHost(appContext, WIDGET_HOST_ID)
     val widgetManager: AppWidgetManager = AppWidgetManager.getInstance(appContext)
     val widgetStore = WidgetStore(dataStore)
+    val customTileStore = com.usos.launcher.data.tiles.CustomTileStore(dataStore)
     internal val dataStoreForBackup get() = dataStore
     val backupManager by lazy { com.usos.launcher.data.backup.BackupManager(this) }
 

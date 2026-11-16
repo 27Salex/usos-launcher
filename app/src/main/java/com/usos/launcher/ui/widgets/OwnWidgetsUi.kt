@@ -9,6 +9,7 @@ import android.os.Looper
 import android.provider.CalendarContract
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -82,19 +84,20 @@ import java.util.Locale
 
 private val PieceShape = RoundedCornerShape(UsosDimens.RadiusPiece)
 
-/** Superficie común de las piezas propias: #111111 con borde #2A2A2A. */
+/** Superficie común de las piezas propias: #111111 con borde blanco destacado (config `border=off` = borde gris fino). */
 @Composable
-private fun PieceSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(modifier.clip(PieceShape).background(UsosColors.Surface).border(1.dp, UsosColors.Border, PieceShape)) { content() }
+private fun PieceSurface(modifier: Modifier = Modifier, bordered: Boolean = true, content: @Composable () -> Unit) {
+    val border = if (bordered) BorderStroke(1.5.dp, UsosColors.Text) else BorderStroke(1.dp, UsosColors.Border)
+    Box(modifier.clip(PieceShape).background(UsosColors.Surface).border(border, PieceShape)) { content() }
 }
 
 /** Pieza propia colocada en la rejilla (la edición la gestiona WidgetsPage, igual que las de Android). */
 @Composable
 fun OwnWidgetBox(widget: HostedWidget, width: Dp, height: Dp, calendarGranted: Boolean, onRequestCalendar: () -> Unit) {
-    PieceSurface(Modifier.size(width, height)) {
+    PieceSurface(Modifier.size(width, height), OwnWidgets.bordered(widget.config)) {
         when (widget.widgetKind) {
             WidgetKind.USOS_MUSIC -> MusicWidget(OwnWidgets.get(widget.config, OwnWidgets.KEY_BARS) == "accent")
-            WidgetKind.USOS_CALENDAR -> CalendarWidget(height, calendarGranted, onRequestCalendar)
+            WidgetKind.USOS_CALENDAR -> CalendarWidget(CalMode.fromKey(OwnWidgets.get(widget.config, OwnWidgets.KEY_MODE)), height, calendarGranted, onRequestCalendar)
             WidgetKind.USOS_CLOCK -> ClockWidget(width, height, OwnWidgets.get(widget.config, OwnWidgets.KEY_TZ).orEmpty())
             WidgetKind.ANDROID -> Unit
         }
@@ -249,8 +252,9 @@ private fun openDay(context: Context, date: LocalDate, zone: ZoneId) {
 }
 
 @Composable
-private fun CalendarWidget(height: Dp, granted: Boolean, onRequest: () -> Unit) {
+private fun CalendarWidget(mode: CalMode, height: Dp, granted: Boolean, onRequest: () -> Unit) {
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
     val zone = remember { ZoneId.systemDefault() }
     val nowState = rememberNow()
     val today by remember { derivedStateOf { nowState.value.toLocalDate() } }
@@ -264,12 +268,13 @@ private fun CalendarWidget(height: Dp, granted: Boolean, onRequest: () -> Unit) 
     }
     var events by remember { mutableStateOf(emptyList<CalEvent>()) }
     val repo = remember { AgendaRepository(context) }
-    // Una sola consulta: todo el mes (o hasta pasado mañana si hoy es fin de mes). Se repite al cambiar el calendario o el día.
-    LaunchedEffect(granted, today, tick) {
+    // Una sola consulta: todo el mes, la semana en curso (puede cruzar de mes) y hasta pasado mañana. Se repite al cambiar el calendario o el día.
+    LaunchedEffect(granted, today, tick, locale) {
         events = if (!granted) emptyList() else {
-            val start = YearMonth.from(today).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            val week = CalendarLogic.weekOf(today, DateText.firstDayOfWeek(locale))
+            val start = minOf(YearMonth.from(today).atDay(1), week.first()).atStartOfDay(zone).toInstant().toEpochMilli()
             val end = maxOf(
-                YearMonth.from(today).plusMonths(1).atDay(1), today.plusDays(2),
+                YearMonth.from(today).plusMonths(1).atDay(1), today.plusDays(2), week.last().plusDays(1),
             ).atStartOfDay(zone).toInstant().toEpochMilli()
             repo.range(start, end)
         }
@@ -280,72 +285,140 @@ private fun CalendarWidget(height: Dp, granted: Boolean, onRequest: () -> Unit) 
         }
         return
     }
+    var picked by remember(today) { mutableStateOf<LocalDate?>(null) }
     val nowMs = nowState.value.atZone(zone).toInstant().toEpochMilli()
     CalendarView(
-        large = height >= 240.dp, today = today, nowMs = nowMs, zone = zone, events = events,
-        onEvent = { openEvent(context, it) }, onDay = { openDay(context, it, zone) },
+        mode = mode, large = height >= 240.dp, today = today, selected = picked ?: today, nowMs = nowMs, zone = zone, events = events,
+        onEvent = { openEvent(context, it) }, onDay = { openDay(context, it, zone) }, onSelect = { picked = it },
     )
 }
 
+private val EventRowH = 20.dp
+private val HeaderRowH = 18.dp
+
 @Composable
 private fun CalendarView(
-    large: Boolean, today: LocalDate, nowMs: Long, zone: ZoneId, events: List<CalEvent>,
-    onEvent: (CalEvent) -> Unit, onDay: (LocalDate) -> Unit,
+    mode: CalMode, large: Boolean, today: LocalDate, selected: LocalDate, nowMs: Long, zone: ZoneId, events: List<CalEvent>,
+    onEvent: (CalEvent) -> Unit, onDay: (LocalDate) -> Unit, onSelect: (LocalDate) -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
-    val lineH = 18.dp
+    val shown = if (mode != CalMode.AUTO) mode else if (large) CalMode.MONTH else CalMode.AGENDA
     BoxWithConstraints(Modifier.fillMaxSize().padding(12.dp)) {
-        if (!large) {
-            val items = CalendarLogic.agenda(events, nowMs, zone, 2)
-            AgendaList(items, today, zone, locale, (maxHeight / lineH).toInt().coerceAtLeast(1), onEvent)
-        } else {
-            val month = YearMonth.from(today)
-            val grid = remember(month, locale) { CalendarLogic.monthGrid(month, DateText.firstDayOfWeek(locale)) }
-            val marked = remember(events, zone) { CalendarLogic.eventDays(events, zone) }
-            val accent = LocalAccent.current
-            val cellH = 26.dp
-            val fixed = 20.dp + 18.dp + cellH * grid.size + 6.dp
-            val lines = ((maxHeight - fixed) / lineH).toInt().coerceAtLeast(0)
-            Column(Modifier.fillMaxSize()) {
-                UsosText(
-                    month.month.getDisplayName(TextStyle.FULL, locale).uppercase(locale) + " " + month.year,
-                    UsosType.PanelState, UsosColors.Text, Modifier.height(20.dp),
-                )
-                Row(Modifier.fillMaxWidth().height(18.dp)) {
-                    grid.first().forEach { c ->
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                            UsosText(DateText.weekLetter(c.date, locale), UsosType.Label, UsosColors.TextSecondary)
-                        }
-                    }
+        when (shown) {
+            CalMode.WEEK -> WeekView(today, selected, nowMs, zone, locale, events, maxHeight, onEvent, onSelect)
+            CalMode.MONTH -> MonthView(today, nowMs, zone, locale, events, maxHeight, onEvent, onDay)
+            else -> AgendaList(CalendarLogic.agenda(events, nowMs, zone, 2), today, zone, locale, nowMs, maxHeight, onEvent)
+        }
+    }
+}
+
+@Composable
+private fun MonthView(
+    today: LocalDate, nowMs: Long, zone: ZoneId, locale: Locale, events: List<CalEvent>, maxHeight: Dp,
+    onEvent: (CalEvent) -> Unit, onDay: (LocalDate) -> Unit,
+) {
+    val month = YearMonth.from(today)
+    val grid = remember(month, locale) { CalendarLogic.monthGrid(month, DateText.firstDayOfWeek(locale)) }
+    val marked = remember(events, zone) { CalendarLogic.eventDays(events, zone) }
+    val accent = LocalAccent.current
+    val cellH = 26.dp
+    val fixed = 20.dp + 18.dp + cellH * grid.size + 6.dp
+    val room = maxHeight - fixed
+    Column(Modifier.fillMaxSize()) {
+        UsosText(
+            month.month.getDisplayName(TextStyle.FULL, locale).uppercase(locale) + " " + month.year,
+            UsosType.PanelState, UsosColors.Text, Modifier.height(20.dp),
+        )
+        Row(Modifier.fillMaxWidth().height(18.dp)) {
+            grid.first().forEach { c ->
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    UsosText(DateText.weekLetter(c.date, locale), UsosType.Label, UsosColors.TextSecondary)
                 }
-                grid.forEach { week ->
-                    Row(Modifier.fillMaxWidth().height(cellH)) {
-                        week.forEach { c ->
-                            Box(Modifier.weight(1f).height(cellH).tap { onDay(c.date) }, contentAlignment = Alignment.Center) {
-                                val isToday = c.date == today
-                                if (!c.inMonth) {
-                                    Box(Modifier.size(2.dp).background(UsosColors.Border, CircleShape))
-                                } else {
-                                    Box(
-                                        Modifier.size(22.dp).then(if (isToday) Modifier.background(UsosColors.Text, CircleShape) else Modifier),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        UsosText(
-                                            c.date.dayOfMonth.toString(), UsosType.Label,
-                                            if (isToday) UsosColors.OnAccent else UsosColors.TextTertiary,
-                                        )
-                                    }
-                                    if (c.date in marked) {
-                                        Box(Modifier.align(Alignment.BottomCenter).size(3.dp).background(accent, CircleShape))
-                                    }
-                                }
+            }
+        }
+        grid.forEach { week ->
+            Row(Modifier.fillMaxWidth().height(cellH)) {
+                week.forEach { c ->
+                    Box(Modifier.weight(1f).height(cellH).tap { onDay(c.date) }, contentAlignment = Alignment.Center) {
+                        val isToday = c.date == today
+                        if (!c.inMonth) {
+                            Box(Modifier.size(2.dp).background(UsosColors.Border, CircleShape))
+                        } else {
+                            Box(
+                                Modifier.size(22.dp).then(if (isToday) Modifier.background(UsosColors.Text, CircleShape) else Modifier),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                UsosText(
+                                    c.date.dayOfMonth.toString(), UsosType.Label,
+                                    if (isToday) UsosColors.OnAccent else UsosColors.TextTertiary,
+                                )
+                            }
+                            if (c.date in marked) {
+                                Box(Modifier.align(Alignment.BottomCenter).size(3.dp).background(accent, CircleShape))
                             }
                         }
                     }
                 }
-                Spacer(Modifier.height(6.dp))
-                if (lines > 0) {
-                    AgendaList(CalendarLogic.agenda(events, nowMs, zone, 62), today, zone, locale, lines, onEvent)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        if (room >= EventRowH) {
+            AgendaList(CalendarLogic.agenda(events, nowMs, zone, 62), today, zone, locale, nowMs, room, onEvent)
+        }
+    }
+}
+
+/** Tira de la semana (como la del inicio) + eventos del día elegido. */
+@Composable
+private fun WeekView(
+    today: LocalDate, selected: LocalDate, nowMs: Long, zone: ZoneId, locale: Locale, events: List<CalEvent>, maxHeight: Dp,
+    onEvent: (CalEvent) -> Unit, onSelect: (LocalDate) -> Unit,
+) {
+    val week = remember(today, locale) { CalendarLogic.weekOf(today, DateText.firstDayOfWeek(locale)) }
+    val marked = remember(events, zone) { CalendarLogic.eventDays(events, zone) }
+    val dayEvents = remember(events, selected, zone) { CalendarLogic.eventsOn(events, selected, zone) }
+    val accent = LocalAccent.current
+    val stripH = 14.dp + 4.dp + 28.dp + 7.dp
+    val room = maxHeight - stripH - 6.dp - HeaderRowH
+    val fit = (room / EventRowH).toInt().coerceAtLeast(0)
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth()) {
+            week.forEach { day ->
+                val isToday = day == today
+                val isSel = day == selected
+                Column(Modifier.weight(1f).height(stripH).tap { onSelect(day) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                    UsosText(DateText.weekLetter(day, locale), UsosType.WeekLetter, UsosColors.TextSecondary, Modifier.height(14.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        Modifier.size(28.dp)
+                            .then(if (isToday) Modifier.background(UsosColors.Text, CircleShape) else Modifier)
+                            .then(if (isSel && !isToday) Modifier.border(1.dp, UsosColors.Text, CircleShape) else Modifier),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        UsosText(
+                            day.dayOfMonth.toString(),
+                            if (isToday) UsosType.WeekNumber.copy(fontWeight = FontWeight.Bold) else UsosType.WeekNumber,
+                            if (isToday) UsosColors.OnAccent else if (isSel) UsosColors.Text else UsosColors.TextTertiary,
+                        )
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    Box(Modifier.size(3.dp).then(if (day in marked) Modifier.background(accent, CircleShape) else Modifier))
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        UsosText(dayLabel(selected, today, locale), UsosType.Label, UsosColors.TextSecondary, Modifier.height(HeaderRowH))
+        when {
+            dayEvents.isEmpty() -> UsosText(stringResource(R.string.widget_cal_empty), UsosType.Label, UsosColors.TextTertiary)
+            fit <= 0 -> Unit
+            else -> {
+                val rows = (if (dayEvents.size > fit && fit >= 2) fit - 1 else fit).coerceAtLeast(1)
+                dayEvents.take(rows).forEach { e ->
+                    EventRow(e, zone, nowMs, dim = selected == today && !e.allDay && e.endMs <= nowMs, onEvent)
+                }
+                val hidden = dayEvents.size - rows
+                if (hidden > 0) {
+                    UsosText(stringResource(R.string.widget_cal_more, hidden), UsosType.Label, UsosColors.TextTertiary, Modifier.height(EventRowH))
                 }
             }
         }
@@ -353,29 +426,63 @@ private fun CalendarView(
 }
 
 @Composable
+private fun dayLabel(date: LocalDate, today: LocalDate, locale: Locale): String = when (date) {
+    today -> stringResource(R.string.widget_cal_today)
+    today.plusDays(1) -> stringResource(R.string.widget_cal_tomorrow)
+    else -> date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale).uppercase(locale).trimEnd('.') + " " + date.dayOfMonth + " " +
+        date.month.getDisplayName(TextStyle.SHORT, locale).uppercase(locale).trimEnd('.')
+}
+
+/** Fila de evento: marcador de «ahora» (acento), hora en mono (o «todo el día») y título. */
+@Composable
+private fun EventRow(e: CalEvent, zone: ZoneId, nowMs: Long, dim: Boolean, onEvent: (CalEvent) -> Unit) {
+    val ongoing = CalendarLogic.isOngoing(e, nowMs)
+    val accent = LocalAccent.current
+    val time = if (e.allDay) stringResource(R.string.widget_cal_allday) else
+        java.time.Instant.ofEpochMilli(e.beginMs).atZone(zone).let { z -> "%02d:%02d".format(z.hour, z.minute) }
+    val titleColor = if (dim) UsosColors.TextTertiary else UsosColors.Text
+    Row(Modifier.fillMaxWidth().height(EventRowH).tap { onEvent(e) }, verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(3.dp).height(12.dp).then(if (ongoing) Modifier.background(accent) else Modifier))
+        Spacer(Modifier.width(7.dp))
+        UsosText(
+            time, UsosType.Label,
+            if (ongoing) accent else if (e.allDay || dim) UsosColors.TextTertiary else UsosColors.TextSecondary,
+            Modifier.width(if (e.allDay) 64.dp else 40.dp), maxLines = 1,
+        )
+        UsosText(e.title.ifBlank { "-" }, UsosType.Label, titleColor, Modifier.weight(1f), maxLines = 1)
+    }
+}
+
+/** Agenda agrupada por día (HOY / MAÑANA / fecha) con marcador del evento en curso. */
+@Composable
 private fun AgendaList(
-    items: List<CalendarLogic.AgendaItem>, today: LocalDate, zone: ZoneId, locale: Locale, lines: Int,
+    items: List<CalendarLogic.AgendaItem>, today: LocalDate, zone: ZoneId, locale: Locale, nowMs: Long, room: Dp,
     onEvent: (CalEvent) -> Unit,
 ) {
     if (items.isEmpty()) {
-        UsosText(stringResource(R.string.widget_cal_empty), UsosType.Label, UsosColors.TextSecondary)
+        Box(Modifier.fillMaxWidth().height(minOf(room, 40.dp)), contentAlignment = Alignment.CenterStart) {
+            UsosText(stringResource(R.string.widget_cal_empty), UsosType.Label, UsosColors.TextSecondary)
+        }
         return
     }
-    val todayLabel = stringResource(R.string.widget_cal_today)
-    val tomorrowLabel = stringResource(R.string.widget_cal_tomorrow)
+    val rows = remember(items) { CalendarLogic.agendaRows(items) }
+    val visible = ArrayList<CalendarLogic.AgendaRow>()
+    var used = 0.dp
+    for (r in rows) {
+        val h = if (r is CalendarLogic.AgendaRow.Header) HeaderRowH else EventRowH
+        if (used + h > room) break
+        visible.add(r); used += h
+    }
+    while (visible.lastOrNull() is CalendarLogic.AgendaRow.Header) visible.removeAt(visible.lastIndex)
     Column {
-        items.take(lines).forEach { it ->
-            val day = when (it.date) {
-                today -> todayLabel
-                today.plusDays(1) -> tomorrowLabel
-                else -> it.date.dayOfMonth.toString() + " " + it.date.month.getDisplayName(TextStyle.SHORT, locale).uppercase(locale).trimEnd('.')
-            }
-            val time = if (it.event.allDay) "--:--" else
-                java.time.Instant.ofEpochMilli(it.event.beginMs).atZone(zone).let { z -> "%02d:%02d".format(z.hour, z.minute) }
-            Row(Modifier.fillMaxWidth().height(18.dp).tap { onEvent(it.event) }, verticalAlignment = Alignment.CenterVertically) {
-                UsosText(day, UsosType.Label, UsosColors.TextSecondary, Modifier.width(58.dp))
-                UsosText(time, UsosType.Label, UsosColors.Text, Modifier.width(44.dp))
-                UsosText(it.event.title.ifBlank { "-" }, UsosType.Label, UsosColors.Text, Modifier.weight(1f))
+        visible.forEach { r ->
+            when (r) {
+                is CalendarLogic.AgendaRow.Header -> Row(Modifier.fillMaxWidth().height(HeaderRowH), verticalAlignment = Alignment.CenterVertically) {
+                    UsosText(dayLabel(r.date, today, locale), UsosType.PanelState, UsosColors.TextSecondary)
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1f).height(1.dp).background(UsosColors.Border))
+                }
+                is CalendarLogic.AgendaRow.Item -> EventRow(r.event, zone, nowMs, dim = false, onEvent)
             }
         }
     }
@@ -421,7 +528,7 @@ fun OwnWidgetPreview(kind: WidgetKind, tall: Boolean, modifier: Modifier = Modif
                     CalEvent("Sample", base, base + 3_600_000L, false),
                     CalEvent("Sample", base + 86_400_000L, base + 90_000_000L, false),
                 )
-                CalendarView(tall, today, base - 3_600_000L, zone, sample, {}, {})
+                CalendarView(CalMode.AUTO, tall, today, today, base + 1_800_000L, zone, sample, {}, {}, {})
             }
             WidgetKind.USOS_CLOCK -> ClockWidget(300.dp, h, "")
             WidgetKind.ANDROID -> Unit
@@ -450,7 +557,35 @@ fun OwnConfigPanel(widget: HostedWidget, onChange: (String) -> Unit, onClose: ()
     ) {
         ScreenHeader(stringResource(R.string.bubble_reconfigure), onBack = onClose)
         Spacer(Modifier.height(12.dp))
+        val bordered = OwnWidgets.bordered(widget.config)
+        UsosText(stringResource(R.string.widget_config_border), UsosType.Label, UsosColors.TextSecondary)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            UsosPill(stringResource(R.string.widget_border_on), filled = bordered, onClick = { onChange(OwnWidgets.with(widget.config, OwnWidgets.KEY_BORDER, null)) }, modifier = Modifier.weight(1f))
+            UsosPill(stringResource(R.string.widget_border_off), filled = !bordered, onClick = { onChange(OwnWidgets.with(widget.config, OwnWidgets.KEY_BORDER, "off")) }, modifier = Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(16.dp))
         when (widget.widgetKind) {
+            WidgetKind.USOS_CALENDAR -> {
+                val cur = CalMode.fromKey(OwnWidgets.get(widget.config, OwnWidgets.KEY_MODE))
+                UsosText(stringResource(R.string.widget_config_cal_mode), UsosType.Label, UsosColors.TextSecondary)
+                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CalMode.entries.forEach { m ->
+                        UsosPill(
+                            stringResource(when (m) {
+                                CalMode.AUTO -> R.string.widget_cal_mode_auto
+                                CalMode.WEEK -> R.string.widget_cal_mode_week
+                                CalMode.MONTH -> R.string.widget_cal_mode_month
+                                CalMode.AGENDA -> R.string.widget_cal_mode_agenda
+                            }),
+                            filled = m == cur,
+                            onClick = { onChange(OwnWidgets.with(widget.config, OwnWidgets.KEY_MODE, m.key)) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
             WidgetKind.USOS_MUSIC -> {
                 val accent = OwnWidgets.get(widget.config, OwnWidgets.KEY_BARS) == "accent"
                 UsosText(stringResource(R.string.widget_config_bars), UsosType.Label, UsosColors.TextSecondary)

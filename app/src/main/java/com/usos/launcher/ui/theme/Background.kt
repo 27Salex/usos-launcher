@@ -31,7 +31,7 @@ fun AppBackground(prefs: BackgroundPrefs, modifier: Modifier = Modifier.fillMaxS
     when (prefs.mode) {
         BackgroundMode.BLACK -> Box(modifier.background(UsosColors.Background))
         BackgroundMode.COLOR -> Box(modifier.background(Color(prefs.color)))
-        BackgroundMode.SYSTEM -> Box(modifier)
+        BackgroundMode.SYSTEM -> Box(modifier.background(Color.Black.copy(alpha = prefs.dim / 100f)))
         BackgroundMode.IMAGE -> {
             val context = LocalContext.current
             val bmp by produceState<ImageBitmap?>(null, prefs.imageVersion) {

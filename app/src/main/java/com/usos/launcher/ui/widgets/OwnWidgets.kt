@@ -26,7 +26,7 @@ object OwnWidgets {
     }
 
     /** Si la pieza tiene ajustes propios (el botón de configurar de la edición). */
-    fun configurable(kind: WidgetKind) = kind == WidgetKind.USOS_MUSIC || kind == WidgetKind.USOS_CLOCK
+    fun configurable(kind: WidgetKind) = kind != WidgetKind.ANDROID
 
     fun parse(config: String): Map<String, String> =
         config.split(';').mapNotNull { p -> p.indexOf('=').takeIf { it > 0 }?.let { p.substring(0, it) to p.substring(it + 1) } }.toMap()
@@ -41,4 +41,8 @@ object OwnWidgets {
 
     const val KEY_BARS = "bars"   // música: "accent" o vacío (blancas)
     const val KEY_TZ = "tz"       // reloj: id de zona o vacío (la del sistema)
+    const val KEY_MODE = "mode"   // calendario: week | month | agenda; vacío = automático por alto
+    const val KEY_BORDER = "border" // todas: "off" quita el borde blanco; vacío = con borde
+
+    fun bordered(config: String): Boolean = get(config, KEY_BORDER) != "off"
 }

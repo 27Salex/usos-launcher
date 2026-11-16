@@ -91,6 +91,7 @@ fun SearchOverlay(
     assistantName: String? = null,
     onAsk: (String) -> Unit = {},
     restEndInset: Dp = 0.dp,
+    pwaKeywords: Set<String> = emptySet(),
 ) {
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -108,14 +109,7 @@ fun SearchOverlay(
         }
     }
 
-    // El teclado intercepta el primer "atras": si se oculta con la busqueda abierta, se cierra la busqueda
-    // en esa misma pulsacion (una sola en total).
-    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    var imeWasShown by remember(open) { mutableStateOf(false) }
-    LaunchedEffect(open, imeVisible) {
-        if (!open) return@LaunchedEffect
-        if (imeVisible) imeWasShown = true else if (imeWasShown) onClose()
-    }
+    // Ocultar el teclado (atrás o el botón del teclado) NO cierra la búsqueda: el siguiente atrás la cierra.
     if (!open && progress <= 0f) return
 
     val p = progress.coerceIn(0f, 1f)
@@ -130,7 +124,7 @@ fun SearchOverlay(
         val restTop = maxHeight - navBar - 12.dp - SearchBarRestHeight
         val topY = statusTop + 8.dp
 
-        val groups = remember(items, query) { SearchFilter.groups(items, query) }
+        val groups = remember(items, query, pwaKeywords) { SearchFilter.groups(items, query, pwaKeywords) }
         val showSettings = SearchFilter.matchesSettings(query)
         val listState = rememberLazyListState()
         Column(

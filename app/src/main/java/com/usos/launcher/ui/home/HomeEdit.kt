@@ -24,6 +24,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.usos.launcher.ui.theme.themed
+import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -265,17 +269,27 @@ fun RowsControl(rows: Int, onDelta: (Int) -> Unit) {
 }
 
 /** Lista para añadir una app a la sección: primero las de la sección fuera del mosaico y «OTRAS…» para cualquiera. */
+/**
+ * Añadir al mosaico de [section]: pestañas por sección (la propia primero; [extraTab] = pestaña PIEZAS con piezas
+ * propias si se pasa) y buscador. En la propia solo salen las apps que no se ven ya en el mosaico.
+ */
 @Composable
 fun AddPicker(
     section: Section,
-    own: List<PlacedApp>,
-    others: List<Pair<Section, PlacedApp>>,
+    groups: List<Pair<Section, List<PlacedApp>>>,
+    shownKeys: Set<String>,
     onPick: (PlacedApp) -> Unit,
     onClose: () -> Unit,
+    extraTab: String? = null,
+    extraContent: (@Composable () -> Unit)? = null,
 ) {
     BackHandler { onClose() }
-    var showOthers by remember { mutableStateOf(false) }
     val accent = LocalAccent.current
+    val tabs = remember(groups, section) {
+        listOf(section) + groups.map { it.first }.filter { it != section }
+    }
+    var tab by remember { mutableStateOf<Section?>(section) } // null = pestaña extra
+    var query by remember { mutableStateOf("") }
     Column(
         Modifier.fillMaxSize().background(UsosColors.Background)
             .pressGestures { }
@@ -284,32 +298,62 @@ fun AddPicker(
         Row(
             Modifier.fillMaxWidth().padding(top = 48.dp).height(UsosDimens.MinTouch),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                BackGlyph(onClose)
-                UsosText(stringResource(R.string.edit_add_to, stringResource(section.titleRes).uppercase()), UsosType.Button, accent)
+            BackGlyph(onClose)
+            UsosText(stringResource(R.string.edit_add_to, stringResource(section.titleRes).uppercase()), UsosType.Button, accent)
+        }
+        val fieldShape = androidx.compose.foundation.shape.RoundedCornerShape(UsosDimens.RadiusPiece)
+        Box(
+            Modifier.fillMaxWidth().padding(vertical = 8.dp).height(52.dp)
+                .background(UsosColors.Surface, fieldShape)
+                .border(1.dp, UsosColors.Border, fieldShape).padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (query.isEmpty()) UsosText(stringResource(R.string.dock_search_hint), UsosType.SearchHint, UsosColors.TextSecondary)
+            androidx.compose.foundation.text.BasicTextField(
+                value = query, onValueChange = { query = it }, singleLine = true,
+                textStyle = UsosType.SearchInput.themed().copy(color = UsosColors.Text),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(accent),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        val searching = query.isNotBlank()
+        if (!searching) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 6.dp)) {
+                if (extraTab != null && extraContent != null) TabPill(extraTab, tab == null) { tab = null }
+                tabs.forEach { s -> TabPill(stringResource(s.titleRes).uppercase(), tab == s) { tab = s } }
             }
-            Box(Modifier.height(UsosDimens.MinTouch).pressGestures { onClose() }.padding(start = 16.dp), contentAlignment = Alignment.CenterEnd) {
-                UsosText(stringResource(R.string.close), UsosType.Button, UsosColors.Text)
+        }
+        if (!searching && tab == null && extraContent != null) {
+            Box(Modifier.fillMaxSize()) { extraContent() }
+            return@Column
+        }
+        val rows: List<Pair<Section, PlacedApp>> = remember(groups, tab, query, shownKeys) {
+            if (searching) {
+                groups.flatMap { (s, l) -> l.map { s to it } }
+                    .mapNotNull { p -> com.usos.launcher.ui.search.SearchFilter.score(p.second.app.label, com.usos.launcher.ui.search.SearchFilter.normalize(query))?.let { p to it } }
+                    .sortedWith(compareBy({ it.second }, { it.first.second.app.label.lowercase() })).map { it.first }
+            } else {
+                val s = tab ?: section
+                groups.firstOrNull { it.first == s }?.second.orEmpty()
+                    .filter { s != section || it.config.key !in shownKeys }
+                    .sortedBy { it.app.label.lowercase() }.map { s to it }
             }
         }
         LazyColumn(Modifier.fillMaxSize()) {
-            if (!showOthers) {
-                if (own.isEmpty()) {
-                    item { UsosText(stringResource(R.string.edit_no_apps_left), UsosType.Empty, UsosColors.TextSecondary, Modifier.padding(vertical = 8.dp)) }
-                }
-                items(own, key = { it.config.key }) { PickerRow(it, null, onPick) }
-                item {
-                    Box(Modifier.fillMaxWidth().height(UsosDimens.MinTouch + 8.dp).pressGestures { showOthers = true }, contentAlignment = Alignment.CenterStart) {
-                        UsosText(stringResource(R.string.edit_others), UsosType.Button, accent)
-                    }
-                }
-            } else {
-                items(others, key = { it.second.config.key }) { (s, app) -> PickerRow(app, stringResource(s.titleRes).uppercase(), onPick) }
+            if (rows.isEmpty()) {
+                item { UsosText(stringResource(R.string.edit_no_apps_left), UsosType.Empty, UsosColors.TextSecondary, Modifier.padding(vertical = 8.dp)) }
+            }
+            items(rows, key = { it.second.config.key }) { (s, app) ->
+                PickerRow(app, if (s != section) stringResource(s.titleRes).uppercase() else null, onPick)
             }
         }
     }
+}
+
+@Composable
+private fun TabPill(text: String, active: Boolean, onClick: () -> Unit) {
+    Box(Modifier.padding(end = 8.dp)) { UsosPill(text, filled = active, onClick = onClick) }
 }
 
 @Composable
@@ -318,7 +362,9 @@ private fun PickerRow(app: PlacedApp, tag: String?, onPick: (PlacedApp) -> Unit)
         Modifier.fillMaxWidth().height(UsosDimens.MinTouch + 4.dp).pressGestures { onPick(app) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        UsosText(app.code, UsosType.SmallCode, UsosColors.Text, Modifier.width(40.dp))
+        Box(Modifier.width(44.dp), contentAlignment = Alignment.CenterStart) {
+            com.usos.launcher.ui.theme.AppIconOrNull(app.app, 26.dp, UsosColors.Text) { UsosText(app.code, UsosType.SmallCode, UsosColors.Text) }
+        }
         UsosText(app.app.label, UsosType.Pill, UsosColors.Text, Modifier.weight(1f))
         if (tag != null) UsosText(tag, UsosType.SmallTag, UsosColors.TextSecondary)
     }

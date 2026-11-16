@@ -51,7 +51,14 @@ data class MosaicPrefs(
     val rows: Map<com.usos.launcher.domain.Section, Int> = emptyMap(),
     val infoSize: Map<com.usos.launcher.data.info.InfoKind, TileSize> = emptyMap(),
     val infoHidden: Set<com.usos.launcher.data.info.InfoKind> = emptySet(),
+    /** Orden de las pestañas del inicio y secciones ocultas (Ajustes > Inicio > Secciones). */
+    val sectionOrder: List<com.usos.launcher.domain.Section> = com.usos.launcher.domain.Section.home,
+    val hiddenSections: Set<com.usos.launcher.domain.Section> = emptySet(),
 ) {
+    /** Pestañas visibles en orden; nunca vacía (si se ocultan todas se ve la primera). */
+    val visibleSections: List<com.usos.launcher.domain.Section>
+        get() = sectionOrder.filter { it !in hiddenSections }.ifEmpty { sectionOrder.take(1) }
+
     fun rowsFor(s: com.usos.launcher.domain.Section): Int = rows[s] ?: MosaicPacker.DEFAULT_ROWS
     fun infoSizeFor(k: com.usos.launcher.data.info.InfoKind): TileSize =
         infoSize[k] ?: com.usos.launcher.data.info.InfoPieces.defaultSize(k)
@@ -96,3 +103,27 @@ data class NightstandPrefs(
     val seconds: Boolean = false,
     val dim: Boolean = true,
 )
+
+/** Codificación del orden y la ocultación de secciones (nombres del enum separados por comas). Pura. */
+object SectionTabs {
+    private val home = com.usos.launcher.domain.Section.home
+
+    /** Orden guardado: nombres válidos sin repetir y, al final, las que falten en su orden por defecto. */
+    fun decodeOrder(raw: String?): List<com.usos.launcher.domain.Section> {
+        val saved = raw.orEmpty().split(',').mapNotNull { n -> home.firstOrNull { it.name == n.trim() } }.distinct()
+        return saved + home.filter { it !in saved }
+    }
+
+    fun decodeHidden(raw: String?): Set<com.usos.launcher.domain.Section> =
+        raw.orEmpty().split(',').mapNotNull { n -> home.firstOrNull { it.name == n.trim() } }.toSet()
+
+    fun encode(list: Collection<com.usos.launcher.domain.Section>): String = list.joinToString(",") { it.name }
+
+    /** Mueve [s] [delta] posiciones. */
+    fun move(order: List<com.usos.launcher.domain.Section>, s: com.usos.launcher.domain.Section, delta: Int): List<com.usos.launcher.domain.Section> {
+        val from = order.indexOf(s)
+        if (from < 0) return order
+        val to = (from + delta).coerceIn(0, order.lastIndex)
+        return order.toMutableList().apply { removeAt(from); add(to, s) }
+    }
+}

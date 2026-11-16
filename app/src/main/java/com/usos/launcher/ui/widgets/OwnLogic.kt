@@ -73,4 +73,45 @@ object CalendarLogic {
             if (!day.isBefore(limit)) null else AgendaItem(day, e)
         }.sortedWith(compareBy({ it.date }, { !it.event.allDay }, { it.event.beginMs }))
     }
+
+    /** Fila de la agenda agrupada: cabecera de día o evento. */
+    sealed interface AgendaRow {
+        data class Header(val date: LocalDate) : AgendaRow
+        data class Item(val event: CalEvent) : AgendaRow
+    }
+
+    /** Agrupa la agenda (ya ordenada por fecha) con una cabecera por día. */
+    fun agendaRows(items: List<AgendaItem>): List<AgendaRow> {
+        val out = ArrayList<AgendaRow>()
+        var last: LocalDate? = null
+        for (it in items) {
+            if (it.date != last) { out.add(AgendaRow.Header(it.date)); last = it.date }
+            out.add(AgendaRow.Item(it.event))
+        }
+        return out
+    }
+
+    /** Eventos que ocupan [date]: primero los de todo el día y luego por hora de inicio. */
+    fun eventsOn(events: List<CalEvent>, date: LocalDate, zone: ZoneId): List<CalEvent> =
+        events.filter { date in daysOf(it, zone) }.sortedWith(compareBy({ !it.allDay }, { it.beginMs }))
+
+    /** Evento en curso (no de todo el día). */
+    fun isOngoing(e: CalEvent, nowMs: Long): Boolean = !e.allDay && e.beginMs <= nowMs && nowMs < e.endMs
+
+    /** Semana (7 días) que contiene [date], empezando en [first]. */
+    fun weekOf(date: LocalDate, first: DayOfWeek): List<LocalDate> {
+        val start = date.minusDays(((date.dayOfWeek.value - first.value + 7) % 7).toLong())
+        return List(7) { start.plusDays(it.toLong()) }
+    }
+}
+
+/** Modo del calendario (config `mode`); sin clave = automático según el alto. */
+enum class CalMode {
+    AUTO, WEEK, MONTH, AGENDA;
+
+    val key: String? get() = if (this == AUTO) null else name.lowercase()
+
+    companion object {
+        fun fromKey(v: String?): CalMode = entries.firstOrNull { it != AUTO && it.name.equals(v, ignoreCase = true) } ?: AUTO
+    }
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_cal_allday">ALL DAY</string>
+    <string name="widget_cal_more">+%1$d MORE</string>
+    <string name="widget_config_border">BORDER</string>
+    <string name="widget_border_on">WHITE</string>
+    <string name="widget_border_off">NONE</string>
+    <string name="widget_config_cal_mode">VIEW</string>
+    <string name="widget_cal_mode_auto">AUTOMATIC</string>
+    <string name="widget_cal_mode_week">WEEK</string>
+    <string name="widget_cal_mode_month">MONTH</string>
+    <string name="widget_cal_mode_agenda">AGENDA</string>
+</resources>

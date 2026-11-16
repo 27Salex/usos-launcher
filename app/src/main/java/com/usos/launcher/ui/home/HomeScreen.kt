@@ -53,6 +53,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
@@ -157,6 +160,7 @@ fun HomeScreen(
     val mosaicCols by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
     val assistantUi by viewModel.assistantUi.collectAsStateWithLifecycle()
     val searchKeyboardOn by viewModel.searchKeyboard.collectAsStateWithLifecycle()
+    val pwaKeywords by viewModel.pwaKeywords.collectAsStateWithLifecycle()
     var aiPicker by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     val grayscale by viewModel.widgetsGrayscale.collectAsStateWithLifecycle()
     val clockPrefs by viewModel.clockPrefs.collectAsStateWithLifecycle()
@@ -299,6 +303,7 @@ fun HomeScreen(
                     onCancelThaw = viewModel::cancelThaw,
                     onFreeze = viewModel::freezeLeisure,
                     onOpenInfo = viewModel::openInfo,
+                    onNewTile = viewModel::newCustomTile,
                     dock = if (!dockPrefs.on) null else { ed, hide ->
                         Dock(
                             dockApps, ed, hide, onOpen = viewModel::openApp, onPick = { dockPicking = it },
@@ -330,6 +335,7 @@ fun HomeScreen(
             onOpenSettings = viewModel::openSettings,
             onClose = viewModel::closeSearch,
             autoKeyboard = searchKeyboardOn,
+            pwaKeywords = pwaKeywords,
             assistantName = assistantUi.resolved?.assistant?.label,
             onAsk = viewModel::askAssistant,
             restEndInset = if (assistantUi.resolved != null) AiButtonSize + AiGap else 0.dp,
@@ -422,6 +428,8 @@ fun HomeScreen(
                         onDockSlots = viewModel::setDockSlots,
                         onColumns = viewModel::setColumns,
                         onRows = viewModel::setRows,
+                        onSectionMove = viewModel::moveSectionTab,
+                        onSectionHidden = viewModel::setSectionHidden,
                         onInfoSize = viewModel::setInfoSize,
                         onInfoHidden = viewModel::setInfoHidden,
                         onEditMosaic = viewModel::startHomeEdit,
@@ -454,6 +462,21 @@ fun HomeScreen(
         }
         if (feedManager) {
             com.usos.launcher.ui.feeds.FeedManagerScreen(feedsVm, onBack = { feedManager = false })
+        }
+        val tileEditing by viewModel.tileEditing.collectAsStateWithLifecycle()
+        tileEditing?.let { ed ->
+            val key = com.usos.launcher.data.tiles.CustomTiles.configKey(ed.tile.id)
+            val onDelete: (() -> Unit)? = if (ed.isNew) null else ({ viewModel.deleteCustomTile(key) })
+            if (ed.tile.kind == com.usos.launcher.data.tiles.TileKind.DEST) {
+                val navApps = remember(installedApps) {
+                    com.usos.launcher.data.tiles.NavApps.installed(installedApps.orEmpty().map { it.packageName })
+                }
+                DestinationEditor(ed.tile.takeIf { !ed.isNew }, navApps, onSave = { viewModel.saveCustomTile(it.copy(id = ed.tile.id)) },
+                    onDelete = onDelete, onClose = viewModel::closeTileEditor)
+            } else {
+                ContactsEditor(ed.tile.takeIf { !ed.isNew }, onSave = { viewModel.saveCustomTile(it.copy(id = ed.tile.id)) },
+                    onDelete = onDelete, onClose = viewModel::closeTileEditor)
+            }
         }
     }
     }
@@ -495,6 +518,7 @@ private fun HomePage(
     onAssistant: () -> Unit,
     onAssistantPicker: () -> Unit,
     dock: (@Composable (editing: Boolean, hidden: Boolean) -> Unit)? = null,
+    onNewTile: (com.usos.launcher.data.tiles.TileKind, Section, Cell) -> Unit = { _, _, _ -> },
 ) {
     val now by rememberNow()
     val nightCtx = LocalContext.current
@@ -545,6 +569,7 @@ private fun HomePage(
         }
     }
 
+    androidx.compose.runtime.CompositionLocalProvider(LocalCustomTiles provides (state?.customTiles ?: emptyMap())) {
     Box(Modifier.fillMaxSize().onGloballyPositioned { pageCoords = it }) {
         Column(
             Modifier.fillMaxSize()
@@ -565,11 +590,15 @@ private fun HomePage(
             WeekStrip(now.toLocalDate())
             Spacer(Modifier.height(12.dp))
 
+            if (state != null) {
+                SectionTabs(state, leisure, edit, onSelect = { sec -> edit.clearSelection(); onToggle(sec) })
+                Spacer(Modifier.height(10.dp))
+            }
             Column(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { listCoords = it; edit.viewport = it }.verticalScroll(scroll)) {
                 if (state != null) {
-                    state.sections.forEach { s ->
+                    state.sections.filter { it.section == state.open }.forEach { s ->
                         SectionBlock(
-                            s, isOpen = state.open == s.section, leisure = leisure, blockerActive = blockerActive,
+                            s, isOpen = true, tabbed = true, leisure = leisure, blockerActive = blockerActive,
                             workPaused = state.workPaused && s.section == Section.WORK, onResumeWork = onResumeWork,
                             editing = editing, edit = edit, editActions = editActions,
                             onAdd = { cell -> adding = s.section to cell },
@@ -618,16 +647,23 @@ private fun HomePage(
         }
         adding?.let { (section, cell) ->
             val keysShown = state?.sections?.firstOrNull { it.section == section }?.placements?.map { it.key }.orEmpty().toSet()
-            val own = orderLists.firstOrNull { it.first == section }?.second.orEmpty().filter { it.config.key !in keysShown }
-            val others = orderLists.filter { it.first != section }
-                .flatMap { (sec, list) -> list.map { sec to it } }
-                .sortedBy { it.second.app.label.lowercase() }
             AddPicker(
-                section, own, others,
+                section, orderLists, keysShown,
                 onPick = { editActions.onPlace(it.config.key, section, cell); adding = null },
                 onClose = { adding = null },
+                extraTab = stringResource(R.string.edit_tab_pieces),
+                extraContent = {
+                    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        com.usos.launcher.ui.theme.UsosPill(stringResource(R.string.stile_dest_title), filled = false, modifier = Modifier.fillMaxWidth(),
+                            onClick = { adding = null; onNewTile(com.usos.launcher.data.tiles.TileKind.DEST, section, cell) })
+                        com.usos.launcher.ui.theme.UsosPill(stringResource(R.string.stile_contacts_title), filled = false, modifier = Modifier.fillMaxWidth(),
+                            onClick = { adding = null; onNewTile(com.usos.launcher.data.tiles.TileKind.CONTACTS, section, cell) })
+                        UsosText(stringResource(R.string.edit_pieces_hint), UsosType.Label, UsosColors.TextSecondary)
+                    }
+                },
             )
         }
+    }
     }
 }
 
@@ -637,6 +673,7 @@ private fun SectionBlock(
     isOpen: Boolean,
     leisure: LeisureStatus?,
     blockerActive: Boolean,
+    tabbed: Boolean = false,
     workPaused: Boolean,
     onResumeWork: () -> Unit,
     editing: Boolean,
@@ -663,7 +700,7 @@ private fun SectionBlock(
         leisure is LeisureStatus.Thawing -> stringResource(R.string.home_seconds, leisure.secondsLeft)
         else -> stringResource(R.string.home_frozen)
     }
-    Row(
+    if (!tabbed) Row(
         Modifier.fillMaxWidth().height(SectionRowHeight)
             .onGloballyPositioned { edit.headers[s.section] = it }
             .tap { onToggle(s.section) },
@@ -682,7 +719,7 @@ private fun SectionBlock(
     }
     AnimatedVisibility(
         visible = isOpen,
-        enter = if (animations) {
+        enter = if (animations && !tabbed) {
             expandVertically(usosTween(true)) + fadeIn(usosTween(true))
         } else {
             EnterTransition.None
@@ -744,6 +781,49 @@ private fun WorkPausedPanel(onResume: () -> Unit) {
         UsosText(stringResource(R.string.home_work_paused_text), UsosType.Label, UsosColors.TextSecondary)
         Spacer(Modifier.height(12.dp))
         com.usos.launcher.ui.theme.UsosPill(stringResource(R.string.home_work_resume), filled = true, onClick = onResume)
+    }
+}
+
+/**
+ * Pestañas de secciones bajo la semana: nombre (fuente de título), contador de notificaciones y estado (Ocio
+ * congelado / Trabajo en pausa en gris). La activa en texto y con subrayado de acento. En edición cada pestaña es
+ * zona de soltar (mueve la pieza a esa sección).
+ */
+@Composable
+private fun SectionTabs(state: HomeUiState, leisure: LeisureStatus?, edit: EditState, onSelect: (Section) -> Unit) {
+    val accent = LocalAccent.current
+    val tabsScroll = rememberScrollState()
+    Row(Modifier.fillMaxWidth().horizontalScroll(tabsScroll), verticalAlignment = Alignment.CenterVertically) {
+        state.sections.forEach { s ->
+            val active = state.open == s.section
+            val frozen = (s.section == Section.LEISURE && leisure?.isOpen != true) ||
+                (s.section == Section.WORK && state.workPaused)
+            val hover = edit.hoverSection == s.section
+            val color = when {
+                hover -> accent
+                active -> UsosColors.Text
+                frozen -> UsosColors.LeisureFrozen
+                else -> UsosColors.TextSecondary
+            }
+            val pending = if (frozen) 0 else com.usos.launcher.ui.theme.LocalNotifBadges.current
+                .total(s.placements.map { it.key }.filter { it in s.tiles })
+            Column(
+                Modifier.padding(end = 18.dp)
+                    .onGloballyPositioned { edit.headers[s.section] = it }
+                    .tap { onSelect(s.section) }
+                    .padding(vertical = 6.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    UsosText(stringResource(s.section.titleRes), UsosType.SectionName.copy(fontSize = 22.sp, lineHeight = 26.sp), color)
+                    if (pending > 0) {
+                        Spacer(Modifier.width(4.dp))
+                        com.usos.launcher.ui.theme.CountBubble(pending, accent, accent.onColor(), Modifier.offset(y = (-8).dp))
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.height(2.dp).width(24.dp).background(if (active) accent else Color.Transparent))
+            }
+        }
     }
 }
 
@@ -826,7 +906,7 @@ private fun Mosaic(
                                     InfoTile(info, Modifier.fillMaxSize(), !editing, onEnterEdit) { onOpenInfo(info.kind) }
                                 }
                             } else {
-                                AppTile(tile!!, Modifier.fillMaxSize(), !editing, onOpenApp, onEnterEdit)
+                                SmartOrAppTile(tile!!, LocalCustomTiles.current[c.key], c.colSpan, c.rowSpan, !editing, onOpenApp, onEnterEdit)
                             }
                             if (editing) {
                                 PieceEditLayer(c.key, s.section, tile, edit, editActions)
@@ -878,20 +958,42 @@ private fun PieceEditLayer(
             }
             .then(if (selected) Modifier.border(2.dp, accent, shape) else Modifier.dashedBorder(accent, UsosDimens.RadiusPiece))
             .then(
-                if (canDrag) Modifier.pointerInput(key, section) {
+                if (tile == null) {
+                    if (selected) Modifier else Modifier.pressGestures(onLongPress = select) { select() }
+                } else Modifier.pointerInput(key, section) {
+                    // Una sola entrada de gestos (no cambia al seleccionar, así el arrastre no se corta):
+                    // seleccionada = arrastrar ya mueve; sin seleccionar = toque selecciona y mantener quieto
+                    // ~0,5 s la selecciona y la coge sin soltar.
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
-                        val moved = awaitTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
-                            ?: return@awaitEachGesture
+                        if (edit.resizing) return@awaitEachGesture
+                        val pointerId: androidx.compose.ui.input.pointer.PointerId
+                        val at: Offset
+                        if (edit.selectedKey == key) {
+                            val moved = awaitTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
+                                ?: return@awaitEachGesture
+                            pointerId = moved.id; at = moved.position
+                        } else {
+                            val lp = awaitLongPressOrCancellation(down.id)
+                            if (lp == null) {
+                                val up = currentEvent.changes.firstOrNull { it.id == down.id }
+                                if (up != null && up.changedToUp() && !up.isConsumed &&
+                                    (up.position - down.position).getDistance() < viewConfiguration.touchSlop
+                                ) select()
+                                return@awaitEachGesture
+                            }
+                            select()
+                            pointerId = lp.id; at = lp.position
+                        }
                         val c = coords ?: return@awaitEachGesture
                         val t = tileNow ?: return@awaitEachGesture
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         edit.start(key, section, t, c.positionInRoot(), down.position, c.size)
-                        edit.pointer = c.positionInRoot() + moved.position
+                        edit.pointer = c.positionInRoot() + at
                         edit.updateHover()
                         var finished = false
                         try {
-                            finished = drag(moved.id) { change ->
+                            finished = drag(pointerId) { change ->
                                 change.consume()
                                 coords?.let { edit.pointer = it.positionInRoot() + change.position }
                                 edit.updateHover()
@@ -901,7 +1003,7 @@ private fun PieceEditLayer(
                             if (finished) edit.drop(actionsNow) else edit.cancel()
                         }
                     }
-                } else if (selected) Modifier else Modifier.pressGestures(onLongPress = select) { select() },
+                },
             ),
     )
 }
@@ -989,6 +1091,34 @@ private fun FreezeTile(minutesLeft: Int, modifier: Modifier, onFreeze: () -> Uni
     ) {
         UsosText(stringResource(R.string.home_freeze), UsosType.Label, LocalOnAccent.current)
         UsosText(stringResource(R.string.home_minutes_short, minutesLeft), UsosType.PieceData, LocalOnAccent.current)
+    }
+}
+
+/** Piezas propias por clave de configuración (las provee HomePage). */
+private val LocalCustomTiles = androidx.compose.runtime.staticCompositionLocalOf<Map<String, com.usos.launcher.data.tiles.CustomTile>> { emptyMap() }
+
+/**
+ * Pieza propia (destino, contactos), reproductor si es una app de música más grande que 1x1, o la pieza de app.
+ */
+@Composable
+private fun SmartOrAppTile(
+    tile: TileUi, custom: com.usos.launcher.data.tiles.CustomTile?, colSpan: Int, rowSpan: Int,
+    interactive: Boolean, onOpenApp: (com.usos.launcher.domain.AppEntry) -> Unit, onEnterEdit: () -> Unit,
+) {
+    val context = LocalContext.current
+    val m = Modifier.fillMaxSize()
+    when {
+        custom?.kind == com.usos.launcher.data.tiles.TileKind.DEST ->
+            DestinationTile(custom, colSpan, rowSpan, m, interactive, onOpen = { onOpenApp(tile.app) }, onLongPress = onEnterEdit)
+        custom?.kind == com.usos.launcher.data.tiles.TileKind.CONTACTS ->
+            ContactsTile(custom, colSpan, rowSpan, m, interactive,
+                onOpenContact = { i -> com.usos.launcher.data.tiles.TileIntents.launch(context, custom, i) }, onLongPress = onEnterEdit)
+        (colSpan > 1 || rowSpan > 1) && com.usos.launcher.data.tiles.MusicApps.isMusic(tile.app.packageName, tile.app.category) ->
+            MusicTile(tile.app.label, tile.app.packageName, colSpan, rowSpan, m, interactive,
+                onOpenApp = { onOpenApp(tile.app) }, onLongPress = onEnterEdit) {
+                com.usos.launcher.ui.theme.AppIconOrNull(tile.app, 24.dp, UsosColors.Text) { UsosText(tile.code, UsosType.SmallCode, UsosColors.Text) }
+            }
+        else -> AppTile(tile, m, interactive, onOpenApp, onEnterEdit)
     }
 }
 

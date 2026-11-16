@@ -111,6 +111,8 @@ class SettingsActions(
     val onDockSlots: (Int) -> Unit,
     val onColumns: (Int) -> Unit,
     val onRows: (Section, Int) -> Unit,
+    val onSectionMove: (Section, Int) -> Unit = { _, _ -> },
+    val onSectionHidden: (Section, Boolean) -> Unit = { _, _ -> },
     val onInfoSize: (InfoKind, TileSize) -> Unit,
     val onInfoHidden: (InfoKind, Boolean) -> Unit,
     val onEditMosaic: () -> Unit,
@@ -244,6 +246,20 @@ private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
         UsosText(stringResource(R.string.settings_dock_hint), UsosType.Label, UsosColors.TextSecondary)
         Spacer(Modifier.height(12.dp))
     }
+    SubHeading(stringResource(R.string.settings_sections))
+    UsosText(stringResource(R.string.settings_sections_hint), UsosType.Label, UsosColors.TextSecondary)
+    Spacer(Modifier.height(4.dp))
+    ui.mosaic.sectionOrder.forEachIndexed { i, s ->
+        val hidden = s in ui.mosaic.hiddenSections
+        Row(Modifier.fillMaxWidth().height(UsosDimens.MinTouch), verticalAlignment = Alignment.CenterVertically) {
+            UsosText(stringResource(s.titleRes).uppercase(), UsosType.Label, if (hidden) UsosColors.TextSecondary else UsosColors.Text, Modifier.weight(1f))
+            UsosPill(stringResource(if (hidden) R.string.settings_section_hidden else R.string.settings_section_shown), filled = !hidden,
+                onClick = { actions.onSectionHidden(s, !hidden) })
+            Arrow("↑", enabled = i > 0) { actions.onSectionMove(s, -1) }
+            Arrow("↓", enabled = i < ui.mosaic.sectionOrder.lastIndex) { actions.onSectionMove(s, 1) }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
     SubHeading(stringResource(R.string.settings_home_columns))
     Choice(listOf("3", "4"), if (ui.mosaic.columns == 4) 1 else 0, 2) { actions.onColumns(if (it == 1) 4 else 3) }
     SubHeading(stringResource(R.string.settings_home_rows), top = 4.dp)

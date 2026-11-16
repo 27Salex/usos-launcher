@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Smart tiles -->
+    <string name="stile_go">GO TO</string>
+    <string name="stile_music_hint">TAP TO OPEN</string>
+    <string name="stile_music_no_access">ENABLE NOTIFICATION ACCESS</string>
+    <string name="stile_play">Play or pause</string>
+    <string name="stile_prev">Previous</string>
+    <string name="stile_next">Next</string>
+    <string name="stile_dest_title">DESTINATION</string>
+    <string name="stile_contacts_title">CONTACTS</string>
+    <string name="stile_name_label">NAME</string>
+    <string name="stile_name_hint_dest">Home, Work…</string>
+    <string name="stile_name_hint_contacts">Family (optional)</string>
+    <string name="stile_address_label">ADDRESS</string>
+    <string name="stile_address_hint">Street, city</string>
+    <string name="stile_nav_label">NAVIGATION APP</string>
+    <string name="stile_nav_any">ANY</string>
+    <string name="stile_save">SAVE</string>
+    <string name="stile_delete">DELETE</string>
+    <string name="stile_add_contact">ADD CONTACT</string>
+    <string name="stile_contacts_full">MAXIMUM 4 CONTACTS</string>
+    <string name="stile_contacts_empty">Add at least one contact.</string>
+    <string name="stile_remove">REMOVE</string>
+    <string name="stile_app_whatsapp">WHATSAPP</string>
+    <string name="stile_app_telegram">TELEGRAM</string>
+    <string name="stile_app_sms">SMS</string>
+    <string name="stile_app_call">CALL</string>
+    <string name="stile_default_dest">Destination</string>
+    <string name="stile_default_contacts">Contacts</string>
+</resources>

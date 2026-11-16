@@ -414,4 +414,10 @@
     <string name="home_work_paused_text">El perfil de trabajo está en pausa y sus apps están ocultas.</string>
     <string name="home_work_resume">ACTIVAR PERFIL DE TRABAJO</string>
     <string name="notice_work_resume_failed">NO SE PUDO ACTIVAR EL PERFIL</string>
+    <string name="settings_sections">SECCIONES</string>
+    <string name="settings_sections_hint">Orden de las pestañas del inicio. Una sección oculta no se ve en inicio; sus apps siguen en la búsqueda.</string>
+    <string name="settings_section_shown">VISIBLE</string>
+    <string name="settings_section_hidden">OCULTA</string>
+    <string name="edit_tab_pieces">PIEZAS</string>
+    <string name="edit_pieces_hint">Piezas propias: ir a un sitio con la app que quieras o tus contactos favoritos. Mantén pulsada una pieza en edición para cambiarla.</string>
 </resources>

@@ -411,4 +411,10 @@
     <string name="home_work_paused_text">The work profile is paused and its apps are hidden.</string>
     <string name="home_work_resume">TURN ON WORK PROFILE</string>
     <string name="notice_work_resume_failed">COULD NOT TURN ON THE PROFILE</string>
+    <string name="settings_sections">SECTIONS</string>
+    <string name="settings_sections_hint">Order of the home tabs. A hidden section is not shown on home; its apps stay in search.</string>
+    <string name="settings_section_shown">SHOWN</string>
+    <string name="settings_section_hidden">HIDDEN</string>
+    <string name="edit_tab_pieces">PIECES</string>
+    <string name="edit_pieces_hint">Own pieces: go somewhere with the app you like, or your favourite contacts. Long press a piece in edit mode to change it.</string>
 </resources>
