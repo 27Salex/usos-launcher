@@ -343,9 +343,15 @@ class DisplayStore(private val dataStore: DataStore<Preferences>) {
             infoHidden = kinds.filter { p[infoHiddenKey(it)] ?: false }.toSet(),
             sectionOrder = SectionTabs.decodeOrder(p[sectionOrderKey]),
             hiddenSections = SectionTabs.decodeHidden(p[sectionsHiddenKey]),
+            tabs = p[homeTabsKey] ?: false,
+            musicPlayer = p[musicPlayerKey] ?: false,
         )
     }.distinctUntilChanged()
 
+    private val homeTabsKey = booleanPreferencesKey("home_tabs")
+    private val musicPlayerKey = booleanPreferencesKey("music_player_tiles")
+    suspend fun setMusicPlayer(on: Boolean) { dataStore.edit { it[musicPlayerKey] = on } }
+    suspend fun setHomeTabs(on: Boolean) { dataStore.edit { it[homeTabsKey] = on } }
     private val sectionOrderKey = stringPreferencesKey("section_order")
     private val sectionsHiddenKey = stringPreferencesKey("sections_hidden")
     suspend fun setSectionOrder(order: List<Section>) { dataStore.edit { it[sectionOrderKey] = SectionTabs.encode(order) } }

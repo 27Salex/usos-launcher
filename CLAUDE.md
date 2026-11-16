@@ -137,18 +137,23 @@ Pendiente de verificar en dispositivo (`adb shell dumpsys package <pkg>` para fi
 - Perfil de trabajo en pausa (`AppEntry.isQuiet`): `HomeUiState.workPaused`; sus apps se quitan de todas las secciones, de la búsqueda y del dock (fuera de edición). Trabajo muestra «EN PAUSA» en gris y al desplegarla `WorkPausedPanel` con «ACTIVAR PERFIL DE TRABAJO» → `AppRepository.resumeWorkProfile` (`requestQuietModeEnabled(false)`, permitido al launcher predeterminado; el sistema pide la credencial si hace falta). Al reactivarse, el broadcast MANAGED_PROFILE_AVAILABLE recarga las apps.
 
 ## 1.1.0: pestañas, piezas propias, widgets y búsqueda
+- La primera 1.1.0 (versionCode 14) se retiró y se volvió a publicar 1.1.0 con versionCode 15: cambiaba el inicio por defecto (pestañas) y las piezas de música. REGLA: ninguna función nueva cambia lo que ya ve el usuario; si sustituye algo existente, va como opción apagada.
 ### Búsqueda tolerante
 - `SearchFilter.score` (puro, `SearchScoreTest`): sin mayúsculas/acentos/espacios/signos; 0 empieza igual, 1 empieza palabra, 2 contiene, 3 iniciales, 4 letras en orden (3+), 5 erratas Damerau-Levenshtein contra inicios (4+ letras: 1 hasta 5, 2 desde 6). Orden dentro del grupo por relevancia y luego alfabético.
 - Filtro de web apps (paquetes con `webapk`): `search_pwa_keywords` en DataStore (líneas), sin interfaz; si la búsqueda empieza por una, solo salen web apps. Las palabras viven solo en el dispositivo (se ponen importando una copia); no van en el código ni en este fichero.
-### Inicio por pestañas
-- El acordeón se sustituye por `SectionTabs` (HomeScreen): fila de pestañas bajo la semana y debajo solo el mosaico de la sección elegida (`SectionBlock(tabbed = true)`). `HomeUiState.open` nunca es null (la recordada si es visible, si no la primera). Las pestañas son zona de soltar en edición (`edit.headers`).
+### Inicio por pestañas (OPCIONAL)
+- Por defecto el inicio es el acordeón de siempre. «Pestañas en vez de acordeón» (Ajustes > Inicio > Secciones, `home_tabs`, apagado) activa `SectionTabs` (HomeScreen): fila de pestañas bajo la semana y debajo solo el mosaico de la sección elegida (`SectionBlock(tabbed = true)`). Con pestañas `HomeUiState.open` nunca es null y tocar no pliega; en acordeón se comporta como antes. Las pestañas son zona de soltar en edición (`edit.headers`).
 - Orden y ocultación (Ajustes > Inicio > SECCIONES): `MosaicPrefs.sectionOrder/hiddenSections/visibleSections`, claves `section_order` y `sections_hidden` (nombres separados por comas, `SectionTabs` puro).
 - Edición: una sola entrada de gestos por pieza (`PieceEditLayer`): sin seleccionar, toque = seleccionar y mantener ~0,5 s quieto = seleccionar y arrastrar sin soltar; seleccionada, arrastrar mueve.
 - `AddPicker(section, groups, shownKeys, ...)`: buscador (SearchFilter.score) + pestañas por sección + pestaña PIEZAS.
 ### Piezas propias («apps virtuales»)
 - `data.tiles`: `CustomTile` (DEST: nombre, dirección, app de navegación; CONTACTS: hasta 4 `TileContact` con WhatsApp/Telegram/SMS/llamada) en DataStore `custom_tiles` (`CustomTileStore`). Cada pieza es un `AppEntry` virtual (`usos.tile.<id>`, serial -1) con su `AppConfig` normal, así mosaico, edición, orden y búsqueda funcionan igual; `HomeViewModel.apps` = reales + virtuales con config (`realApps` va a `reconcile`). Abrir = `TileIntents.launch`; AJUSTES abre el editor (`DestinationEditor`/`ContactsEditor` en `SmartTiles.kt`); QUITAR la borra.
-- Apps de música (`MusicApps.isMusic`) con pieza > 1x1 = `MusicTile` (mini reproductor de su propia sesión de medios).
+- Apps de música (`MusicApps.isMusic`) con pieza > 1x1 = `MusicTile` SOLO si «Mini reproductor en piezas de música» (`music_player_tiles`, apagado) está activo (mini reproductor de su propia sesión de medios).
 ### Widgets propios
 - Calendario con `mode=week|month|agenda` (sin clave = automático) y RECONFIGURAR; modo semana como la tira del inicio + eventos del día elegido. Agenda agrupada HOY/MAÑANA con marca del evento en curso. Borde blanco 1,5 dp (`border=off` lo quita). Lógica en `OwnLogic.CalendarLogic`.
 ### Iconos monocromos
 - Sin capa `monochrome`: `IconMask.contrastMask` (silueta por distancia de color al fondo: capa trasera del adaptativo o color del borde en los demás); `grayMask` solo como último recurso en iconos no adaptativos. Test `IconMaskTest`.
+### Estructura del inicio (refactor 1.1.0)
+- `HomeScreen.kt` (pantalla raíz, pager, rutas superpuestas), `HomePage.kt` (página central), `HomeSections.kt` (acordeón, pestañas opcionales, mosaico), `HomeEditLayers.kt` (gestos de edición, bolitas), `HomeTiles.kt` (piezas), `HomeSearchBar.kt` (BUSCAR, IA), `HomeSettingsRoute.kt` (Ajustes conectados al ViewModel).
+### Buscador de Ajustes
+- Campo arriba de la lista de categorías; `SettingsIndex.kt` = (categoría, texto) de cada pantalla, filtrado con `SearchFilter.score`. Al añadir un ajuste nuevo, añadir su texto al índice.

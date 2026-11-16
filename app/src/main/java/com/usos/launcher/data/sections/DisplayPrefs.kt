@@ -54,6 +54,10 @@ data class MosaicPrefs(
     /** Orden de las pestañas del inicio y secciones ocultas (Ajustes > Inicio > Secciones). */
     val sectionOrder: List<com.usos.launcher.domain.Section> = com.usos.launcher.domain.Section.home,
     val hiddenSections: Set<com.usos.launcher.domain.Section> = emptySet(),
+    /** Inicio por pestañas (opcional, apagado: por defecto el acordeón de siempre). */
+    val tabs: Boolean = false,
+    /** Mini reproductor en piezas de apps de música de 2x1 o más (opcional, apagado). */
+    val musicPlayer: Boolean = false,
 ) {
     /** Pestañas visibles en orden; nunca vacía (si se ocultan todas se ve la primera). */
     val visibleSections: List<com.usos.launcher.domain.Section>

@@ -315,8 +315,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     infoSize = if (info != null) infoSize else null,
                 )
             },
-            // Pestañas: siempre hay una abierta (la recordada si sigue visible, si no la primera).
-            open = o?.takeIf { it in visible } ?: visible.first(),
+            // Acordeón (por defecto): como siempre. Pestañas (opcional): siempre hay una abierta.
+            open = if (extras.prefs.tabs) o?.takeIf { it in visible } ?: visible.first() else o,
             workPaused = workPaused,
             customTiles = customTiles.value.associateBy { com.usos.launcher.data.tiles.CustomTiles.configKey(it.id) },
         )
@@ -905,11 +905,15 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** Pestañas: elige la sección visible (ya no se pliega). */
+    /** Acordeón: abre o pliega. Con pestañas: elige la sección (no se pliega). */
     fun toggleSection(section: Section) {
-        open.value = section
-        viewModelScope.launch { settings.setLastOpenSection(section) }
+        val next = if (!mosaicPrefs.value.tabs && open.value == section) null else section
+        open.value = next
+        viewModelScope.launch { settings.setLastOpenSection(next) }
     }
+
+    fun setMusicPlayer(on: Boolean) { viewModelScope.launch { container.displayStore.setMusicPlayer(on) } }
+    fun setHomeTabs(on: Boolean) { viewModelScope.launch { container.displayStore.setHomeTabs(on) } }
 
     fun moveSectionTab(section: Section, delta: Int) {
         viewModelScope.launch {

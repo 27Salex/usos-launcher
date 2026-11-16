@@ -417,4 +417,9 @@
     <string name="settings_section_hidden">HIDDEN</string>
     <string name="edit_tab_pieces">PIECES</string>
     <string name="edit_pieces_hint">Own pieces: go somewhere with the app you like, or your favourite contacts. Long press a piece in edit mode to change it.</string>
+    <string name="settings_home_tabs">Tabs instead of accordion</string>
+    <string name="settings_music_player">Mini player on music pieces (2×1 or bigger)</string>
+    <string name="settings_search_hint">Search settings</string>
+    <string name="settings_search_none">Nothing with that name.</string>
+    <string name="settings_search_hide_leisure">Hide Leisure (or another section) from home</string>
 </resources>

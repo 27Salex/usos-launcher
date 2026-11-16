@@ -113,6 +113,8 @@ class SettingsActions(
     val onRows: (Section, Int) -> Unit,
     val onSectionMove: (Section, Int) -> Unit = { _, _ -> },
     val onSectionHidden: (Section, Boolean) -> Unit = { _, _ -> },
+    val onHomeTabs: (Boolean) -> Unit = {},
+    val onMusicPlayer: (Boolean) -> Unit = {},
     val onInfoSize: (InfoKind, TileSize) -> Unit,
     val onInfoHidden: (InfoKind, Boolean) -> Unit,
     val onEditMosaic: () -> Unit,
@@ -189,7 +191,14 @@ fun SettingsScreen(initialCategory: String?, ui: SettingsUi, actions: SettingsAc
     ) {
         if (cat == null) {
             ScreenHeader(stringResource(R.string.settings_title), onBack = goBack)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+            var query by rememberSaveable { mutableStateOf("") }
+            SettingsSearchField(query) { query = it }
+            Spacer(Modifier.height(8.dp))
+            if (query.isNotBlank()) {
+                SettingsSearchResults(query) { page = it }
+                return@Column
+            }
             Cat.entries.forEach { c ->
                 Column(Modifier.fillMaxWidth().tap { page = c.name }.padding(vertical = 10.dp)) {
                     UsosText(stringResource(c.titleRes), UsosType.SectionName, UsosColors.Text)
@@ -210,6 +219,51 @@ fun SettingsScreen(initialCategory: String?, ui: SettingsUi, actions: SettingsAc
                 Cat.LOOK -> LookSettings(ui, actions)
                 Cat.SYSTEM -> SystemSettings(ui, actions)
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsSearchField(query: String, onChange: (String) -> Unit) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(UsosDimens.RadiusPiece)
+    Box(
+        Modifier.fillMaxWidth().height(52.dp).background(UsosColors.Surface, shape)
+            .border(1.dp, UsosColors.Border, shape).padding(horizontal = 16.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        if (query.isEmpty()) UsosText(stringResource(R.string.settings_search_hint), UsosType.SearchHint, UsosColors.TextSecondary)
+        androidx.compose.foundation.text.BasicTextField(
+            value = query, onValueChange = onChange, singleLine = true,
+            textStyle = UsosType.SearchInput.themed().copy(color = UsosColors.Text),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(com.usos.launcher.ui.theme.LocalAccent.current),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * Resultados del buscador de Ajustes: cada texto del índice que coincide (tolerante a erratas, como la búsqueda de
+ * apps), con su categoría. Tocar abre la categoría.
+ */
+@Composable
+private fun SettingsSearchResults(query: String, onOpen: (String) -> Unit) {
+    val res = androidx.compose.ui.platform.LocalContext.current.resources
+    val q = com.usos.launcher.ui.search.SearchFilter.normalize(query.trim())
+    val hits = remember(q, res) {
+        SettingsIndex.mapNotNull { (cat, id) ->
+            val text = runCatching { res.getString(id) }.getOrNull()?.replace(Regex("%\\d\\$[sd]"), "…")?.trim() ?: return@mapNotNull null
+            com.usos.launcher.ui.search.SearchFilter.score(text, q)?.let { Triple(cat, text, it) }
+        }.sortedBy { it.third }.distinctBy { it.first to it.second }.take(40)
+    }
+    if (hits.isEmpty()) {
+        UsosText(stringResource(R.string.settings_search_none), UsosType.Empty, UsosColors.TextSecondary, Modifier.padding(vertical = 8.dp))
+        return
+    }
+    hits.forEach { (cat, text, _) ->
+        val c = Cat.entries.firstOrNull { it.name == cat } ?: return@forEach
+        Column(Modifier.fillMaxWidth().tap { onOpen(cat) }.padding(vertical = 10.dp)) {
+            UsosText(text, UsosType.Pill, UsosColors.Text, maxLines = 2)
+            UsosText(stringResource(c.titleRes).uppercase(), UsosType.Label, com.usos.launcher.ui.theme.LocalAccent.current)
         }
     }
 }
@@ -248,6 +302,8 @@ private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
     }
     SubHeading(stringResource(R.string.settings_sections))
     UsosText(stringResource(R.string.settings_sections_hint), UsosType.Label, UsosColors.TextSecondary)
+    UsosRow(stringResource(R.string.settings_home_tabs)) { UsosSwitch(ui.mosaic.tabs, actions.onHomeTabs) }
+    UsosRow(stringResource(R.string.settings_music_player)) { UsosSwitch(ui.mosaic.musicPlayer, actions.onMusicPlayer) }
     Spacer(Modifier.height(4.dp))
     ui.mosaic.sectionOrder.forEachIndexed { i, s ->
         val hidden = s in ui.mosaic.hiddenSections

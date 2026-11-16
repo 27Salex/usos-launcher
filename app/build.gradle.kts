@@ -17,7 +17,7 @@ android {
         applicationId = "com.usos.launcher"
         minSdk = 33
         targetSdk = 36
-        versionCode = 14
+        versionCode = 15
         versionName = "1.1.0"
     }
 
