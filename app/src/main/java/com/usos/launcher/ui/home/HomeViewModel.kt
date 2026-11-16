@@ -912,6 +912,22 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     fun resizeInfo(kind: InfoKind, size: TileSize) = setInfoSize(kind, size)
 
+    /** Redimensiona [key] y guarda el orden de la sección que dio la vista previa (puede haber cambiado de sitio). */
+    fun resizeTileTo(key: String, section: Section, size: TileSize, order: List<String>) {
+        viewModelScope.launch {
+            configStore.update { all ->
+                all.mapValues { (k, c) ->
+                    val idx = order.indexOf(k)
+                    when {
+                        k == key -> c.copy(size = size, order = idx, section = section, inMosaic = true, manual = true)
+                        idx >= 0 && c.section == section -> c.copy(order = idx)
+                        else -> c
+                    }
+                }
+            }
+        }
+    }
+
     /** Suma o resta una fila al mosaico; las piezas que no caben se ocultan por orden sin tocar su inMosaic. */
     fun changeRows(section: Section, delta: Int) {
         val rows = mosaicPrefs.value.rowsFor(section)

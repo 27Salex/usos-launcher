@@ -40,7 +40,10 @@ import com.usos.launcher.data.sections.MosaicEdit
 import com.usos.launcher.data.sections.PackResult
 import com.usos.launcher.data.sections.PlacedApp
 import com.usos.launcher.data.sections.SectionMosaic
-import com.usos.launcher.ui.theme.ResizeAxes
+import com.usos.launcher.data.sections.CellBox
+import com.usos.launcher.data.sections.ResizeHandle
+import com.usos.launcher.data.sections.ResizeLimits
+import com.usos.launcher.data.sections.ResizeMath
 import com.usos.launcher.data.sections.TileSize
 import com.usos.launcher.data.info.InfoKind
 import com.usos.launcher.domain.Section
@@ -63,6 +66,8 @@ class EditActions(
     val onRemove: (key: String) -> Unit,
     val onResize: (key: String, size: TileSize) -> Unit,
     val onResizeInfo: (kind: InfoKind, size: TileSize) -> Unit,
+    /** Redimensiona y guarda el orden nuevo de la sección (estirar a la izquierda/arriba cambia su posición). */
+    val onResizeAt: (key: String, section: Section, size: TileSize, order: List<String>) -> Unit,
     val onRows: (section: Section, delta: Int) -> Unit,
     val onDetail: (key: String) -> Unit,
 )
@@ -106,6 +111,8 @@ class EditState {
     var resizeSize by mutableStateOf<TileSize?>(null)
     var frozenRect by mutableStateOf<Rect?>(null)
     private var resizeFrom = TileSize.S1X1
+    private var resizeStart = CellBox(0, 0, 1, 1)
+    private var resizeOrder: List<String>? = null
 
     // Vista previa: la de ahora y la última soltada (se mantiene hasta que llega el estado guardado, sin parpadeo)
     var preview by mutableStateOf<EditPreview?>(null)
@@ -191,21 +198,46 @@ class EditState {
         val sec = selectedSection ?: return
         val pl = sections[sec]?.placements?.firstOrNull { it.key == key } ?: return
         resizeFrom = TileSize.entries.firstOrNull { it.colSpan == pl.colSpan && it.rowSpan == pl.rowSpan } ?: TileSize.S1X1
+        resizeStart = CellBox(pl.col, pl.row, pl.colSpan, pl.rowSpan)
+        resizeOrder = null
         resizeKey = key; resizeSize = resizeFrom; frozenRect = selectedRect
     }
 
-    fun updateResize(dx: Float, dy: Float, axes: ResizeAxes) {
+    /** Tiradores de la pieza seleccionada según los bordes de la rejilla que toca. */
+    fun handlesForSelected(): Set<ResizeHandle> {
+        val key = selectedKey ?: return emptySet()
+        val ui = selectedSection?.let { sections[it] } ?: return emptySet()
+        val pl = ui.placements.firstOrNull { it.key == key } ?: return emptySet()
+        return ResizeMath.handlesFor(CellBox(pl.col, pl.row, pl.colSpan, pl.rowSpan), limitsOf(ui))
+    }
+
+    private fun limitsOf(ui: SectionUi) = ResizeLimits(columns = ui.columns, rows = ui.rows, maxWidth = MAX_TILE_SPAN, maxHeight = MAX_TILE_SPAN)
+
+    fun updateResize(dx: Float, dy: Float, handle: ResizeHandle) {
         val key = resizeKey ?: return
         val sec = selectedSection ?: return
         val g = grids[sec] ?: return
         val ui = sections[sec] ?: return
-        val size = MosaicEdit.snapSize(resizeFrom, if (axes.x) dx else 0f, if (axes.y) dy else 0f, g.stepX, g.stepY)
-        if (size == resizeSize) return
+        val box = ResizeMath.resize(resizeStart, handle, dx, dy, g.stepX, g.stepY, limitsOf(ui))
+        val size = TileSize.entries.firstOrNull { it.colSpan == box.width && it.rowSpan == box.height } ?: return
+        val moved = box.col != resizeStart.col || box.row != resizeStart.row
+        if (size == resizeSize && !moved) return
         resizeSize = size
-        preview = if (size == resizeFrom) null else
-            MosaicEdit.previewResize(
-                ui.columns, ui.rows, ui.infoSize, ui.entries, key, size, SectionMosaic.reservesFreeze(sec),
-            )?.let { EditPreview(sec, key, it) }
+        if (size == resizeFrom) { preview = null; resizeOrder = null; return }
+        val reserve = SectionMosaic.reservesFreeze(sec)
+        if (key == SectionMosaic.INFO_KEY) {
+            // La pieza de información va siempre primera: solo cambia su tamaño (y no puede ocultar a otras).
+            val before = SectionMosaic.layout(ui.columns, ui.rows, ui.infoSize, ui.entries, reserve)
+            preview = MosaicEdit.previewResize(ui.columns, ui.rows, ui.infoSize, ui.entries, key, size, reserve)
+                ?.takeIf { MosaicEdit.noNewlySkipped(before, it) }?.let { EditPreview(sec, key, it) }
+            resizeOrder = null
+        } else {
+            val p = MosaicEdit.previewResizeAt(
+                ui.columns, ui.rows, ui.infoSize, ui.entries, ui.placements, key, size, Cell(box.col, box.row), reserve,
+            )
+            preview = p?.let { EditPreview(sec, key, it.layout) }
+            resizeOrder = p?.order
+        }
     }
 
     fun endResize(actions: EditActions, completed: Boolean) {
@@ -215,10 +247,17 @@ class EditState {
         val pv = preview
         if (completed && key != null && sec != null && size != null && size != resizeFrom && pv != null) {
             held = pv
+            val order = resizeOrder
             if (key == SectionMosaic.INFO_KEY) sections[sec]?.info?.let { actions.onResizeInfo(it.kind, size) }
+            else if (order != null) actions.onResizeAt(key, sec, size, order)
             else actions.onResize(key, size)
         }
-        resizeKey = null; resizeSize = null; frozenRect = null; preview = null
+        resizeKey = null; resizeSize = null; frozenRect = null; preview = null; resizeOrder = null
+    }
+
+    private companion object {
+        /** Las piezas de inicio miden 1 o 2 celdas por lado (TileSize). */
+        const val MAX_TILE_SPAN = 2
     }
 }
 

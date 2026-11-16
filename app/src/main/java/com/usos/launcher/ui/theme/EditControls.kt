@@ -1,5 +1,6 @@
 package com.usos.launcher.ui.theme
 
+import com.usos.launcher.data.sections.ResizeHandle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -120,19 +121,17 @@ private fun DrawScope.drawBubbleGlyph(kind: BubbleKind, color: Color) {
     }
 }
 
-/** Qué ejes mueve un tirador. */
-enum class ResizeAxes(val x: Boolean, val y: Boolean) { WIDTH(true, false), HEIGHT(false, true), BOTH(true, true) }
-
 /**
- * Tiradores de tamaño de la pieza [rect] (coordenadas del contenedor): borde derecho (ancho), inferior (alto) y
- * esquina (ambos). Deben quedar fijos mientras dura el gesto (el llamador congela [rect]); [onDelta] recibe el
- * desplazamiento total del dedo desde el DOWN y [onEnd] true si el gesto terminó levantando el dedo.
+ * Tiradores de tamaño de la pieza [rect] (coordenadas del contenedor), solo los de [handles]: bordes (izquierdo,
+ * derecho, superior, inferior) y esquinas. Deben quedar fijos mientras dura el gesto (el llamador congela [rect]);
+ * [onDelta] recibe el desplazamiento total del dedo desde el DOWN y [onEnd] true si el gesto terminó levantando el dedo.
  */
 @Composable
 fun ResizeHandles(
     rect: Rect,
-    onStart: (ResizeAxes) -> Unit,
-    onDelta: (dx: Float, dy: Float, axes: ResizeAxes) -> Unit,
+    handles: Set<ResizeHandle>,
+    onStart: (ResizeHandle) -> Unit,
+    onDelta: (dx: Float, dy: Float, handle: ResizeHandle) -> Unit,
     onEnd: (completed: Boolean) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -141,17 +140,20 @@ fun ResizeHandles(
     val delta by rememberUpdatedState(onDelta)
     val end by rememberUpdatedState(onEnd)
     @Composable
-    fun Handle(axes: ResizeAxes, cx: Float, cy: Float) {
+    fun Handle(handle: ResizeHandle) {
         val accent = LocalAccent.current
+        // Centro del tirador: en el borde o la esquina que indica su dirección.
+        val cx = when (handle.dirX) { -1 -> rect.left; 1 -> rect.right; else -> rect.center.x }
+        val cy = when (handle.dirY) { -1 -> rect.top; 1 -> rect.bottom; else -> rect.center.y }
         Box(
             Modifier
                 .offset { IntOffset((cx - half).roundToInt(), (cy - half).roundToInt()) }
                 .size(BubbleTouch)
-                .pointerInput(axes) {
+                .pointerInput(handle) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
-                        start(axes)
+                        start(handle)
                         var completed = false
                         try {
                             while (true) {
@@ -159,7 +161,7 @@ fun ResizeHandles(
                                 if (c.changedToUpIgnoreConsumed()) { c.consume(); completed = true; break }
                                 if (!c.pressed) break
                                 c.consume()
-                                delta(c.position.x - down.position.x, c.position.y - down.position.y, axes)
+                                delta(c.position.x - down.position.x, c.position.y - down.position.y, handle)
                             }
                         } finally {
                             end(completed) // también si el gesto se cancela por una excepción
@@ -168,14 +170,13 @@ fun ResizeHandles(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            when (axes) {
-                ResizeAxes.WIDTH -> Box(Modifier.size(5.dp, 30.dp).background(accent, CircleShape))
-                ResizeAxes.HEIGHT -> Box(Modifier.size(30.dp, 5.dp).background(accent, CircleShape))
-                ResizeAxes.BOTH -> Box(Modifier.size(16.dp).background(accent, CircleShape).border(2.dp, UsosColors.Background, CircleShape))
+            when {
+                handle.dirX != 0 && handle.dirY != 0 ->
+                    Box(Modifier.size(16.dp).background(accent, CircleShape).border(2.dp, UsosColors.Background, CircleShape))
+                handle.dirX != 0 -> Box(Modifier.size(5.dp, 30.dp).background(accent, CircleShape))
+                else -> Box(Modifier.size(30.dp, 5.dp).background(accent, CircleShape))
             }
         }
     }
-    Handle(ResizeAxes.WIDTH, rect.right, rect.center.y)
-    Handle(ResizeAxes.HEIGHT, rect.center.x, rect.bottom)
-    Handle(ResizeAxes.BOTH, rect.right, rect.bottom)
+    handles.forEach { Handle(it) }
 }

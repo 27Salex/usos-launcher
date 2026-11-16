@@ -296,6 +296,7 @@ fun HomeScreen(
                             onRemove = viewModel::removeFromMosaic,
                             onResize = viewModel::resizeTile,
                             onResizeInfo = viewModel::resizeInfo,
+                            onResizeAt = viewModel::resizeTileTo,
                             onRows = viewModel::changeRows,
                             onDetail = viewModel::openDetailByKey,
                         )

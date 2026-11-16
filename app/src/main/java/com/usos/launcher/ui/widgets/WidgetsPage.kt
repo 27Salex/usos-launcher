@@ -1,5 +1,8 @@
 package com.usos.launcher.ui.widgets
 
+import com.usos.launcher.data.sections.ResizeMath
+import com.usos.launcher.data.sections.ResizeLimits
+import com.usos.launcher.data.sections.CellBox
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
@@ -133,6 +136,7 @@ fun WidgetsPage(
     var resizeId by remember { mutableStateOf<Int?>(null) }
     var resizeFrom by remember { mutableStateOf(WidgetCells(1, 1)) }
     var resizeCells by remember { mutableStateOf<WidgetCells?>(null) }
+    var resizeStart by remember { mutableStateOf(CellBox(0, 0, 1, 1)) }
     var pageCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var listCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var gridCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -336,29 +340,46 @@ fun WidgetsPage(
                 val origin = page.positionInRoot()
                 val local = live.translate(-origin)
                 if (resizing) {
+                    // Límites del widget seleccionado: ancho hasta las columnas, alto hasta 6 filas, filas ilimitadas.
+                    val (minC, minR) = minCellsOf(sel)
+                    val limits = ResizeLimits(
+                        columns = columns, rows = null,
+                        minWidth = minC.coerceIn(1, columns), minHeight = minR.coerceIn(WidgetSizing.MIN_ROWS, WidgetSizing.MAX_ROWS),
+                        maxHeight = WidgetSizing.MAX_ROWS,
+                    )
+                    val selBox = baseNow.firstOrNull { it.id == sel }
+                    val handles = remember(sel, resizeId == null, selBox) {
+                        selBox?.let { ResizeMath.handlesFor(CellBox(it.col, it.row, it.w, it.h), limits) }.orEmpty()
+                    }
                     ResizeHandles(
                         local,
+                        handles,
                         onStart = {
                             resizeId = sel
-                            resizeFrom = baseNow.firstOrNull { it.id == sel }?.let { WidgetCells(it.w, it.h) } ?: WidgetCells(1, 1)
+                            val box = baseNow.firstOrNull { it.id == sel }
+                            resizeFrom = box?.let { WidgetCells(it.w, it.h) } ?: WidgetCells(1, 1)
+                            resizeStart = box?.let { CellBox(it.col, it.row, it.w, it.h) } ?: CellBox(0, 0, 1, 1)
                             resizeCells = resizeFrom
                             frozenRect = selectedRect
                         },
-                        onDelta = { dx, dy, axes ->
-                            val (minC, minR) = minCellsOf(sel)
-                            val next = WidgetSizing.snapCells(
-                                resizeFrom, if (axes.x) dx else 0f, if (axes.y) dy else 0f, stepX, stepY, columns, minC, minR,
-                            )
-                            if (next != resizeCells) {
+                        onDelta = { dx, dy, handle ->
+                            // Estirar a la izquierda/arriba mueve la esquina; los widgets solapados se empujan hacia abajo.
+                            val box = ResizeMath.resize(resizeStart, handle, dx, dy, stepX, stepY, limits)
+                            val next = WidgetCells(box.width, box.height)
+                            val moved = box.col != resizeStart.col || box.row != resizeStart.row
+                            if (next != resizeCells || moved) {
                                 resizeCells = next
-                                preview = if (next == resizeFrom) null else
-                                    WidgetGrid.resize(baseNow, sel, next.cols, next.rows, columns)
+                                preview = if (next == resizeFrom && !moved) null else
+                                    WidgetGrid.normalize(
+                                        baseNow.map { if (it.id == sel) it.copy(col = box.col, row = box.row, w = box.width, h = box.height) else it },
+                                        columns, sel,
+                                    )
                             }
                         },
                         onEnd = { completed ->
                             val next = resizeCells
                             val pv = preview
-                            if (completed && next != null && next != resizeFrom && pv != null) {
+                            if (completed && next != null && pv != null) {
                                 held = pv
                                 actions.onLayout(pv)
                             }

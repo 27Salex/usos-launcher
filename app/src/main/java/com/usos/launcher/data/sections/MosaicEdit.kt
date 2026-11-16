@@ -97,6 +97,26 @@ object MosaicEdit {
         return if (key in layout.skipped) null else layout
     }
 
+    /**
+     * Redimensionar [key] a [size] con su esquina en [target] (estirar a la izquierda o arriba mueve la esquina):
+     * se reordena como al soltarla en [target] y se empaqueta. Solo vale si cabe y NO oculta ninguna pieza que se
+     * veía: si no hay hueco suficiente para el tamaño nuevo, null (no se redimensiona). Si lo hay, las demás se
+     * recolocan.
+     */
+    fun previewResizeAt(
+        columns: Int, rows: Int, info: TileSize?, entries: List<MosaicEntry>, placements: List<Placement>,
+        key: String, size: TileSize, target: Cell, reserveFreeze: Boolean,
+    ): Preview? {
+        val before = SectionMosaic.layout(columns, rows, info, entries, reserveFreeze)
+        val byKey = entries.associateBy { it.key }
+        if (key !in byKey) return null
+        val order = reorder(entries.map { it.key }, placements, key, target, columns)
+        val next = order.mapNotNull { k -> byKey[k]?.let { if (k == key) it.copy(size = size, inMosaic = true) else it } }
+        val layout = SectionMosaic.layout(columns, rows, info, next, reserveFreeze)
+        if (key in layout.skipped || !noNewlySkipped(before, layout)) return null
+        return Preview(order, layout)
+    }
+
     /** Un cambio es válido si no oculta ninguna pieza que antes se veía. */
     fun noNewlySkipped(before: PackResult, after: PackResult): Boolean =
         after.skipped.all { it in before.skipped }

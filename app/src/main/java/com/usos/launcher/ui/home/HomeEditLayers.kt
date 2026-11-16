@@ -228,10 +228,13 @@ internal fun EditOverlay(edit: EditState, actions: EditActions, pageCoords: Layo
     val local = rect.translate(-origin)
     val viewport = edit.viewport?.rootRect()?.translate(-origin)
     if (edit.resizing) {
+        // Tiradores fijados al empezar (la pieza congela su rectángulo mientras se redimensiona).
+        val handles = remember(key, edit.resizeKey == null) { edit.handlesForSelected() }
         ResizeHandles(
             local,
+            handles,
             onStart = { edit.beginResize() },
-            onDelta = { dx, dy, axes -> edit.updateResize(dx, dy, axes) },
+            onDelta = { dx, dy, handle -> edit.updateResize(dx, dy, handle) },
             onEnd = { edit.endResize(actions, it) },
         )
     } else {
