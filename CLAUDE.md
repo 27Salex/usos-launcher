@@ -158,11 +158,14 @@ Pendiente de verificar en dispositivo (`adb shell dumpsys package <pkg>` para fi
 ### Buscador de Ajustes
 - Campo arriba de la lista de categorías; `SettingsIndex.kt` = (categoría, texto) de cada pantalla, filtrado con `SearchFilter.score`. Al añadir un ajuste nuevo, añadir su texto al índice.
 
-## 1.1.1: arreglos de piezas, calendario y cajón
-- Ocio oculto en inicio (`sections_hidden` con LEISURE): `openApp` abre sus apps directamente y la búsqueda no las marca congeladas (no hay sección donde desbloquearlas).
-- Música (`MusicTile`): título y artista a una línea; los botones usan `requiredSize` y el texto ocupa solo lo que sobra.
+## 1.1.1 / 1.1.2: arreglos de piezas, calendario y cajón
+- Trabajo sin perfil de trabajo: es una sección normal; cualquier app (p. ej. WhatsApp Business) se mueve a mano (ficha, «+» de la sección o arrastrar al nombre) y queda `manual`. La pausa solo oculta apps del perfil de trabajo.
+- Ocio oculto en inicio (`sections_hidden` con LEISURE): el bloqueo sigue igual (búsqueda la marca congelada, el servicio la bloquea). Tocar una app de ocio congelada abre `LeisureSheet` (panel de Ocio a pantalla completa, `HomeViewModel.leisureSheet`) para descongelar; se cierra solo al abrirse el ocio.
+- Música (`MusicTile`): título y artista a una línea; los botones usan `requiredSize` y el texto ocupa solo lo que sobra. Las barras (2x2) usan `weight(1f)` + `heightIn(max)`: con `fill = false` el Canvas medía 0 de alto y no se veían moverse. Son procedurales (sin micrófono), no reaccionan al audio.
 - Destino: `CustomTile.icon` (`DestinationIcon`: PIN, HOME, WORK, CAR, PARKING, STAR, HEART; desconocido = PIN), glifos de puntos `DestinationGlyph`; 2x1 con nombre y dirección a una línea.
 - Contactos: `TileContact.shortcutId/shortcutPackage/photo`. «AÑADIR CHAT O GRUPO» lista los accesos directos de WhatsApp/Telegram/Signal (`ChatShortcuts`, LauncherApps; solo el launcher predeterminado) y abre con `startShortcut` (grupos incluidos); se fijan con `pinShortcuts` al guardar. Foto: icono del acceso directo o `PHOTO_URI` del contacto (pide READ_CONTACTS al añadir; sin permiso, iniciales), copiada a `filesDir/tile_photos` (se borran las que no usa ninguna pieza).
 - Calendario propio: eventos como píldoras (`UsosColors.SurfaceRaised`), cabecera `PageNav` con rango, flechas y toque = volver a hoy; deslizar en horizontal dentro del widget cambia de semana (WEEK), mes (MONTH) o bloque de 7 días (AGENDA). Semana = semana natural (lunes a domingo según la locale). `CalendarLogic.window` (puro) da el rango a consultar.
 - Cajón de apps (búsqueda) con pestañas por sección: opción `drawer_tabs` (Ajustes > Inicio, apagada); sin texto se ve una sección, al escribir busca en todas.
 - Iconos monocromos: `IconMask.plateColor` detecta iconos cuadrados macizos (más de la mitad opaco y un color dominante ≥35 %) y usa ese color como fondo para sacar el logo.
+- Salir de la edición (LISTO, atrás, botón de inicio) llama a `requestExitEdit`: si alguna pieza con `inMosaic` no cabe (p. ej. tras quitar una fila), `ConfirmEditDialog` pregunta; CONFIRMAR la quita de inicio (`inMosaic = false`), SEGUIR EDITANDO vuelve. Mientras se edita, lo que no cabe solo se oculta. Las alertas del bloqueo salen sin preguntar (`exitEdit`).
+- `placeTile` (añadir con «+» o mover): si la pieza no cabe a su tamaño en el hueco elegido, se coloca a 1x1 antes de avisar MOSAICO LLENO.

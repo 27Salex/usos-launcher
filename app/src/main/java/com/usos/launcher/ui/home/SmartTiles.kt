@@ -459,7 +459,7 @@ fun MusicTile(
                 if (tall) {
                     // El texto ocupa lo que sobra (una línea cada uno) y los botones mantienen siempre su tamaño.
                     Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Bottom) {
-                        SmartBars(playing, if (playing) accent else UsosColors.BorderStrong, Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 36.dp))
+                        SmartBars(playing, if (playing) accent else UsosColors.BorderStrong, Modifier.fillMaxWidth().weight(1f).heightIn(max = 36.dp))
                         Spacer(Modifier.height(8.dp))
                         UsosText(title, UsosType.PieceData, UsosColors.Text, maxLines = 1)
                         if (subtitle.isNotBlank()) UsosText(subtitle, UsosType.Label, UsosColors.TextSecondary, maxLines = 1)

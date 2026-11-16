@@ -187,7 +187,7 @@ fun HomeScreen(
     }
 
     // Atrás cierra la búsqueda; en inicio no hace nada más.
-    BackHandler(enabled = true) { if (aiPicker) aiPicker = false else if (searchOpen) viewModel.closeSearch() else if (editing) { if (edit.selectedKey != null) edit.clearSelection() else viewModel.exitEdit() } }
+    BackHandler(enabled = true) { if (aiPicker) aiPicker = false else if (searchOpen) viewModel.closeSearch() else if (editing) { if (edit.selectedKey != null) edit.clearSelection() else viewModel.requestExitEdit() } }
 
 
     // Al abrir el cajón (búsqueda) o entrar en edición el pager vuelve a Inicio sin animación. No se usa
@@ -290,7 +290,7 @@ fun HomeScreen(
                     edit = edit,
                     editActions = remember(viewModel) {
                         EditActions(
-                            onExit = viewModel::exitEdit,
+                            onExit = viewModel::requestExitEdit,
                             onPlace = viewModel::placeTile,
                             onToSection = { k, sec -> viewModel.setSection(k, sec) },
                             onRemove = viewModel::removeFromMosaic,
@@ -383,6 +383,14 @@ fun HomeScreen(
         }
         if (feedManager) {
             com.usos.launcher.ui.feeds.FeedManagerScreen(feedsVm, onBack = { feedManager = false })
+        }
+        val pendingHidden by viewModel.pendingHidden.collectAsStateWithLifecycle()
+        pendingHidden?.let { hidden ->
+            ConfirmEditDialog(hidden.size, onConfirm = viewModel::confirmExitEdit, onKeepEditing = viewModel::keepEditing)
+        }
+        val leisureSheet by viewModel.leisureSheet.collectAsStateWithLifecycle()
+        if (leisureSheet) {
+            LeisureSheet(leisure, onThaw = viewModel::startThaw, onCancelThaw = viewModel::cancelThaw, onClose = viewModel::closeLeisureSheet)
         }
         val tileEditing by viewModel.tileEditing.collectAsStateWithLifecycle()
         tileEditing?.let { ed ->

@@ -427,4 +427,8 @@
     <string name="settings_search_hint">Buscar en ajustes</string>
     <string name="settings_search_none">Nada con ese nombre.</string>
     <string name="settings_search_hide_leisure">Ocultar Ocio (u otra sección) del inicio</string>
+    <string name="home_edit_confirm_title">¿GUARDAR LA EDICIÓN?</string>
+    <string name="home_edit_confirm_body">%1$d piezas no caben y se quitarán de inicio. Podrás volver a añadirlas con «+».</string>
+    <string name="home_edit_confirm">CONFIRMAR</string>
+    <string name="home_edit_keep">SEGUIR EDITANDO</string>
 </resources>

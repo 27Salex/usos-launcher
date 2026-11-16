@@ -331,8 +331,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     /** Todas las apps para la busqueda; las de ocio llevan `frozen` mientras el ocio no este abierto. */
     val searchItems: StateFlow<List<SearchItem>> = combine(
-        apps, configs,
-        combine(leisure.map { it?.isOpen == true }, mosaicPrefs) { o, p -> o || Section.LEISURE in p.hiddenSections }.distinctUntilChanged(),
+        apps, configs, leisure.map { it?.isOpen == true }.distinctUntilChanged(),
     ) { a, c, leisureOpen ->
         a.orEmpty().mapNotNull { app ->
             if (app.isQuiet) return@mapNotNull null
@@ -825,6 +824,36 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     fun enterEdit() { _editing.value = true; closeSearch() }
     fun exitEdit() { _editing.value = false }
 
+    /** Piezas que al salir de la edición no caben y se quitarían de inicio; null = no hay nada que confirmar. */
+    private val _pendingHidden = MutableStateFlow<List<String>?>(null)
+    val pendingHidden: StateFlow<List<String>?> = _pendingHidden
+
+    /**
+     * Salir de la edición (LISTO, atrás, botón de inicio). Mientras se edita, lo que no cabe (p. ej. al quitar una
+     * fila) solo se oculta y vuelve si se recupera el sitio; al terminar se pregunta si quitarlo de inicio de verdad.
+     */
+    fun requestExitEdit() {
+        if (!_editing.value) return
+        val hidden = state.value?.sections.orEmpty().flatMap { s ->
+            val shown = s.placements.map { it.key }.toSet()
+            s.entries.filter { it.inMosaic && it.key !in shown }.map { it.key }
+        }
+        if (hidden.isEmpty()) exitEdit() else _pendingHidden.value = hidden
+    }
+
+    /** Confirma: lo que no cabía deja de estar en inicio (se puede volver a añadir con «+»). */
+    fun confirmExitEdit() {
+        val hidden = _pendingHidden.value.orEmpty().toSet()
+        _pendingHidden.value = null
+        exitEdit()
+        if (hidden.isEmpty()) return
+        viewModelScope.launch {
+            configStore.update { all -> all.mapValues { (k, c) -> if (k in hidden) c.copy(inMosaic = false, manual = true) else c } }
+        }
+    }
+
+    fun keepEditing() { _pendingHidden.value = null }
+
     /** Desde Ajustes: vuelve a inicio y entra en edicion. */
     fun startHomeEdit() { closeOverlay(); enterEdit() }
 
@@ -860,11 +889,12 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                     }
                 }
                 val info = infoSpecs.value[section]?.visibleSize
-                if (key in layoutOf(section, mosaicEntries(section, updated.values), info).skipped) {
-                    full = true
-                    return@update all
-                }
-                updated
+                if (key !in layoutOf(section, mosaicEntries(section, updated.values), info).skipped) return@update updated
+                // No cabe a su tamaño (p. ej. 2x1 en un hueco de una celda): se coloca a 1x1 antes que rechazarla.
+                val small = updated + (key to updated.getValue(key).copy(size = TileSize.S1X1))
+                if (key !in layoutOf(section, mosaicEntries(section, small.values), info).skipped) return@update small
+                full = true
+                all
             }
             if (full) showNotice(R.string.notice_mosaic_full)
         }
@@ -1000,10 +1030,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             return
         }
         // El launcher nunca abre apps de ocio congeladas, venga la peticion de donde venga.
-        // Con Ocio oculto en inicio no hay donde desbloquearlo: se abre directamente.
-        if (configs.value[app.key]?.section == Section.LEISURE && !leisureRepo.isOpen() &&
-            Section.LEISURE !in mosaicPrefs.value.hiddenSections
-        ) {
+        if (configs.value[app.key]?.section == Section.LEISURE && !leisureRepo.isOpen()) {
             revealLeisure()
             return
         }
@@ -1023,13 +1050,26 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
         if (_route.value !is Route.Onboarding) closeOverlay()
         closeSearch()
-        exitEdit()
+        requestExitEdit()
         open.value = null
         _homeEvents.tryEmit(Unit)
     }
 
-    /** Cierra la busqueda y abre la seccion Ocio en inicio, sin abrir ninguna app. */
+    /** Panel de Ocio a pantalla completa: para descongelar cuando la sección está oculta en inicio. */
+    private val _leisureSheet = MutableStateFlow(false)
+    val leisureSheet: StateFlow<Boolean> = _leisureSheet
+
+    fun closeLeisureSheet() { _leisureSheet.value = false }
+
+    /**
+     * Cierra la busqueda y abre la seccion Ocio en inicio, sin abrir ninguna app. Si Ocio está oculta en inicio,
+     * muestra su panel encima (el bloqueo sigue activo: ocultar la sección no descongela nada).
+     */
     private fun revealLeisure() {
+        if (Section.LEISURE in mosaicPrefs.value.hiddenSections) {
+            _leisureSheet.value = true
+            return
+        }
         closeSearch()
         open.value = Section.LEISURE
         viewModelScope.launch { settings.setLastOpenSection(Section.LEISURE) }
