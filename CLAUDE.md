@@ -157,3 +157,12 @@ Pendiente de verificar en dispositivo (`adb shell dumpsys package <pkg>` para fi
 - `HomeScreen.kt` (pantalla raíz, pager, rutas superpuestas), `HomePage.kt` (página central), `HomeSections.kt` (acordeón, pestañas opcionales, mosaico), `HomeEditLayers.kt` (gestos de edición, bolitas), `HomeTiles.kt` (piezas), `HomeSearchBar.kt` (BUSCAR, IA), `HomeSettingsRoute.kt` (Ajustes conectados al ViewModel).
 ### Buscador de Ajustes
 - Campo arriba de la lista de categorías; `SettingsIndex.kt` = (categoría, texto) de cada pantalla, filtrado con `SearchFilter.score`. Al añadir un ajuste nuevo, añadir su texto al índice.
+
+## 1.1.1: arreglos de piezas, calendario y cajón
+- Ocio oculto en inicio (`sections_hidden` con LEISURE): `openApp` abre sus apps directamente y la búsqueda no las marca congeladas (no hay sección donde desbloquearlas).
+- Música (`MusicTile`): título y artista a una línea; los botones usan `requiredSize` y el texto ocupa solo lo que sobra.
+- Destino: `CustomTile.icon` (`DestinationIcon`: PIN, HOME, WORK, CAR, PARKING, STAR, HEART; desconocido = PIN), glifos de puntos `DestinationGlyph`; 2x1 con nombre y dirección a una línea.
+- Contactos: `TileContact.shortcutId/shortcutPackage/photo`. «AÑADIR CHAT O GRUPO» lista los accesos directos de WhatsApp/Telegram/Signal (`ChatShortcuts`, LauncherApps; solo el launcher predeterminado) y abre con `startShortcut` (grupos incluidos); se fijan con `pinShortcuts` al guardar. Foto: icono del acceso directo o `PHOTO_URI` del contacto (pide READ_CONTACTS al añadir; sin permiso, iniciales), copiada a `filesDir/tile_photos` (se borran las que no usa ninguna pieza).
+- Calendario propio: eventos como píldoras (`UsosColors.SurfaceRaised`), cabecera `PageNav` con rango, flechas y toque = volver a hoy; deslizar en horizontal dentro del widget cambia de semana (WEEK), mes (MONTH) o bloque de 7 días (AGENDA). Semana = semana natural (lunes a domingo según la locale). `CalendarLogic.window` (puro) da el rango a consultar.
+- Cajón de apps (búsqueda) con pestañas por sección: opción `drawer_tabs` (Ajustes > Inicio, apagada); sin texto se ve una sección, al escribir busca en todas.
+- Iconos monocromos: `IconMask.plateColor` detecta iconos cuadrados macizos (más de la mitad opaco y un color dominante ≥35 %) y usa ese color como fondo para sacar el logo.

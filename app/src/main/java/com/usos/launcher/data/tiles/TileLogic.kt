@@ -103,9 +103,11 @@ object TileIntents {
                 if (!tryStart(context, destination(tile.address, tile.appPackage))) tryStart(context, destinationFallback(tile.address))
             }
             TileKind.CONTACTS -> {
-                val c = tile.contacts.getOrNull(contactIndex) ?: return
-                if (c.phone.isBlank()) return
-                if (!tryStart(context, contact(c))) tryStart(context, contactFallback(c))
+                val tileContact = tile.contacts.getOrNull(contactIndex) ?: return
+                // Chat elegido de la app (grupos incluidos): se abre su acceso directo; si ya no existe, por teléfono.
+                if (tileContact.shortcutId.isNotEmpty() && ChatShortcuts.launch(context, tileContact)) return
+                if (tileContact.phone.isBlank()) return
+                if (!tryStart(context, contact(tileContact))) tryStart(context, contactFallback(tileContact))
             }
         }
     }

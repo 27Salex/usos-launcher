@@ -64,8 +64,8 @@ object CalendarLogic {
      * Agenda desde ahora durante [days] días (hoy incluido): los que no han terminado, un elemento por evento
      * en su primer día visible (hoy si ya empezó). Primero los de todo el día de cada fecha y luego por hora.
      */
-    fun agenda(events: List<CalEvent>, nowMs: Long, zone: ZoneId, days: Int): List<AgendaItem> {
-        val today = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+    fun agenda(events: List<CalEvent>, nowMs: Long, zone: ZoneId, days: Int, start: LocalDate? = null): List<AgendaItem> {
+        val today = start ?: Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
         val limit = today.plusDays(days.toLong())
         return events.mapNotNull { e ->
             if (!e.allDay && e.endMs <= nowMs) return@mapNotNull null
@@ -97,6 +97,19 @@ object CalendarLogic {
 
     /** Evento en curso (no de todo el día). */
     fun isOngoing(e: CalEvent, nowMs: Long): Boolean = !e.allDay && e.beginMs <= nowMs && nowMs < e.endMs
+
+    /**
+     * Días que muestra el calendario desplazado [offset] páginas (semana en WEEK, mes en MONTH, 7 días desde hoy en
+     * AGENDA): [inicio, fin) para la consulta.
+     */
+    fun window(mode: CalMode, today: LocalDate, offset: Int, first: DayOfWeek): Pair<LocalDate, LocalDate> = when (mode) {
+        CalMode.MONTH -> {
+            val grid = monthGrid(YearMonth.from(today).plusMonths(offset.toLong()), first)
+            grid.first().first().date to grid.last().last().date.plusDays(1)
+        }
+        CalMode.WEEK -> weekOf(today.plusWeeks(offset.toLong()), first).let { it.first() to it.last().plusDays(1) }
+        else -> today.plusDays(7L * offset) to today.plusDays(7L * offset + 7)
+    }
 
     /** Semana (7 días) que contiene [date], empezando en [first]. */
     fun weekOf(date: LocalDate, first: DayOfWeek): List<LocalDate> {

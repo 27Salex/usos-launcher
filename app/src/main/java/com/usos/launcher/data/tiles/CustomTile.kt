@@ -8,11 +8,26 @@ enum class TileKind { DEST, CONTACTS }
 
 enum class ContactApp { WHATSAPP, TELEGRAM, SMS, CALL }
 
+/** Icono de una pieza de destino. Se guarda su nombre (PIN, HOME...): no renombrar los valores. */
+enum class DestinationIcon {
+    PIN, HOME, WORK, CAR, PARKING, STAR, HEART;
+
+    companion object {
+        /** Icono guardado con [name]; si no existe (dato antiguo o de otra versión), la chincheta. */
+        fun of(name: String): DestinationIcon = entries.firstOrNull { icon -> icon.name == name } ?: PIN
+    }
+}
+
 @Serializable
 data class TileContact(
     val name: String = "",
     val phone: String = "",
     val app: ContactApp = ContactApp.WHATSAPP,
+    /** Chat elegido de los accesos directos de una app (grupos de WhatsApp, etc.); vacío = por teléfono. */
+    val shortcutId: String = "",
+    val shortcutPackage: String = "",
+    /** Foto guardada en filesDir/tile_photos (copiada al elegir); vacío = iniciales. */
+    val photo: String = "",
 )
 
 /** Pieza propia del mosaico ("app virtual"). Persistida como JSON (PersistJson); todo campo con valor por defecto. */
@@ -24,6 +39,8 @@ data class CustomTile(
     /** DEST: dirección y paquete de la app de navegación ("" = cualquiera). */
     val address: String = "",
     val appPackage: String = "",
+    /** DEST: nombre de [DestinationIcon]. */
+    val icon: String = "PIN",
     /** CONTACTS: 1..4 contactos. */
     val contacts: List<TileContact> = emptyList(),
 )

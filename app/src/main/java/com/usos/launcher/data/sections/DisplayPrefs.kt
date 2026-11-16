@@ -58,6 +58,8 @@ data class MosaicPrefs(
     val tabs: Boolean = false,
     /** Mini reproductor en piezas de apps de música de 2x1 o más (opcional, apagado). */
     val musicPlayer: Boolean = false,
+    /** Pestañas por sección en el cajón de apps (búsqueda sin texto). */
+    val drawerTabs: Boolean = false,
 ) {
     /** Pestañas visibles en orden; nunca vacía (si se ocultan todas se ve la primera). */
     val visibleSections: List<com.usos.launcher.domain.Section>

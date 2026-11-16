@@ -160,6 +160,7 @@ fun HomeScreen(
     val mosaicCols by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
     val assistantUi by viewModel.assistantUi.collectAsStateWithLifecycle()
     val searchKeyboardOn by viewModel.searchKeyboard.collectAsStateWithLifecycle()
+    val mosaicPrefsForDrawer by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
     val pwaKeywords by viewModel.pwaKeywords.collectAsStateWithLifecycle()
     val mosaicPrefsHome by viewModel.mosaicPrefs.collectAsStateWithLifecycle()
     var aiPicker by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
@@ -338,6 +339,7 @@ fun HomeScreen(
             onOpenSettings = viewModel::openSettings,
             onClose = viewModel::closeSearch,
             autoKeyboard = searchKeyboardOn,
+            tabs = mosaicPrefsForDrawer.drawerTabs,
             pwaKeywords = pwaKeywords,
             assistantName = assistantUi.resolved?.assistant?.label,
             onAsk = viewModel::askAssistant,

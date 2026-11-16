@@ -115,6 +115,7 @@ class SettingsActions(
     val onSectionHidden: (Section, Boolean) -> Unit = { _, _ -> },
     val onHomeTabs: (Boolean) -> Unit = {},
     val onMusicPlayer: (Boolean) -> Unit = {},
+    val onDrawerTabs: (Boolean) -> Unit = {},
     val onInfoSize: (InfoKind, TileSize) -> Unit,
     val onInfoHidden: (InfoKind, Boolean) -> Unit,
     val onEditMosaic: () -> Unit,
@@ -304,6 +305,7 @@ private fun HomeSettings(ui: SettingsUi, actions: SettingsActions) {
     UsosText(stringResource(R.string.settings_sections_hint), UsosType.Label, UsosColors.TextSecondary)
     UsosRow(stringResource(R.string.settings_home_tabs)) { UsosSwitch(ui.mosaic.tabs, actions.onHomeTabs) }
     UsosRow(stringResource(R.string.settings_music_player)) { UsosSwitch(ui.mosaic.musicPlayer, actions.onMusicPlayer) }
+    UsosRow(stringResource(R.string.settings_drawer_tabs)) { UsosSwitch(ui.mosaic.drawerTabs, actions.onDrawerTabs) }
     Spacer(Modifier.height(4.dp))
     ui.mosaic.sectionOrder.forEachIndexed { i, s ->
         val hidden = s in ui.mosaic.hiddenSections

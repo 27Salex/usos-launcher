@@ -421,6 +421,8 @@
     <string name="edit_tab_pieces">PIEZAS</string>
     <string name="edit_pieces_hint">Piezas propias: ir a un sitio con la app que quieras o tus contactos favoritos. Mantén pulsada una pieza en edición para cambiarla.</string>
     <string name="settings_home_tabs">Pestañas en vez de acordeón</string>
+    <string name="settings_drawer_tabs">Pestañas en el cajón de apps (búsqueda)</string>
+    <string name="search_tab_all">TODAS</string>
     <string name="settings_music_player">Mini reproductor en piezas de música (2×1 o más)</string>
     <string name="settings_search_hint">Buscar en ajustes</string>
     <string name="settings_search_none">Nada con ese nombre.</string>

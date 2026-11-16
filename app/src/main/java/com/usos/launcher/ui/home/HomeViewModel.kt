@@ -331,7 +331,8 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     /** Todas las apps para la busqueda; las de ocio llevan `frozen` mientras el ocio no este abierto. */
     val searchItems: StateFlow<List<SearchItem>> = combine(
-        apps, configs, leisure.map { it?.isOpen == true }.distinctUntilChanged(),
+        apps, configs,
+        combine(leisure.map { it?.isOpen == true }, mosaicPrefs) { o, p -> o || Section.LEISURE in p.hiddenSections }.distinctUntilChanged(),
     ) { a, c, leisureOpen ->
         a.orEmpty().mapNotNull { app ->
             if (app.isQuiet) return@mapNotNull null
@@ -914,6 +915,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setMusicPlayer(on: Boolean) { viewModelScope.launch { container.displayStore.setMusicPlayer(on) } }
     fun setHomeTabs(on: Boolean) { viewModelScope.launch { container.displayStore.setHomeTabs(on) } }
+    fun setDrawerTabs(on: Boolean) { viewModelScope.launch { container.displayStore.setDrawerTabs(on) } }
 
     fun moveSectionTab(section: Section, delta: Int) {
         viewModelScope.launch {
@@ -953,6 +955,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         _tileEditing.value = null
         viewModelScope.launch {
             container.customTileStore.upsert(tile)
+            syncChatShortcuts()
             val key = com.usos.launcher.data.tiles.CustomTiles.configKey(tile.id)
             if (ed?.isNew == true && ed.section != null) {
                 configStore.update { all ->
@@ -970,12 +973,22 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** Fija los chats elegidos y borra fotos sin uso. */
+    private suspend fun syncChatShortcuts() {
+        val all = container.customTileStore.tiles.first()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.usos.launcher.data.tiles.ChatShortcuts.pinAll(container.appContext, all)
+            com.usos.launcher.data.tiles.ChatShortcuts.prunePhotos(container.appContext, all)
+        }
+    }
+
     fun deleteCustomTile(key: String) {
         _tileEditing.value = null
         val id = com.usos.launcher.data.tiles.CustomTiles.idOf(key.substringBefore('/'))
         viewModelScope.launch {
             configStore.update { it - key }
             container.customTileStore.remove(id)
+            syncChatShortcuts()
             container.displayStore.dockPrefs.first().apps.forEachIndexed { i, k -> if (k == key) container.displayStore.setDockApp(i, null) }
         }
     }
@@ -987,7 +1000,10 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
             return
         }
         // El launcher nunca abre apps de ocio congeladas, venga la peticion de donde venga.
-        if (configs.value[app.key]?.section == Section.LEISURE && !leisureRepo.isOpen()) {
+        // Con Ocio oculto en inicio no hay donde desbloquearlo: se abre directamente.
+        if (configs.value[app.key]?.section == Section.LEISURE && !leisureRepo.isOpen() &&
+            Section.LEISURE !in mosaicPrefs.value.hiddenSections
+        ) {
             revealLeisure()
             return
         }

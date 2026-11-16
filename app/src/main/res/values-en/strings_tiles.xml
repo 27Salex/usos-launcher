@@ -28,4 +28,9 @@
     <string name="stile_app_call">CALL</string>
     <string name="stile_default_dest">Destination</string>
     <string name="stile_default_contacts">Contacts</string>
+    <string name="stile_icon_label">ICON</string>
+    <string name="stile_add_chat">ADD CHAT OR GROUP</string>
+    <string name="stile_chats_title">CHATS AND GROUPS</string>
+    <string name="stile_chats_none">No recent chats. Open the chat or group in WhatsApp or Telegram, come back and tap again.</string>
+    <string name="stile_chat_from_app">CHAT FROM THE APP</string>
 </resources>

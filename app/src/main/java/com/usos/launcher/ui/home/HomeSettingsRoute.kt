@@ -210,6 +210,7 @@ internal fun SettingsRoute(
                 onSectionHidden = viewModel::setSectionHidden,
                 onHomeTabs = viewModel::setHomeTabs,
                 onMusicPlayer = viewModel::setMusicPlayer,
+                onDrawerTabs = viewModel::setDrawerTabs,
                 onInfoSize = viewModel::setInfoSize,
                 onInfoHidden = viewModel::setInfoHidden,
                 onEditMosaic = viewModel::startHomeEdit,

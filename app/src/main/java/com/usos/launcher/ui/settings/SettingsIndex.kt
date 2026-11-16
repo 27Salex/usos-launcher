@@ -12,6 +12,7 @@ internal val SettingsIndex: List<Pair<String, Int>> = listOf(
     "HOME" to R.string.settings_sections_hint,
     "HOME" to R.string.settings_home_tabs,
     "HOME" to R.string.settings_music_player,
+    "HOME" to R.string.settings_drawer_tabs,
     "HOME" to R.string.settings_section_hidden,
     "HOME" to R.string.settings_section_shown,
     "HOME" to R.string.settings_home_columns,

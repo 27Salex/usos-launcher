@@ -94,7 +94,9 @@ class IconRepository(context: Context) {
                     val fg = adaptive?.foreground
                     val bmp = if (fg != null) render(fg, px, 1.5f) else render(d, px, 1f)
                     val pixels = IntArray(px * px).also { bmp.getPixels(it, 0, px, 0, 0, px, px) }
-                    val bg = if (adaptive != null) {
+                    // Icono cuadrado completo (el plato va en la capa delantera o es el propio icono): el fondo es
+                    // el color dominante del plato, no la capa trasera ni la media del borde.
+                    val bg = IconMask.plateColor(pixels) ?: if (adaptive != null) {
                         adaptive.background?.let { b ->
                             val bb = render(b, px, 1.5f)
                             IconMask.averageColor(IntArray(px * px).also { bb.getPixels(it, 0, px, 0, 0, px, px) })

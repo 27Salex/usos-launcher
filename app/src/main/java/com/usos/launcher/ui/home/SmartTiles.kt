@@ -9,6 +9,14 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.usos.launcher.data.tiles.ChatShortcut
+import com.usos.launcher.data.tiles.ChatShortcuts
+import com.usos.launcher.data.tiles.DestinationIcon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -124,15 +132,44 @@ private val PIN_ROWS = listOf(
     "...X...",
 )
 
-/** Chincheta de puntos (matriz 7x9). */
+/** Radio de cada punto respecto al lado de su celda (0,36 deja hueco entre puntos vecinos). */
+private const val DOT_RADIUS_PER_CELL = 0.36f
+
+/** Desplazamiento al centro de la celda (media celda). */
+private const val CELL_CENTER = 0.5f
+
+/**
+ * Convierte el dibujo en texto (una cadena por fila; «X» = punto, «.» = vacío) en una rejilla booleana
+ * [fila][columna]. Se escribe como texto porque así se ve el dibujo en el código.
+ */
+private fun dotGrid(rows: List<String>): Array<BooleanArray> =
+    Array(rows.size) { row -> BooleanArray(rows[row].length) { column -> rows[row][column] == 'X' } }
+
+private val ICON_ROWS: Map<DestinationIcon, List<String>> = mapOf(
+    DestinationIcon.PIN to PIN_ROWS,
+    DestinationIcon.HOME to listOf("....X....", "...XXX...", "..XX.XX..", ".XX...XX.", "XX.....XX", ".X.....X.", ".X.XXX.X.", ".X.X.X.X.", ".XXX.XXX."),
+    DestinationIcon.WORK to listOf(".........", "...XXX...", "...X.X...", "XXXXXXXXX", "X.......X", "XXXXXXXXX", "X.......X", "X.......X", "XXXXXXXXX"),
+    DestinationIcon.CAR to listOf(".........", ".........", "..XXXXX..", ".X.....X.", "X.......X", "XXXXXXXXX", "XXXXXXXXX", ".XX...XX.", ".XX...XX."),
+    DestinationIcon.PARKING to listOf("XXXXXXXXX", "X.......X", "X.XXXX..X", "X.X...X.X", "X.XXXX..X", "X.X.....X", "X.X.....X", "X.......X", "XXXXXXXXX"),
+    DestinationIcon.STAR to listOf("....X....", "....X....", "...XXX...", "XXXXXXXXX", ".XXXXXXX.", "..XXXXX..", "..XX.XX..", ".XX...XX.", ".X.....X."),
+    DestinationIcon.HEART to listOf(".........", ".XX...XX.", "XXXX.XXXX", "XXXXXXXXX", "XXXXXXXXX", ".XXXXXXX.", "..XXXXX..", "...XXX...", "....X...."),
+)
+
+/** Rejillas ya convertidas, una vez al cargar. */
+private val ICON_GRIDS: Map<DestinationIcon, Array<BooleanArray>> = ICON_ROWS.mapValues { (_, rows) -> dotGrid(rows) }
+
+/** Icono de puntos de un destino (rejilla de 9 filas). */
 @Composable
-private fun PinGlyph(height: Dp, color: Color) {
-    val cols = PIN_ROWS[0].length
-    val rows = PIN_ROWS.size
-    Canvas(Modifier.size(height * cols / rows, height)) {
-        val cell = size.height / rows
-        for (r in 0 until rows) for (c in 0 until cols) {
-            if (PIN_ROWS[r][c] == 'X') drawCircle(color, cell * 0.36f, Offset((c + 0.5f) * cell, (r + 0.5f) * cell))
+internal fun DestinationGlyph(icon: DestinationIcon, height: Dp, color: Color) {
+    val grid = ICON_GRIDS[icon] ?: ICON_GRIDS.getValue(DestinationIcon.PIN)
+    val rowCount = grid.size
+    val columnCount = grid[0].size
+    Canvas(Modifier.size(height * columnCount / rowCount, height)) {
+        val cellSize = size.height / rowCount
+        for (row in 0 until rowCount) for (column in 0 until columnCount) {
+            if (!grid[row][column]) continue
+            val center = Offset((column + CELL_CENTER) * cellSize, (row + CELL_CENTER) * cellSize)
+            drawCircle(color, cellSize * DOT_RADIUS_PER_CELL, center)
         }
     }
 }
@@ -154,11 +191,12 @@ fun DestinationTile(
     val accent = LocalAccent.current
     val name = tile.name.ifBlank { tile.address }
     val app = if (tile.appPackage.isEmpty()) "" else NavApps.labelOf(tile.appPackage).uppercase()
+    val icon = DestinationIcon.of(tile.icon)
     TileFrame(modifier, interactive, onOpen, onLongPress) {
         when {
             rowSpan >= 2 -> Column(Modifier.fillMaxSize().padding(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    PinGlyph(if (colSpan >= 2) 34.dp else 28.dp, accent)
+                    DestinationGlyph(icon, if (colSpan >= 2) 34.dp else 28.dp, accent)
                     Spacer(Modifier.size(10.dp))
                     UsosText(stringResource(R.string.stile_go), UsosType.Label, UsosColors.TextSecondary)
                 }
@@ -173,22 +211,20 @@ fun DestinationTile(
                     UsosText(app, UsosType.SmallTag, accent)
                 }
             }
-            colSpan >= 2 -> Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                PinGlyph(40.dp, accent)
-                Spacer(Modifier.size(14.dp))
+            // 2x1: icono a la izquierda y nombre en una línea con la dirección debajo (cabe en 4 columnas).
+            colSpan >= 2 -> Row(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                DestinationGlyph(icon, 30.dp, accent)
+                Spacer(Modifier.size(10.dp))
                 Column(Modifier.weight(1f)) {
-                    UsosText(name, UsosType.TileCode, UsosColors.Text)
-                    if (tile.address.isNotBlank() && tile.name.isNotBlank()) UsosText(tile.address, UsosType.SmallName, UsosColors.TextSecondary)
-                    if (app.isNotEmpty()) {
-                        Spacer(Modifier.height(4.dp))
-                        UsosText(app, UsosType.SmallTag, accent)
-                    }
+                    UsosText(name, UsosType.PieceData, UsosColors.Text, maxLines = 1)
+                    val sub = if (tile.address.isNotBlank() && tile.name.isNotBlank()) tile.address else app
+                    if (sub.isNotBlank()) UsosText(sub, UsosType.SmallName, UsosColors.TextSecondary, maxLines = 1)
                 }
             }
             else -> Column(Modifier.fillMaxSize().padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                PinGlyph(34.dp, accent)
+                DestinationGlyph(icon, 30.dp, accent)
                 Spacer(Modifier.height(8.dp))
-                UsosText(name, UsosType.TileName, UsosColors.Text)
+                UsosText(name, UsosType.TileName, UsosColors.Text, maxLines = 1)
             }
         }
     }
@@ -243,8 +279,12 @@ private fun Avatar(c: TileContact, size: Dp, interactive: Boolean, showName: Boo
         Modifier.then(if (interactive) Modifier.tap(onLongClick = onLongPress) { onClick() } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        val context = LocalContext.current
+        val photo = remember(c.photo) { ChatShortcuts.loadPhoto(context, c.photo)?.asImageBitmap() }
         Box(Modifier.size(size)) {
-            Box(Modifier.fillMaxSize().background(LocalAccent.current, CircleShape), contentAlignment = Alignment.Center) {
+            if (photo != null) {
+                Image(photo, null, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+            } else Box(Modifier.fillMaxSize().background(LocalAccent.current, CircleShape), contentAlignment = Alignment.Center) {
                 UsosText(initialsOf(c.name), UsosType.SmallCode, LocalOnAccent.current)
             }
             AppGlyph(
@@ -332,7 +372,7 @@ private fun TransportButton(kind: Transport, big: Boolean, description: String, 
     val bg = if (filled) LocalAccent.current else Color.Transparent
     val fg = if (filled) LocalOnAccent.current else UsosColors.Text
     Box(
-        Modifier.size(d).background(bg, CircleShape)
+        Modifier.requiredSize(d).background(bg, CircleShape)
             .then(if (filled) Modifier else Modifier.border(1.dp, UsosColors.BorderStrong, CircleShape))
             .semantics { contentDescription = description }.tap { onClick() },
         contentAlignment = Alignment.Center,
@@ -417,12 +457,14 @@ fun MusicTile(
                     if (!tall) SmartBars(playing, if (playing) accent else UsosColors.TextSecondary, Modifier.size(if (wide) 40.dp else 24.dp, 14.dp))
                 }
                 if (tall) {
-                    Spacer(Modifier.weight(1f))
-                    SmartBars(playing, if (playing) accent else UsosColors.BorderStrong, Modifier.fillMaxWidth().height(36.dp))
-                    Spacer(Modifier.height(10.dp))
-                    UsosText(title, UsosType.PieceData, UsosColors.Text, maxLines = 2)
-                    if (subtitle.isNotBlank()) UsosText(subtitle, UsosType.Label, UsosColors.TextSecondary, maxLines = 2)
-                    Spacer(Modifier.height(10.dp))
+                    // El texto ocupa lo que sobra (una línea cada uno) y los botones mantienen siempre su tamaño.
+                    Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Bottom) {
+                        SmartBars(playing, if (playing) accent else UsosColors.BorderStrong, Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 36.dp))
+                        Spacer(Modifier.height(8.dp))
+                        UsosText(title, UsosType.PieceData, UsosColors.Text, maxLines = 1)
+                        if (subtitle.isNotBlank()) UsosText(subtitle, UsosType.Label, UsosColors.TextSecondary, maxLines = 1)
+                    }
+                    Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                         if (wide && session != null) {
                             TransportButton(Transport.PREV, false, dPrev) { session.controller.transportControls.skipToPrevious() }
@@ -438,8 +480,8 @@ fun MusicTile(
                     Spacer(Modifier.weight(1f))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            UsosText(title, UsosType.PieceData, UsosColors.Text)
-                            if (subtitle.isNotBlank()) UsosText(subtitle, UsosType.SmallName, UsosColors.TextSecondary)
+                            UsosText(title, UsosType.PieceData, UsosColors.Text, maxLines = 1)
+                            if (subtitle.isNotBlank()) UsosText(subtitle, UsosType.SmallName, UsosColors.TextSecondary, maxLines = 1)
                         }
                         Spacer(Modifier.size(8.dp))
                         TransportButton(playKind, false, dPlay, onPlay)
@@ -502,11 +544,24 @@ fun DestinationEditor(
     var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
     var address by rememberSaveable { mutableStateOf(initial?.address.orEmpty()) }
     var pkg by rememberSaveable { mutableStateOf(initial?.appPackage.orEmpty()) }
+    var icon by rememberSaveable { mutableStateOf(DestinationIcon.of(initial?.icon.orEmpty()).name) }
     val id = rememberSaveable { initial?.id ?: CustomTiles.newId() }
     val defaultName = stringResource(R.string.stile_default_dest)
     EditorScaffold(stringResource(R.string.stile_dest_title), onClose) {
         EditorField(stringResource(R.string.stile_name_label), name, stringResource(R.string.stile_name_hint_dest), { name = it })
         EditorField(stringResource(R.string.stile_address_label), address, stringResource(R.string.stile_address_hint), { address = it })
+        UsosText(stringResource(R.string.stile_icon_label), UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 20.dp, bottom = 8.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DestinationIcon.entries.forEach { d ->
+                val sel = icon == d.name
+                val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+                Box(
+                    Modifier.size(52.dp).background(if (sel) LocalAccent.current else UsosColors.Surface, shape)
+                        .border(1.dp, UsosColors.Border, shape).tap { icon = d.name },
+                    contentAlignment = Alignment.Center,
+                ) { DestinationGlyph(d, 24.dp, if (sel) LocalOnAccent.current else UsosColors.Text) }
+            }
+        }
         UsosText(stringResource(R.string.stile_nav_label), UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 20.dp, bottom = 8.dp))
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             UsosPill(stringResource(R.string.stile_nav_any), filled = pkg.isEmpty(), onClick = { pkg = "" })
@@ -517,7 +572,7 @@ fun DestinationEditor(
             UsosPill(
                 stringResource(R.string.stile_save), filled = true, enabled = address.isNotBlank(),
                 onClick = {
-                    onSave(CustomTile(id = id, kind = TileKind.DEST, name = name.trim().ifBlank { defaultName }, address = address.trim(), appPackage = pkg))
+                    onSave(CustomTile(id = id, kind = TileKind.DEST, name = name.trim().ifBlank { defaultName }, address = address.trim(), appPackage = pkg, icon = icon))
                 },
             )
             if (onDelete != null) UsosPill(stringResource(R.string.stile_delete), filled = false, onClick = onDelete)
@@ -544,14 +599,37 @@ fun ContactsEditor(
         runCatching {
             context.contentResolver.query(
                 uri,
-                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER,
+                    ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
+                ),
                 null, null, null,
             )?.use { c ->
                 if (c.moveToFirst() && contacts.size < CustomTiles.MAX_CONTACTS) {
-                    contacts.add(TileContact(name = c.getString(0).orEmpty(), phone = c.getString(1).orEmpty(), app = ContactApp.WHATSAPP))
+                    // Foto de la agenda (necesita permiso de contactos; sin él quedan las iniciales).
+                    val photo = c.getString(2)?.let { ChatShortcuts.saveContactPhoto(context, Uri.parse(it)) }.orEmpty()
+                    contacts.add(TileContact(name = c.getString(0).orEmpty(), phone = c.getString(1).orEmpty(), app = ContactApp.WHATSAPP, photo = photo))
                 }
             }
         }
+    }
+    val launchPicker = { picker.launch(Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { launchPicker() }
+    var chats by remember { mutableStateOf<List<ChatShortcut>?>(null) }
+    chats?.let { list ->
+        ChatPicker(list, onPick = { s ->
+            chats = null
+            if (contacts.size < CustomTiles.MAX_CONTACTS) {
+                val app = if (s.packageName.contains("telegram") || s.packageName.contains("challegram")) ContactApp.TELEGRAM else ContactApp.WHATSAPP
+                contacts.add(
+                    TileContact(
+                        name = s.label, app = app, shortcutId = s.id, shortcutPackage = s.packageName,
+                        photo = ChatShortcuts.saveShortcutIcon(context, s),
+                    ),
+                )
+            }
+        }, onClose = { chats = null })
+        return
     }
 
     EditorScaffold(stringResource(R.string.stile_contacts_title), onClose) {
@@ -564,9 +642,9 @@ fun ContactsEditor(
                     .border(1.dp, UsosColors.Border, shape).padding(14.dp),
             ) {
                 UsosText(c.name, UsosType.Pill, UsosColors.Text)
-                UsosText(c.phone, UsosType.SmallName, UsosColors.TextSecondary)
+                UsosText(if (c.shortcutId.isNotEmpty()) stringResource(R.string.stile_chat_from_app) else c.phone, UsosType.SmallName, UsosColors.TextSecondary)
                 Spacer(Modifier.height(10.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (c.shortcutId.isEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ContactApp.entries.forEach { app ->
                         UsosPill(contactAppLabel(app), filled = c.app == app, onClick = { contacts[i] = c.copy(app = app) })
                     }
@@ -577,9 +655,13 @@ fun ContactsEditor(
         }
         Spacer(Modifier.height(12.dp))
         if (contacts.size < CustomTiles.MAX_CONTACTS) {
-            UsosPill(stringResource(R.string.stile_add_contact), filled = false, onClick = {
-                picker.launch(Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI))
-            })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                UsosPill(stringResource(R.string.stile_add_contact), filled = false, onClick = {
+                    if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED) launchPicker()
+                    else permission.launch(android.Manifest.permission.READ_CONTACTS)
+                })
+                UsosPill(stringResource(R.string.stile_add_chat), filled = false, onClick = { chats = ChatShortcuts.list(context) })
+            }
         } else {
             UsosText(stringResource(R.string.stile_contacts_full), UsosType.Label, UsosColors.TextSecondary)
         }
@@ -592,6 +674,31 @@ fun ContactsEditor(
                 },
             )
             if (onDelete != null) UsosPill(stringResource(R.string.stile_delete), filled = false, onClick = onDelete)
+        }
+    }
+}
+
+/** Chats y grupos que publican WhatsApp/Telegram como accesos directos (los recientes). */
+@Composable
+private fun ChatPicker(list: List<ChatShortcut>, onPick: (ChatShortcut) -> Unit, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val pm = context.packageManager
+    EditorScaffold(stringResource(R.string.stile_chats_title), onClose) {
+        if (list.isEmpty()) {
+            UsosText(stringResource(R.string.stile_chats_none), UsosType.Label, UsosColors.TextSecondary, Modifier.padding(top = 16.dp))
+        }
+        list.forEach { s ->
+            val shape = RoundedCornerShape(UsosDimens.RadiusPiece)
+            val appName = remember(s.packageName) {
+                runCatching { pm.getApplicationLabel(pm.getApplicationInfo(s.packageName, 0)).toString() }.getOrDefault(s.packageName)
+            }
+            Column(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp).background(UsosColors.Surface, shape)
+                    .border(1.dp, UsosColors.Border, shape).tap { onPick(s) }.padding(14.dp),
+            ) {
+                UsosText(s.label, UsosType.Pill, UsosColors.Text, maxLines = 1)
+                UsosText(appName.uppercase(), UsosType.SmallTag, UsosColors.TextSecondary)
+            }
         }
     }
 }

@@ -1,5 +1,9 @@
 package com.usos.launcher.ui.search
 
+import com.usos.launcher.ui.theme.UsosPill
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import com.usos.launcher.ui.theme.themed
 import androidx.compose.ui.res.stringResource
 import com.usos.launcher.R
@@ -92,6 +96,7 @@ fun SearchOverlay(
     onAsk: (String) -> Unit = {},
     restEndInset: Dp = 0.dp,
     pwaKeywords: Set<String> = emptySet(),
+    tabs: Boolean = false,
 ) {
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -124,7 +129,11 @@ fun SearchOverlay(
         val restTop = maxHeight - navBar - 12.dp - SearchBarRestHeight
         val topY = statusTop + 8.dp
 
-        val groups = remember(items, query, pwaKeywords) { SearchFilter.groups(items, query, pwaKeywords) }
+        val allGroups = remember(items, query, pwaKeywords) { SearchFilter.groups(items, query, pwaKeywords) }
+        // Pestañas (opcional): sin texto, una sección cada vez; al escribir se busca en todas.
+        var tab by rememberSaveable { mutableStateOf<String?>(null) }
+        val tabbed = tabs && query.isBlank()
+        val groups = if (tabbed && tab != null) allGroups.filter { it.section.name == tab }.ifEmpty { allGroups } else allGroups
         val showSettings = SearchFilter.matchesSettings(query)
         val listState = rememberLazyListState()
         Column(
@@ -136,6 +145,18 @@ fun SearchOverlay(
                 .padding(top = topY + SearchFieldHeight + 8.dp)
                 .imePadding(),
         ) {
+            if (tabbed) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                        .padding(start = UsosDimens.ScreenMargin, end = UsosDimens.ScreenMargin, top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    UsosPill(stringResource(R.string.search_tab_all), filled = tab == null, onClick = { tab = null })
+                    allGroups.forEach { g ->
+                        UsosPill(stringResource(g.section.titleRes).uppercase(), filled = tab == g.section.name, onClick = { tab = g.section.name })
+                    }
+                }
+            }
             LazyColumn(
                 Modifier.fillMaxSize(),
                 state = listState,

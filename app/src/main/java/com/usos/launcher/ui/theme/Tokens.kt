@@ -11,6 +11,8 @@ import androidx.compose.ui.unit.dp
 object UsosColors {
     val Background = Color(0xFF000000)
     val Surface = Color(0xFF111111)
+    /** Fondo de elementos dentro de una superficie (eventos del calendario). */
+    val SurfaceRaised = Color(0xFF1E1E1E)
     val Border = Color(0xFF2A2A2A)
     val BorderStrong = Color(0xFF4A4A4A)
     val Text = Color(0xFFFFFFFF)

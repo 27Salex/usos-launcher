@@ -28,4 +28,9 @@
     <string name="stile_app_call">LLAMAR</string>
     <string name="stile_default_dest">Destino</string>
     <string name="stile_default_contacts">Contactos</string>
+    <string name="stile_icon_label">ICONO</string>
+    <string name="stile_add_chat">AÑADIR CHAT O GRUPO</string>
+    <string name="stile_chats_title">CHATS Y GRUPOS</string>
+    <string name="stile_chats_none">No hay chats recientes. Abre el chat o grupo en WhatsApp o Telegram, vuelve y pulsa otra vez.</string>
+    <string name="stile_chat_from_app">CHAT DE LA APP</string>
 </resources>
